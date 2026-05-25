@@ -11,6 +11,12 @@ description: >
 allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion, Agent
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:mvp-phase — Vertical Slice Pre-Planner
 
 Forces a phase to start as a thin, end-to-end slice: one persona, one path, one surface. The

@@ -10,6 +10,12 @@ description: >
 allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion, Agent
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:undo — Dependency-Aware Rollback
 
 Reverts release-sdk commits with full dependency awareness. Three scopes (HEAD / plan / phase),

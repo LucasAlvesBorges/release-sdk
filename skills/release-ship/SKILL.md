@@ -8,6 +8,12 @@ description: >
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:ship — Publish a Verified Phase
 
 Final review → PR draft → `gh pr create` → cursor moves to `shipped`. No merge.

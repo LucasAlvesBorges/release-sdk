@@ -9,6 +9,33 @@ description: >
 allowed_tools: Read, Bash, Grep, Glob, Skill, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED — applies to all routed skills)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. This applies to every skill this router dispatches to.
+
+**Substitution map** (`gsd-<x>` → `release-<x>`):
+- `gsd-debugger` → `release-debugger`
+- `gsd-planner` → `release-planner`
+- `gsd-executor` → `release-executor`
+- `gsd-code-reviewer` → `release-code-reviewer`
+- `gsd-verifier` → `release-verifier`
+- `gsd-phase-researcher` → `release-phase-researcher`
+- `gsd-pattern-mapper` → `release-pattern-mapper`
+- `gsd-plan-checker` → `release-plan-checker`
+- `gsd-ui-researcher` → `release-ui-researcher`
+- `gsd-ui-checker` → `release-ui-checker`
+- `gsd-ui-auditor` → `release-ui-auditor`
+- `gsd-code-fixer` → `release-code-fixer`
+- `gsd-security-auditor` → `release-security-auditor`
+- `gsd-doc-writer` → `release-doc-writer`
+- `gsd-roadmapper` → `release-roadmapper`
+- `gsd-debug-session-manager` → `release-debug-session-manager`
+- (general rule) `gsd-<name>` → `release-<name>`
+
+Substituting `gsd-*` bypasses release-sdk hooks/audit/stack-dispatch and corrupts plugin isolation. If the matching `release-*` agent is missing, abort and surface the gap — do **not** fall back.
+
+---
+
 # /release:auto — Intent Router
 
 One entry point. User describes what they want; this skill picks the right

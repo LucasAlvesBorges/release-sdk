@@ -12,6 +12,12 @@ description: >
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:import — Mass GSD → release-sdk Importer
 
 Single-pass importer. After it runs once, every other release-sdk skill (`/release:status`,

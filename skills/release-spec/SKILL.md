@@ -6,6 +6,12 @@ description: >
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:spec — Stack-Aware Phase Specification
 
 Sharpens WHAT a phase will deliver. Produces SPEC.md with explicit scope, exclusions, open questions, and an ambiguity score (HIGH/MED/LOW). Runs BEFORE `/release:discuss`.

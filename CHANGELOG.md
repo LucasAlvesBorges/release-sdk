@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] — 2026-05-25
+
+### Fixed — Agent isolation hardening
+
+`gsd-*` agents from prior GSD installs (left in `~/.claude/agents/` or in project-scope `.claude/agents/` of GSD-imported repos) leak into the `subagent_type` list available to Claude. In sessions where both `gsd-debugger` and `release-debugger` are visible, Claude can substitute the GSD-named variant — bypassing release-sdk hooks, stack dispatch, and audit trail.
+
+- **All 16 skills that spawn agents** now carry an `## Agent Policy (LOCKED)` block immediately after frontmatter forbidding `gsd-*` substitution and stating the `gsd-<x>` → `release-<x>` rule.
+- **`/release:auto`** carries the extended policy with a full substitution map covering 16 explicit agent mappings.
+- Affected skills: `release-ai-phase`, `release-auto`, `release-autonomous`, `release-debug`, `release-discuss`, `release-import`, `release-init`, `release-mvp-phase`, `release-plan`, `release-quick`, `release-review`, `release-ship`, `release-spec`, `release-ui-phase`, `release-undo`, `release-verify`.
+
+No agent definitions, hooks, or routing rules changed. Defense-in-depth only.
+
 ## [0.8.0] — 2026-05-25
 
 ### Added — Wave 5: Django+React operational gap closure (8 new files)

@@ -10,6 +10,12 @@ description: >
 allowed_tools: Agent, Read, Edit, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:quick — Bounded Task, Light Envelope
 
 Between `/release:fast` (no envelope) and `/release:plan` (full envelope).

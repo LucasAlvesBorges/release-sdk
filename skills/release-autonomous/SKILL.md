@@ -8,6 +8,12 @@ description: >
 allowed_tools: Skill, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:autonomous — Unattended Phase Loop
 
 Drives the full per-phase machinery (spec → discuss → plan → execute → verify-work) across

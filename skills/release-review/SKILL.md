@@ -6,6 +6,12 @@ description: >
 allowed_tools: Agent, Read, Bash, Grep, Glob
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:review — Adversarial Code Review (Django + React)
 
 Routes files to the correct reviewer based on extension. Produces unified REVIEW.md.

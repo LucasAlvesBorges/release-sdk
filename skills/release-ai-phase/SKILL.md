@@ -9,6 +9,12 @@ description: >
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:ai-phase — AI/LLM Feature Design Contract
 
 For phases that embed an LLM call inside a Django backend with a React frontend. Produces `AI-SPEC.md`

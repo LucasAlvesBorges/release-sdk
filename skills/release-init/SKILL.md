@@ -7,6 +7,12 @@ description: >
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
+## Agent Policy (LOCKED)
+
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
+
+---
+
 # /release:init — Full-Stack Project Initialization
 
 Captures project vision and architecture. Locks decisions as LOCK-XX in PROJECT.md.
