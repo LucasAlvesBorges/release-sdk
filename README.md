@@ -186,6 +186,15 @@ Override with `--backend`, `--frontend`, or `--fullstack` flags.
 
 ## Install
 
+### Marketplace (recommended)
+
+```
+/plugin marketplace add LucasAlvesBorges/release-sdk
+/plugin install release-sdk@release-sdk
+```
+
+Then restart Claude Code.
+
 ### Local clone (recommended for dev)
 
 ```bash

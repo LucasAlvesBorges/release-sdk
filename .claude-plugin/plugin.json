@@ -6,10 +6,10 @@
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
   },
-  "homepage": "https://github.com/lucasalvesborges/release-sdk",
+  "homepage": "https://github.com/LucasAlvesBorges/release-sdk",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lucasalvesborges/release-sdk"
+    "url": "https://github.com/LucasAlvesBorges/release-sdk"
   },
   "license": "MIT",
   "keywords": [
