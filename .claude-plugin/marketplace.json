@@ -1,0 +1,30 @@
+{
+  "plugins": [
+    {
+      "name": "release-sdk",
+      "id": "release-sdk",
+      "version": "0.2.0",
+      "description": "Full-stack acceleration kit (Django + React TSX) — context-aware /release:* routing, adversarial code review, 9-category security audit, TDD-first execution, Q1-Q7 + RC1-RC7 author checklists, N+1 detection, XSS/auth-token guards.",
+      "author": "Lucas Alves Borges",
+      "source": {
+        "type": "github",
+        "repo": "lucasalvesborges/release-sdk"
+      },
+      "tags": [
+        "django",
+        "drf",
+        "react",
+        "tsx",
+        "typescript",
+        "fullstack",
+        "tdd",
+        "security",
+        "performance",
+        "multi-tenancy",
+        "zustand",
+        "tanstack-query",
+        "vitest"
+      ]
+    }
+  ]
+}
