@@ -300,7 +300,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 
 ```
 /plugin marketplace add LucasAlvesBorges/release-sdk
-/plugin install release-sdk@release-sdk
+/plugin install release@release-sdk
 ```
 
 Then restart Claude Code.

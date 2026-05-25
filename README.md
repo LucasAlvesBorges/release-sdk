@@ -286,7 +286,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 
 ```
 /plugin marketplace add LucasAlvesBorges/release-sdk
-/plugin install release-sdk@release-sdk
+/plugin install release@release-sdk
 ```
 
 Reinicie o Claude Code.

@@ -262,7 +262,7 @@ This skill is stack-agnostic — it never spawns stack-specific agents directly.
 dispatched `/release:*` skills handle their own stack routing via `.release-planning/PROJECT.md`
 `stack:` field and per-phase frontmatter. For fullstack phases, the per-phase loop runs
 `/release:execute` once; that skill itself prompts for `--backend` vs `--frontend` if both
-plans exist (see `release-execute` SKILL.md).
+plans exist (see `execute` SKILL.md).
 
 *Drives the full release-sdk machinery unattended. One PASS gate per phase, one ABORT gate
 per failure, zero auto-ship. The orchestrator your roadmap deserves once the LOCKs hold.*

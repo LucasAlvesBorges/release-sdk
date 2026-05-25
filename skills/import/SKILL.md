@@ -181,7 +181,7 @@ Stubs (only seeded when `--no-stubs` is NOT set):
   `.planning/STATE.md` stays untouched)
 - `CLAUDE.md` (repo root) — delimited `<!-- release-sdk:start --> ... <!-- release-sdk:end -->`
   block injected. Idempotent: created if missing, block replaced if present, appended
-  otherwise. Every other byte preserved. See `release-init` SKILL for the block contents.
+  otherwise. Every other byte preserved. See `init` SKILL for the block contents.
 
 ### Layout after import (two coexisting trees)
 

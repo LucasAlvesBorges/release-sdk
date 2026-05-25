@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-05-25
+
+### BREAKING — Plugin rename + skill prefix drop
+
+Plugin invocation prefix shortened from `/release-sdk:release-<x>` to `/release:<x>`. Requires reinstall.
+
+#### Migration (required)
+
+```
+/plugin uninstall release-sdk@release-sdk
+/plugin marketplace update LucasAlvesBorges/release-sdk
+/plugin install release@release-sdk
+```
+
+After reinstall, all commands change form: `/release-sdk:release-debug` → `/release:debug`, `/release-sdk:release-plan` → `/release:plan`, etc.
+
+#### Changed
+
+- **`plugin.json`**: `name: "release-sdk"` → `name: "release"`. Repo/product name remains `release-sdk` (no GitHub rename).
+- **All 39 release-* skill directories** renamed without `release-` prefix: `skills/release-<x>/` → `skills/<x>/`. Performed via `git mv` so commit history follows.
+
+#### Removed — legacy django-* skill set (11 skills)
+
+The unified release-* skills with stack dispatch (`stack: "django"`) have covered Django since v0.7.0. The parallel `django-*` skill tree was kept for migration; now removed.
+
+- `skills/django-checklist/`
+- `skills/django-discuss/`
+- `skills/django-execute/`
+- `skills/django-init/`
+- `skills/django-phase/`
+- `skills/django-plan/`
+- `skills/django-review/`
+- `skills/django-roadmap/`
+- `skills/django-security/`
+- `skills/django-status/`
+- `skills/django-verify/`
+
+Functionality preserved via `/release:init`, `/release:plan`, `/release:execute`, `/release:review`, `/release:verify`, etc, which detect Django stack from `STATE.md` / `CONTEXT.md`.
+
+The four supporting `django-*` agents (`django-discuss-orchestrator`, `django-plan-checker`, `django-checklist-verifier`, `django-roadmapper`) are retained — they are spawned internally by `/release:discuss`, `/release:plan`, and `/release:checklist`.
+
 ## [0.8.1] — 2026-05-25
 
 ### Fixed — Agent isolation hardening
