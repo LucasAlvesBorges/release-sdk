@@ -1,15 +1,21 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "release-sdk",
+  "description": "Full-stack acceleration kit for Claude Code — Django + React TSX with context-aware routing, adversarial code review, 9-category security audit, TDD-first execution, RC1-RC7 + Q1-Q7 author checklists.",
+  "owner": {
+    "name": "Lucas Alves Borges",
+    "url": "https://github.com/LucasAlvesBorges"
+  },
   "plugins": [
     {
       "name": "release-sdk",
-      "id": "release-sdk",
       "version": "0.8.0",
+      "source": "./",
       "description": "Full-stack acceleration kit (Django + React TSX) — context-aware /release:* routing, SPEC/UI-SPEC/AI-SPEC design contracts, conversational UAT, retroactive security audit, parallel workstreams, prompt-injection scanner, 9-category security audit, TDD-first execution.",
-      "author": "Lucas Alves Borges",
-      "source": {
-        "type": "github",
-        "repo": "LucasAlvesBorges/release-sdk"
+      "author": {
+        "name": "Lucas Alves Borges"
       },
+      "category": "development",
       "tags": [
         "django",
         "drf",
