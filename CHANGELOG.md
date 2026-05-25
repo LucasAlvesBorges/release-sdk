@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-05-25
+
+### Added — GSD-gap closure (31 new files across 4 parallel waves)
+
+Spawned via 4 parallel agent waves (each agent in clean context, isolated by output path), this release closes the gap audit against upstream GSD across **planning, discussion, execution, research, debug, UI, eval, audit, docs** axes.
+
+#### P0 — Core loop (Wave 1)
+
+- **`release-plan-checker`** agent (`agents/release-plan-checker.md`) — pre-execution goal-backward verifier; every PLAN task must trace to a SPEC goal + a D-XX/LOCK-XX; stack-aware gates (Django N+1/raw SQL/`fields='__all__'`; React `localStorage`-auth/type contracts); produces `{NN}-PLAN-CHECK.md` with PASS/FAIL verdict.
+- **`release-assumptions-analyzer`** agent (`agents/release-assumptions-analyzer.md`) — deep codebase analysis for a phase before planning; surfaces hidden assumptions, ripple analysis, LOCK cross-check; emits `DP-XX` discuss prompts in `{NN}-ASSUMPTIONS.md`.
+- **`/release:autonomous`** skill (`skills/release-autonomous/SKILL.md`) — runs all remaining phases sequentially through spec → discuss → plan → execute → verify-work; aborts on first verify failure; never auto-ships.
+- **`release-integration-checker`** agent (`agents/release-integration-checker.md`) — cross-phase E2E workflow probe + data-contract check (DRF↔Zod for fullstack); produces `INTEGRATION-CHECK.md`.
+
+#### P1 — Research completeness (Wave 2)
+
+- **`release-research-synthesizer`** agent — consolidates parallel researcher outputs into `SUMMARY.md` with CONSENSUS/CONFLICT/UNIQUE buckets + deterministic agreement score.
+- **`/release:map-codebase`** skill + **`release-codebase-mapper`** agent — parallel 4-focus codebase analysis (tech, arch, quality, concerns) producing `.release-planning/codebase/*.md`.
+- **`release-project-researcher`** agent — pre-roadmap ecosystem research (competitors, reference architectures, pitfalls, regulatory) via WebSearch+WebFetch.
+- **`release-domain-researcher`** agent — pre-eval domain expertise (practitioner criteria, failure modes, regulatory landscape, benchmarks) for AI phases.
+- **`release-intel-updater`** agent — cached intel files at `.release-planning/intel/` (MODELS, ROUTES, COMPONENTS, MIGRATIONS, DEPENDENCIES, TEST-MAP).
+
+#### P2 — Adjacent quality gates (Wave 3)
+
+- **`release-debug-session-manager`** agent — multi-cycle `/release:debug` loop manager in isolated context; checkpoint-survives `/clear`; bubbles only consequential decisions; returns compact YAML summary.
+- **`/release:add-tests`** skill — backfill tests for phase UAT items OR regression coverage for a file; spawns `release-tdd-executor` in test-only mode; surfaces impl bugs to `{NN}-TEST-GAP.md` (never auto-fixes).
+- **`release-ui-checker`** agent + **`/release:ui-review`** skill + **`release-ui-auditor`** agent — UI-SPEC pre-validation (PASS/FLAG/BLOCK) + retroactive 6-pillar scored audit (accessibility, responsive, loading/error, i18n, type contracts, design system).
+- **`release-advisor-researcher`** agent — single gray-area D-XX decision research with options × 5 dims comparison + falsifiable recommendation.
+- **`/release:validate-phase`** skill + **`release-nyquist-auditor`** agent — every requirement must have ≥2 tests (Nyquist sampling); audit-only or auto-dispatch to `/release:add-tests` for gap-fill.
+- **`/release:plan-review-convergence`** skill — pipes `{NN}-PLAN.md` to external AI CLIs (codex, gemini) iteratively until HIGH=0 AND MED≤2.
+
+#### P3 — Eval + audit lifecycle (Wave 4)
+
+- **`release-eval-planner`** + **`release-eval-auditor`** agents + **`/release:eval-review`** skill — AI eval strategy upfront (failure modes, dims with rubrics, tooling, dataset, guardrails, monitoring) + retroactive coverage audit (COVERED/PARTIAL/MISSING per dim) with PII/injection escalation rule.
+- **`release-framework-selector`** agent — interactive decision matrix scoring 4-7 AI framework candidates (LangChain/LlamaIndex/LangGraph/Anthropic SDK/OpenAI/Vertex/Bedrock/Custom) on Fit/Latency/Cost/Compliance/Stack-Ergonomics.
+- **`/release:forensics`** skill — post-mortem investigation with 5-whys + recovery plan in `.release-planning/forensics/`.
+- **`/release:audit-fix`** skill — autonomous audit-to-fix loop (parallel auditors → classify → release-code-fixer per atomic commit → re-audit until clean or max-iters).
+- **`/release:audit-uat`** skill — cross-phase outstanding-UAT sweep with priority-ranked hot-list.
+- **`release-doc-writer`** + **`release-doc-classifier`** + **`release-doc-synthesizer`** + **`release-doc-verifier`** agents + **`/release:docs-update`** skill — full doc-ops family: write/classify/synthesize/verify project documentation grounded in `.release-planning/` + intel + codebase probes.
+
+### Changed
+
+- **`/release:auto` routing table extended** from 21 to 32 rules. Every new skill above is routable via freeform intent. All routes resolve to native `/release:*` skills — `/gsd:*` is not a fallback path.
+
+### Notes
+
+- This release adds capabilities without removing any; safe upgrade from v0.6.x.
+- Some new agents are not yet wired into the existing skill flows — `/release:plan` does not yet auto-spawn `release-plan-checker`, `/release:discuss` does not yet auto-spawn `release-assumptions-analyzer`, etc. Those integrations will land in v0.7.x as the agents are validated against real-world phases. For now, invoke them directly via `Agent({subagent_type: "release-plan-checker", ...})` or via `/release:auto` keyword routing.
+- 31 new files / ~8200 LOC added.
+
 ## [0.6.1] — 2026-05-25
 
 ### Added

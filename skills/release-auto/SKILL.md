@@ -75,7 +75,18 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 18 | "new feature", "design", "spec", "como modelar", "what should X do" | — | `/release:spec` |
 | 19 | bounded multi-file change (3-10 files, no new design): "add field X to model + migration + serializer", "swap library X for Y in {dirs}", "wire CSRF passthrough" | — | `/release:quick` |
 | 20 | trivial single-file edit: "rename X to Y", "add log line", "fix typo", "tweak comment", "change variable", "remove unused import" — single-file feel, <30 LOC | — | `/release:fast` |
-| 21 | anything else | — | `<ambiguous>` (Step 3 fallback) |
+| 21 | "run all remaining phases", "executa tudo", "termina o milestone", "walk away and finish" | `active_stage in {verified, shipped}` and ROADMAP has more phases | `/release:autonomous` |
+| 22 | "analyze repo", "map codebase", "scan stack", "what's in this repo" | — | `/release:map-codebase` |
+| 23 | "add test", "regression test for", "coverage for", "test gap fill" — additive testing on existing code | — | `/release:add-tests` |
+| 24 | "nyquist", "coverage audit", "validate coverage", "≥2 tests per req" | `active_phase != null` | `/release:validate-phase` |
+| 25 | "peer review plan", "cross-AI plan", "convergence", "have codex/gemini review the plan" | `active_stage == planned` | `/release:plan-review-convergence` |
+| 26 | "audit UI", "review UI debt", "UI quality scorecard", "6-pillar UI" | `active_phase != null` AND phase has UI | `/release:ui-review` |
+| 27 | "audit eval", "AI eval coverage", "eval-review", "are the rubrics covered" | `active_phase != null` AND phase has AI | `/release:eval-review` |
+| 28 | "post-mortem", "what went wrong", "diagnose the failure", "forensics" | something in STATE history shows failure | `/release:forensics` |
+| 29 | "burn down debt", "fix all issues", "audit-to-fix loop", "clean up the auditor findings" | `active_stage in {verified, shipped}` | `/release:audit-fix` |
+| 30 | "UAT status", "outstanding UATs", "cross-phase UAT", "which UATs still pending" | — | `/release:audit-uat` |
+| 31 | "update README", "regenerate docs", "refresh ARCHITECTURE.md", "docs out of date" | — | `/release:docs-update` |
+| 32 | anything else | — | `<ambiguous>` (Step 3 fallback) |
 
 ### Step 3 — Confidence + fallback
 
@@ -218,7 +229,11 @@ and rule 20 dispatches to `/release:fast`, both of which own their own inline / 
   release-sdk depends on it.
 - GSD analog: this mirrors `gsd-progress` ("unified situational command"). release-sdk
   now ships native equivalents for the high-traffic verbs (`/release:debug`,
-  `/release:quick`, `/release:fast`, `/release:ship`) so routing stays inside the
-  `/release:*` namespace. `/gsd:*` is no longer a fallback path here.
+  `/release:quick`, `/release:fast`, `/release:ship`, `/release:autonomous`,
+  `/release:map-codebase`, `/release:add-tests`, `/release:validate-phase`,
+  `/release:plan-review-convergence`, `/release:ui-review`, `/release:eval-review`,
+  `/release:forensics`, `/release:audit-fix`, `/release:audit-uat`,
+  `/release:docs-update`) so routing stays inside the `/release:*` namespace.
+  `/gsd:*` is no longer a fallback path here.
 - Future work: train a tiny embeddings-based classifier from real routing logs to replace
   the heuristic table. For now, the table is good enough and auditable.
