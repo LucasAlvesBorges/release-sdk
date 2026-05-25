@@ -1,26 +1,34 @@
 <!--
 # SPEC.md — Phase {NN}: {phase-slug}
 #
-# Optional artifact between ROADMAP entry and CONTEXT.md.
-# Use when WHAT the phase delivers is ambiguous and needs sharpening before /django:discuss.
-# Produced by /django:spec, consumed by /django:discuss.
+# Stack-aware artifact between ROADMAP entry and CONTEXT.md.
+# Use when WHAT the phase delivers is ambiguous and needs sharpening before /release:discuss.
+# Produced by /release:spec, consumed by /release:discuss.
 -->
 
 ---
 phase: {NN}
 slug: {phase-slug}
+stack: {django | react | fullstack}
 created: {YYYY-MM-DDTHH:MM:SSZ}
-ambiguity_score: {0-10}           # higher = more clarification needed before plan
+ambiguity_score: {HIGH | MED | LOW}
 ready_for_discuss: false | true
 ---
 
 # Phase {NN} Spec: {phase-name}
 
-## Problem Statement
+## Goal
 
-{In one paragraph: what observable problem does this phase solve, for whom, and how do we know it's solved?}
+{In one paragraph: what observable outcome does this phase deliver, for whom, and how do we know it's done?}
 
-## Scope (what's in)
+## Stack Detection
+
+- **Detected:** {django | react | fullstack}
+- **Signals:** {what files/keywords drove the detection — e.g., "manage.py present, ROADMAP goal mentions 'endpoint'"}
+- **LOCK source:** {.planning/RELEASE-LOCKS.md or .planning/PROJECT.md}
+- **Applicable LOCKs:** {LOCK-01, LOCK-02, ...}
+
+## Scope (in)
 
 {Bulleted list of user-observable capabilities delivered by this phase.}
 
@@ -28,7 +36,7 @@ ready_for_discuss: false | true
 - {Capability 2}
 - ...
 
-## Out of Scope (explicit exclusions)
+## Scope (out) — explicit exclusions
 
 {Bulleted list of related things this phase does NOT do. Surfaces scope-creep risk early.}
 
@@ -37,39 +45,61 @@ ready_for_discuss: false | true
 
 ## Acceptance Criteria
 
-{Measurable assertions a UAT tester would check to declare phase done.}
+{Measurable, observable assertions a UAT tester would check to declare phase done.}
 
 - [ ] {Specific observable behavior 1}
 - [ ] {Specific observable behavior 2}
 - [ ] {Specific observable behavior 3}
 
-## Constraints
+## Constraints (from LOCKs)
 
-{Non-negotiable boundaries this phase operates within. Map back to LOCK-XX in PROJECT.md.}
+{Non-negotiable boundaries this phase operates within. Map back to LOCK-XX in RELEASE-LOCKS.md / PROJECT.md.}
 
-- LOCK-01: Backend is Django 5.2 + DRF 3.16 (cannot use different framework)
-- LOCK-03: Multi-tenant — all data scoped by `empresa_id`
-- LOCK-07: TDD — failing test before implementation
-- {Phase-specific}: {e.g., "Must complete batch import of 10k rows in <30s"}
+- LOCK-01: {e.g., Django 5.2 + DRF 3.16}
+- LOCK-02: {e.g., Multi-tenant — `empresa_id` scoping}
+- {Phase-specific constraint}: {e.g., "Must export 10k rows in <30s"}
 
-## Open Questions (need user decision in discuss)
+## Open Questions
 
-{Numbered list. Each becomes a discussion topic in /django:discuss → decision D-XX in CONTEXT.md.}
+Questions surfaced during `/release:spec`. Each becomes a discussion topic in `/release:discuss` → locked Decision D-XX in CONTEXT.md.
 
-1. {Question} — options: A {tradeoff}, B {tradeoff}, recommendation: {A or B}
-2. {Question} — ...
-3. ...
+### HIGH (must resolve in /release:discuss)
+
+{Answers fundamentally shape what gets built — scope-defining.}
+
+1. {Question} — options: A {tradeoff}, B {tradeoff}; recommendation: {A or B or "user must decide"}
+2. ...
+
+### MED (should resolve in /release:discuss)
+
+{Answers shape UX boundaries or behavior in edge cases.}
+
+1. {Question}
+2. ...
+
+### LOW (Claude's discretion acceptable)
+
+{Answers can default to reasonable choice if user shrugs.}
+
+1. {Question} — default if not addressed: {reasonable default}
+2. ...
 
 ## Ambiguity Score
 
-{0-3: spec is clear, discuss-phase is brief.}
-{4-6: meaningful ambiguity, discuss covers 3-5 topics.}
-{7-10: spec is fuzzy, consider splitting phase or running /django:explore first.}
+- **LOW** (0-3 open questions, none HIGH) — spec is clear, `/release:discuss` will be brief.
+- **MED** (4-6 open questions, ≤2 HIGH) — meaningful ambiguity, discuss covers 3-5 topics.
+- **HIGH** (7+ open questions OR ≥3 HIGH) — spec is fuzzy. Consider splitting phase or running `/gsd-explore` first.
 
-**This spec scores: {N}**
+**This spec scores: {HIGH | MED | LOW}**
 
-**Justification:** {Why this score.}
+**Justification:** {Why this score — count of HIGH/MED/LOW questions, scope clarity, scope-creep risk.}
+
+{If HIGH:} **Recommendation:** {Split phase into {NN}a/{NN}b, or run `/gsd-explore` before `/release:discuss`.}
+
+## Next
+
+→ `/release:discuss {NN}`  (lock D-XX decisions for HOW)
 
 ---
 
-_Edit via /django:spec to re-run spec clarification. Or proceed directly to /django:discuss if ambiguity_score ≤ 3._
+_Edit via `/release:spec {NN}` to re-run spec clarification. Proceed directly to `/release:discuss` if `ambiguity_score` is LOW._

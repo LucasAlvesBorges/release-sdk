@@ -1,7 +1,7 @@
 {
   "name": "release-sdk",
   "description": "Full-stack acceleration kit (Django + React TSX) — context-aware routing, adversarial code review, 9-category security audit, TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
@@ -43,6 +43,17 @@
         ]
       },
       {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-read-injection-scanner.js\"",
+            "timeout": 3,
+            "statusMessage": "Scanning for injection patterns..."
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {
@@ -69,6 +80,19 @@
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/react-security-guard.js\"",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-context-monitor.js\"",
+            "timeout": 3,
+            "statusMessage": "Tracking context..."
           }
         ]
       }

@@ -109,13 +109,19 @@ Override with `--backend`, `--frontend`, or `--fullstack` flags.
 | Command | Stack | Purpose |
 |---|---|---|
 | `/release:init` | both | Initialize PROJECT.md (LOCK-01..LOCK-12) |
+| `/release:spec {NN}` | both | Clarify WHAT phase delivers (SPEC.md, ambiguity score) |
 | `/release:discuss {NN}` | both | Gather decisions (D-XX) for phase |
 | `/release:plan {NN}` | both | Generate PLAN.md with checklists + security |
+| `/release:ui-phase {NN}` | frontend | Produce UI-SPEC.md design contract (components, a11y, perf budgets) |
+| `/release:ai-phase {NN}` | both | Produce AI-SPEC.md (LLM framework, prompts, eval, guardrails) |
 | `/release:execute {NN}` | both | TDD-strict execution (pytest or vitest) |
-| `/release:verify {NN}` | both | Goal-backward verification |
+| `/release:verify {NN}` | both | Goal-backward static verification |
+| `/release:verify-work {NN}` | both | Conversational UAT walkthrough (UAT.md) |
 | `/release:review` | both | Adversarial code review (REVIEW.md) |
-| `/release:security` | both | 9-category security audit (SECURITY.md) |
+| `/release:security` | both | 9-category security audit author-time (SECURITY.md) |
+| `/release:secure-phase {NN}` | both | Retroactive threat-mitigation audit (scorecard) |
 | `/release:checklist` | both | Q1-Q7 + RC1-RC7 verification |
+| `/release:workstreams [sub]` | both | Manage parallel feature workstreams (list/create/switch/complete) |
 | `/release:status` | both | Cursor + recent activity + next action |
 | `/django:review` | backend | Django-only review |
 | `/django:security` | backend | Django-only security audit |
@@ -130,6 +136,8 @@ Override with `--backend`, `--frontend`, or `--fullstack` flags.
 | `django-prompt-guard.js` | PreToolUse:Write/Edit | Scans .planning/ for prompt injection patterns |
 | `react-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — warns on React component edit without test |
 | `react-security-guard.js` | PreToolUse:Write/Edit | Warns on localStorage token storage, dangerouslySetInnerHTML, eval |
+| `release-read-injection-scanner.js` | PreToolUse:Read | Scans files read for prompt-injection patterns (ignore-previous, role overrides, hidden text) |
+| `release-context-monitor.js` | PostToolUse:* | Tracks tool-call count; warns at 50/100/150 to summarize or `/release:pause-work` |
 
 ---
 
