@@ -86,7 +86,14 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 29 | "burn down debt", "fix all issues", "audit-to-fix loop", "clean up the auditor findings" | `active_stage in {verified, shipped}` | `/release:audit-fix` |
 | 30 | "UAT status", "outstanding UATs", "cross-phase UAT", "which UATs still pending" | — | `/release:audit-uat` |
 | 31 | "update README", "regenerate docs", "refresh ARCHITECTURE.md", "docs out of date" | — | `/release:docs-update` |
-| 32 | anything else | — | `<ambiguous>` (Step 3 fallback) |
+| 32 | "pause", "save state", "context handoff", "stopping for the day", "before /clear", "wrap for now" | — | `/release:pause-work` |
+| 33 | "resume", "pick up where I left off", "continue from yesterday", "restore session", session-id pattern `YYYY-MM-DD-HHhMM` | `.release-planning/sessions/` exists with ≥1 dir | `/release:resume-work` |
+| 34 | "undo", "rollback", "revert", "desfaz fase", "revert plan", "rollback phase" | `dirty_worktree == false` | `/release:undo` |
+| 35 | "MVP", "vertical slice", "thin slice", "user story", "SPIDR", "narrow scope", "smallest viable" | `active_phase != null` AND phase status is `not-started` | `/release:mvp-phase` |
+| 36 | "new milestone", "next version", "start v1.1", "start v2.0", "começar próximo release", "kick off milestone" | current milestone has 0 phases in `executing`/`planned` | `/release:new-milestone` |
+| 37 | "complete milestone", "close milestone", "finish v1.0", "fechar milestone", "ship milestone" | all phases in current milestone at stage `shipped` | `/release:complete-milestone` |
+| 38 | "milestone health", "audit milestone", "milestone status", "REQ coverage", "is the milestone ready" | current milestone has ≥1 phase | `/release:audit-milestone` |
+| 39 | anything else | — | `<ambiguous>` (Step 3 fallback) |
 
 ### Step 3 — Confidence + fallback
 
@@ -233,7 +240,9 @@ and rule 20 dispatches to `/release:fast`, both of which own their own inline / 
   `/release:map-codebase`, `/release:add-tests`, `/release:validate-phase`,
   `/release:plan-review-convergence`, `/release:ui-review`, `/release:eval-review`,
   `/release:forensics`, `/release:audit-fix`, `/release:audit-uat`,
-  `/release:docs-update`) so routing stays inside the `/release:*` namespace.
+  `/release:docs-update`, `/release:pause-work`, `/release:resume-work`,
+  `/release:undo`, `/release:mvp-phase`, `/release:new-milestone`,
+  `/release:complete-milestone`, `/release:audit-milestone`) so routing stays inside the `/release:*` namespace.
   `/gsd:*` is no longer a fallback path here.
 - Future work: train a tiny embeddings-based classifier from real routing logs to replace
   the heuristic table. For now, the table is good enough and auditable.

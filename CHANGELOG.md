@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-05-25
+
+### Added — Wave 5: Django+React operational gap closure (8 new files)
+
+Wave 5 closes the operational gap identified in the GSD v1.42 audit for Django+React projects. Adds milestone lifecycle, session handoff, dependency-aware undo, MVP vertical-slice planner, and wires four v0.7.0 orphan agents into their parent skills.
+
+#### Milestone lifecycle (3 skills + 1 agent)
+
+- **`/release:new-milestone`** (`skills/release-new-milestone/SKILL.md`) — initialize new milestone (v1.0 → v1.1). Bumps PROJECT.md milestone field, appends new ROADMAP.md section, optionally promotes backlog items to phases. Hard gate: zero phases in `executing`/`planned` in previous milestone.
+- **`/release:complete-milestone`** (`skills/release-complete-milestone/SKILL.md`) — closes current milestone. Runs `release-milestone-auditor` (hard gate). Moves `phases/{NN}-{slug}/` → `milestones/{name}/phases/{NN}-{slug}/`. Generates `SUMMARY.md` (timeline, commits, LOC, D-XX, REQ coverage). Updates ROADMAP archive section.
+- **`/release:audit-milestone`** (`skills/release-audit-milestone/SKILL.md`) — non-destructive standalone milestone audit. Writes timestamped `MILESTONE-AUDIT-{name}-{date}.md`. Read-only. Safe mid-milestone. `--hot-list` mode for compact view.
+- **`release-milestone-auditor`** agent (`agents/release-milestone-auditor.md`) — cross-checks REQ → phase → UAT → verify. Classifies each requirement COVERED / PARTIAL / GAP with file:line evidence. Adversarial stance: assumes ≥1 REQ has incomplete coverage even if all phases marked shipped.
+
+#### Session lifecycle (2 skills)
+
+- **`/release:pause-work`** (`skills/release-pause-work/SKILL.md`) — captures session handoff at `.release-planning/sessions/{YYYY-MM-DD-HHhMM}/` with HANDOFF.md, cursor.yaml, git-state.txt, open-files.txt, context.md. Multi-session history (additive, never overwrites). No commits, no worktree mutations.
+- **`/release:resume-work`** (`skills/release-resume-work/SKILL.md`) — restores context from a paused session. Interactive picker (most recent first), `--latest`, `--list`, `--clear-after`. Detects drift between paused cursor + current STATE.md, and between paused git state + current worktree. Never auto-executes the next-action command — prints it.
+
+#### Rollback (1 skill)
+
+- **`/release:undo`** (`skills/release-undo/SKILL.md`) — dependency-aware `git revert` (additive — never rewrites history). Three modes: default (HEAD), `--plan {NN.X}`, `--phase {NN}`. Reads per-phase MANIFEST.md to walk later phases and abort if any depends_on the target. `--force` to override. Cross-`main` boundary requires `--force` + warning.
+
+#### MVP planner (1 skill)
+
+- **`/release:mvp-phase`** (`skills/release-mvp-phase/SKILL.md`) — vertical-slice planner. Captures canonical user story (As a / I want to / So that, regex-validated), runs heuristic size check, offers SPIDR decomposition (Spoke / Paths / Interfaces / Data / Rules) for oversized stories. Deferred slices auto-append to ROADMAP Backlog. Then delegates to `/release:plan {NN} --mvp` (flag scheduled for v0.8.1 wire-in).
+
+#### v0.7.0 orphan agents wired (4 edits)
+
+- **`release-plan-checker`** now auto-spawned by `/release:plan` (backend, frontend, fullstack). Verdict gating: BLOCK → suggest `--revise`, WARN → log + proceed, PASS → commit. Replaces legacy `django-plan-checker` reference.
+- **`release-assumptions-analyzer`** now auto-spawned by `/release:discuss` immediately after stack detection, BEFORE D-XX questioning. DP-XX prompts from `ASSUMPTIONS.md` surfaced as "Hidden assumption — confirm or override:" questions in the dim 1-10 batch.
+- **`release-integration-checker`** now auto-spawned by `/release:verify` when ≥2 phases at stage `verified`/`shipped` in current milestone. Writes `.release-planning/INTEGRATION-CHECK.md` (milestone-scoped). Informational only — never gates per-phase verdict.
+- **`release-framework-selector`** now auto-spawned by `/release:ai-phase` between Q1 (provider) and Q2 (hosting model) when AI-SPEC.md has no `framework:` field OR `--reselect-framework` passed. Selector's recommendation prefills Q1's answer.
+
+### Changed
+
+- **`/release:auto` routing table extended** from 32 to 39 rules. New routes cover all 7 Wave 5 skills with explicit state guards (`dirty_worktree`, `sessions/` presence, milestone phase counts, current-milestone shipping status).
+
+### Notes
+
+- Wave 5 closes the GSD-substitution gap for Django+React projects. After v0.8.0, release-sdk is a drop-in replacement for GSD on any Django+React stack.
+- `/release:plan --mvp` flag (delegated by `/release:mvp-phase`) is scheduled for v0.8.1 — currently `/release:plan` ignores unknown flags. MVP ROADMAP mutations (Mode + SPIDR slice) already take effect and the planner reads them.
+- No removals. Safe upgrade from v0.7.x.
+- 7 new skills + 1 new agent + 4 wired skills = 12 files affected.
+
 ## [0.7.0] — 2026-05-25
 
 ### Added — GSD-gap closure (31 new files across 4 parallel waves)

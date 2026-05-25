@@ -54,6 +54,33 @@ Additional checks:
 - Serializer field names match Zod schema fields
 - Auth strategy consistent end-to-end
 
+## Cross-phase integration check (release-integration-checker)
+
+**Final optional step**, after per-phase VERIFICATION.md is written.
+
+Gate:
+```
+verified_or_shipped_count = count of phases in current milestone (from ROADMAP.md) at stage ∈ {verified, shipped}
+if verified_or_shipped_count >= 2:
+    spawn release-integration-checker
+else:
+    echo "Integration check skipped (only $verified_or_shipped_count phases at verified+, need 2)."
+```
+
+Spawn invocation:
+```
+Agent({
+  subagent_type: "release-integration-checker",
+  phases: [<NNs of all verified/shipped phases in current milestone>],
+  stack: "{django|react|fullstack}",   # auto-detect from PROJECT.md stack: field
+  milestone: "{label}"                  # from ROADMAP.md current milestone
+})
+```
+
+Output: `.release-planning/INTEGRATION-CHECK.md` (milestone-scoped, NOT inside a single phase directory — it spans phases).
+
+**Non-gating:** failures detected by the integration checker DO NOT change the per-phase verify verdict — this step is informational only. Print findings table to stdout so the user sees seam issues, but `{NN}-VERIFICATION.md` verdict stands as written by `release-phase-verifier`.
+
 ## Output
 
 ```
@@ -86,3 +113,7 @@ GAPS_FOUND → /release:plan 01 --gaps → /release:execute 01 --gaps
 ## Stack dispatch
 
 This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+
+## Notes / Constraints
+
+- v0.7.0 wires `release-integration-checker` as an OPTIONAL final step: spawns only when ≥2 phases in the current milestone are at stage `verified` or `shipped`. Writes milestone-scoped `.release-planning/INTEGRATION-CHECK.md` (not per-phase). Informational — does NOT change the per-phase verify verdict.

@@ -23,6 +23,7 @@ before planning so prompt structure, eval strategy, and guardrails are decided u
 /release:ai-phase 01 --provider openai
 /release:ai-phase 01 --provider langchain
 /release:ai-phase 01 --no-researcher # write AI-SPEC.md draft only, skip release-ai-researcher
+/release:ai-phase 01 --reselect-framework  # force re-spawn of release-framework-selector even if framework already set
 ```
 
 > Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
@@ -102,6 +103,33 @@ Options offered:
 - **Other / custom**.
 
 Skipped if `--provider` flag set.
+
+#### Q1.5 — Framework selection (release-framework-selector)
+
+After Q1 (provider) is answered (or extracted from SPEC/flag), spawn `release-framework-selector` when:
+
+- AI-SPEC.md (existing draft or template) has NO `framework:` field set, OR
+- User passed `--reselect-framework`, OR
+- User passed `--provider X` AND the selector has never been run for this phase (run as a sanity check — see warning below).
+
+Spawn invocation:
+```
+Agent({
+  subagent_type: "release-framework-selector",
+  use_case: "{SPEC.md goal verbatim}",
+  phase: "{NN}-{slug}",
+  latency_target_ms: <optional, parsed from SPEC.md if a latency target is mentioned>,
+  compliance: <optional list, parsed from PROJECT.md LOCKs — e.g. ["LGPD", "GDPR"] if present>
+})
+```
+
+The selector produces `.release-planning/phases/{NN}-{slug}/{NN}-FRAMEWORK-DECISION.md` with a scored recommendation. After it writes:
+1. Read `{NN}-FRAMEWORK-DECISION.md`.
+2. Use the `selected:` field as the **prefilled answer** for Q1 (or as confirmation if the user already chose).
+3. If user passed `--provider X` AND `selected` differs from `X` → emit a **warning**: `"--provider X overrides selector's recommendation ({selected}). Proceeding with X. Run /release:ai-phase {NN} --reselect-framework to re-evaluate."` Lock the user's explicit choice.
+4. If no `--provider` flag → ask the user (via `AskUserQuestion`) to confirm the selector's recommendation before proceeding to Q2.
+
+Skip the spawn entirely if the AI-SPEC.md already carries a `framework:` field AND `--reselect-framework` was not passed.
 
 #### Q2 — Hosting architecture
 
@@ -203,8 +231,13 @@ Next: /release:plan {NN} --fullstack
 
 ```
 .release-planning/phases/{NN}-{slug}/
-  AI-SPEC.md             # design contract (this skill's output)
+  AI-SPEC.md                   # design contract (this skill's output)
+  {NN}-FRAMEWORK-DECISION.md   # scored framework recommendation (release-framework-selector, v0.7.0)
 ```
+
+## Notes / Constraints
+
+- v0.7.0 wires `release-framework-selector` between Q1 (provider) and Q2 (hosting). Spawned when `framework:` field is missing in AI-SPEC.md, or `--reselect-framework` is passed. With explicit `--provider` flag, the selector still runs as a sanity check but the user's explicit provider wins (with a divergence warning). Produces `{NN}-FRAMEWORK-DECISION.md` whose `selected:` field prefills Q1's answer.
 
 ## Example
 

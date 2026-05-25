@@ -48,8 +48,8 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 3. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
 4. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
 5. Spawn `release-feature-planner` → `{NN}-PLAN.md`.
-6. Spawn `django-plan-checker` → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK).
-7. If BLOCK: report blockers, suggest `--revise`.
+6. Spawn `release-plan-checker` (`Agent({subagent_type: "release-plan-checker", stack: "django", phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`) → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK).
+7. If BLOCK: report blockers, suggest `--revise`. If WARN: log to PLAN-CHECK.md but proceed. If PASS: continue.
 8. Commit artifacts.
 
 ### frontend
@@ -58,8 +58,9 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 2. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
 3. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
 4. Spawn `release-feature-planner` → `{NN}-PLAN.md`.
-5. Verify plan manually: RC1-RC7 present, security matrix present, TDD ordering correct.
-6. Commit artifacts.
+5. Spawn `release-plan-checker` (`Agent({subagent_type: "release-plan-checker", stack: "react", phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`) → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK). If BLOCK: report + suggest `--revise`; if WARN: proceed; if PASS: continue.
+6. Verify plan manually: RC1-RC7 present, security matrix present, TDD ordering correct.
+7. Commit artifacts.
 
 ### fullstack (worktree-isolated parallel planning)
 
@@ -83,8 +84,10 @@ git worktree add --detach "$WT_BASE/{NN}-{slug}-frontend"
 
 Spawn both pipelines in one message — independent worktrees → safe parallel:
 
-- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `django-plan-checker` execute in `$WT_BASE/{NN}-{slug}-backend`
-- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner` execute in `$WT_BASE/{NN}-{slug}-frontend`
+- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `release-plan-checker` (stack=`django`, phase_dir scoped to backend worktree) execute in `$WT_BASE/{NN}-{slug}-backend`
+- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `release-plan-checker` (stack=`react`, phase_dir scoped to frontend worktree) execute in `$WT_BASE/{NN}-{slug}-frontend`
+
+Each pipeline's checker call: `Agent({subagent_type: "release-plan-checker", stack: <django|react>, phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`. Verdict handling: BLOCK → abort merge, report blockers, suggest `--revise`; WARN → log + proceed; PASS → continue to merge phase.
 
 Each pipeline writes its `{NN}-PLAN-*.md` + research artifacts under that worktree's `.release-planning/phases/{NN}-{slug}/`.
 
@@ -181,3 +184,7 @@ Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, t
 ## Stack dispatch
 
 This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+
+## Notes / Constraints
+
+- `release-plan-checker` (v0.7.0) is auto-spawned after `release-feature-planner` for ALL stacks (backend, frontend, fullstack), BEFORE commit. Verdict gates: BLOCK aborts (suggests `--revise`); WARN logs to PLAN-CHECK.md and proceeds; PASS commits. Replaces legacy `django-plan-checker`.
