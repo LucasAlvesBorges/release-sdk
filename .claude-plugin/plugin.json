@@ -7,10 +7,7 @@
     "email": "cco@startecservicos.com.br"
   },
   "homepage": "https://github.com/LucasAlvesBorges/release-sdk",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/LucasAlvesBorges/release-sdk"
-  },
+  "repository": "https://github.com/LucasAlvesBorges/release-sdk",
   "license": "MIT",
   "keywords": [
     "django",
