@@ -63,39 +63,39 @@ Override with `--backend`, `--frontend`, or `--fullstack` flags.
 
 ## What's inside
 
-### Agents — Backend (Django)
+### Agents — Stack-dispatched (`release-*`)
+
+Each `release-*` agent accepts `stack: django | react | fullstack` input and dispatches to `<django-stack>` / `<react-stack>` / `<fullstack-stack>` blocks. Single agent definition, all stack-specific expertise preserved.
+
+| Agent | Role |
+|---|---|
+| `release-feature-researcher` | Probes codebase before planning — Django (apps, FK graph, migrations, patterns) OR React (components, Zustand stores, TanStack Query keys, router) |
+| `release-pattern-mapper` | Maps each new file to closest existing analog — Django models/views/serializers OR React components/hooks/stores |
+| `release-feature-planner` | Writes PLAN.md: TDD ordering + Q1-Q7 (Django) OR RC1-RC7 (React) + 9 security categories |
+| `release-tdd-executor` | RED → GREEN → REFACTOR → SECURITY, atomic Conventional Commits. Stack-aware verification (pytest+migrations OR vitest+tsc) |
+| `release-phase-verifier` | Goal-backward: D-XX implemented? Checklist evidence present? Stack-specific LOCK enforced (`.delay(` for Django, `localStorage.*token` for React)? |
+| `release-code-reviewer` | Django (N+1, mass assignment, RLS bypass, `.delay()`) OR React (RC1-RC7, stale closures, missing `isLoading`, `any` types, auth tokens) |
+| `release-code-fixer` | Applies REVIEW.md fixes atomically, per-finding commits, stack-specific verification after each Edit |
+| `release-security-auditor` | 9-category audit per stack — Django (cross-tenant, IDOR, mass-assign, JWT, CSRF) OR React (XSS, auth storage, CSRF, IDOR, secrets) |
+| `release-test-auditor` | Coverage matrix — Django (smoke/race/memray/security/celery/signal/permission) OR React (5 dimensions: unit/RTL/MSW/security/a11y) |
+| `release-debugger` | 10 bug shape catalog per stack — Django (N+1, migration drift, RLS thread-var, Celery, F() lost-update) OR React (stale closure, infinite rerender, stale TanStack Query, MSW mismatch, hydration) |
+
+### Agents — Singletons
 
 | Agent | Role |
 |---|---|
 | `django-discuss-orchestrator` | 10-dimension questions → D-XX locked decisions |
 | `django-roadmapper` | Decomposes milestone into vertical-slice phases |
-| `django-feature-researcher` | Probes apps/, FK graph, migration state, patterns |
-| `django-pattern-mapper` | Maps each new file to closest existing analog |
-| `django-feature-planner` | Writes PLAN.md: TDD ordering + Q1-Q7 + 9 security |
 | `django-plan-checker` | PLAN.md audit before execute (goal-backward + LOCK + Q1-Q7) |
-| `django-tdd-executor` | RED → GREEN → REFACTOR → SECURITY, atomic commits |
-| `django-phase-verifier` | Goal-backward verification — code delivers what PLAN promised? |
-| `django-code-reviewer` | N+1, mass assignment, RLS bypass, .delay() vs .delay_on_commit() |
-| `django-security-auditor` | 9-category audit (cross-tenant, IDOR, mass-assign, JWT, etc.) |
 | `django-checklist-verifier` | Q1-Q7 grep-based PASS/FAIL/N-A |
-| `django-test-auditor` | Coverage matrix: smoke + race + memray + 9 security |
-| `django-debugger` | 10 Django bug shapes (N+1 lazy, migration drift, RLS thread-var, etc.) |
-| `django-code-fixer` | Applies REVIEW.md fixes atomically, per-finding commits |
-
-### Agents — Frontend (React TSX)
-
-| Agent | Role |
-|---|---|
-| `react-feature-researcher` | Probes components, Zustand stores, TanStack Query keys, router |
-| `react-pattern-mapper` | Maps each new file to closest existing React analog |
-| `react-feature-planner` | Writes PLAN.md: TDD ordering + RC1-RC7 + 9 security categories |
-| `react-tdd-executor` | RED → GREEN → REFACTOR → SECURITY, atomic commits |
-| `react-phase-verifier` | Goal-backward: D-XX implemented? RC1-RC7 present? vitest + tsc clean? |
-| `react-code-reviewer` | RC1-RC7 violations, stale closures, missing isLoading, any types, auth tokens |
-| `react-security-auditor` | 9-category audit (XSS, auth storage, CSRF, IDOR, secrets, etc.) |
-| `react-test-auditor` | Coverage map: unit + RTL + MSW + security + a11y |
-| `react-debugger` | 10 React bug shapes (stale closure, infinite rerender, stale query, etc.) |
-| `react-code-fixer` | Applies REVIEW.md fixes atomically, per-finding commits |
+| `release-ai-researcher` | AI/LLM framework research for `/release:ai-phase` |
+| `release-ui-researcher` | UI design contract author for `/release:ui-phase` |
+| `release-spec-clarifier` | SPEC.md ambiguity scoring before discuss-phase |
+| `release-import-orchestrator` | One-shot GSD → release-sdk migration of `.planning/` tree |
+| `release-uat-conductor` | Conversational UAT verification |
+| `release-wave-executor` | Parallel wave execution via git worktrees |
+| `release-django-security-retro` | Retroactive Django security audit |
+| `release-react-security-retro` | Retroactive React security audit |
 
 ### Author Checklists
 
