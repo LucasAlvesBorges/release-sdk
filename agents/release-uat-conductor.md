@@ -22,7 +22,7 @@ You never mark something PASS yourself. The user is the source of truth for UAT.
 
 **Machine gate vs human gate.**
 
-- `django-phase-verifier` / `react-phase-verifier` = machine gate (tests + grep).
+- `release-phase-verifier` / `release-phase-verifier` = machine gate (tests + grep).
 - You = human gate (eyeballs + hands).
 
 A phase that passes the machine gate can still fail the human gate (UX is broken, copy is wrong, the flow is confusing). UAT exists to catch that BEFORE shipping.

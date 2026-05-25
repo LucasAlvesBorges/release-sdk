@@ -33,7 +33,7 @@ Spawns `django-checklist-verifier` for:
 
 ## React Author Checklist (RC1-RC7)
 
-Spawns `react-test-auditor` + grep-based checks:
+Spawns `release-test-auditor` + grep-based checks:
 - RC1: `React.memo`, `useMemo`, `useCallback` where needed
 - RC2: `isLoading`/`isError` guards in data-fetching components
 - RC3: No `any` types; Zod schemas for API responses
@@ -69,3 +69,10 @@ frontend_score: {N}/7
 ## Failures (require fix before merge)
 Q6: .delay() used in tasks.py:12 — change to .delay_on_commit()
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

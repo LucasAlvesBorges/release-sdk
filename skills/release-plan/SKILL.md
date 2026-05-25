@@ -2,7 +2,7 @@
 description: >
   Context-aware phase planner. Reads ROADMAP.md + CONTEXT.md to detect if phase is backend (Django),
   frontend (React), or fullstack — then routes to the appropriate planner pipeline.
-  Django → django-feature-planner. React → react-feature-planner. Fullstack → both in parallel.
+  Django → release-feature-planner. React → release-feature-planner. Fullstack → both in parallel.
   Use when: phase has been discussed (CONTEXT.md exists), ready to plan.
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
@@ -45,9 +45,9 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 ### backend
 1. Load LOCK context: read `.planning/RELEASE-LOCKS.md` if exists (GSD import), else `.planning/PROJECT.md`. Both may coexist — RELEASE-LOCKS.md takes precedence for LOCK-XX values.
 2. Load ROADMAP phase entry, CONTEXT.md.
-3. Spawn `django-feature-researcher` → `{NN}-RESEARCH.md`.
-4. Spawn `django-pattern-mapper` → `{NN}-PATTERNS.md`.
-5. Spawn `django-feature-planner` → `{NN}-PLAN.md`.
+3. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
+4. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
+5. Spawn `release-feature-planner` → `{NN}-PLAN.md`.
 6. Spawn `django-plan-checker` → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK).
 7. If BLOCK: report blockers, suggest `--revise`.
 8. Commit artifacts.
@@ -55,9 +55,9 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 ### frontend
 1. Load LOCK context: read `.planning/RELEASE-LOCKS.md` if exists, else `.planning/PROJECT.md`.
 2. Load ROADMAP phase entry, CONTEXT.md.
-2. Spawn `react-feature-researcher` → `{NN}-RESEARCH.md`.
-3. Spawn `react-pattern-mapper` → `{NN}-PATTERNS.md`.
-4. Spawn `react-feature-planner` → `{NN}-PLAN.md`.
+2. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
+3. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
+4. Spawn `release-feature-planner` → `{NN}-PLAN.md`.
 5. Verify plan manually: RC1-RC7 present, security matrix present, TDD ordering correct.
 6. Commit artifacts.
 
@@ -83,8 +83,8 @@ git worktree add --detach "$WT_BASE/{NN}-{slug}-frontend"
 
 Spawn both pipelines in one message — independent worktrees → safe parallel:
 
-- `django-feature-researcher`, `django-pattern-mapper`, `django-feature-planner`, `django-plan-checker` execute in `$WT_BASE/{NN}-{slug}-backend`
-- `react-feature-researcher`, `react-pattern-mapper`, `react-feature-planner` execute in `$WT_BASE/{NN}-{slug}-frontend`
+- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `django-plan-checker` execute in `$WT_BASE/{NN}-{slug}-backend`
+- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner` execute in `$WT_BASE/{NN}-{slug}-frontend`
 
 Each pipeline writes its `{NN}-PLAN-*.md` + research artifacts under that worktree's `.planning/phases/{NN}-{slug}/`.
 
@@ -174,3 +174,10 @@ Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, t
 
 → Next: /release:execute 01 --backend  (then --frontend)
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

@@ -1,7 +1,7 @@
 ---
 description: >
   Context-aware phase executor. Detects backend/frontend phase type from PLAN.md, routes to
-  django-tdd-executor or react-tdd-executor. Supports --backend/--frontend flags for fullstack phases.
+  release-tdd-executor (stack-dispatched). Supports --backend/--frontend flags for fullstack phases.
   TDD-strict: RED → GREEN → REFACTOR → SECURITY. Atomic per-task commits.
   Use when: PLAN.md is ready (plan-checker PASS or WARN-accepted).
 allowed_tools: Agent, Read, Write, Edit, Bash, Grep, Glob
@@ -65,15 +65,15 @@ PR is opened from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
 
 ### backend (stack: django)
 Delegates entirely to `/django:execute` workflow:
-- Spawns `django-tdd-executor`
+- Spawns `release-tdd-executor`
 - RED → GREEN → REFACTOR → SECURITY (9-category) → RACE (if Q5) → MEMRAY (if Q7)
 - Conventional Commits: `test(app):`, `feat(app):`, `refactor(app):`
 - Verification: `pytest`, `ruff`, `makemigrations --check`
 - Produces: `{NN}-SUMMARY.md`
 
 ### frontend (stack: react-tsx)
-Delegates entirely to react-tdd-executor:
-- Spawns `react-tdd-executor`
+Delegates entirely to release-tdd-executor:
+- Spawns `release-tdd-executor`
 - RED → GREEN → REFACTOR → SECURITY (9-category)
 - Conventional Commits: `test(ui):`, `feat(ui):`, `refactor(ui):`
 - Verification: `vitest run`, `tsc --noEmit`
@@ -131,7 +131,7 @@ Safe only when wave tasks touch disjoint file sets. Wave executor verifies file 
 /release:execute 01
 
 → Reading PLAN.md frontmatter: stack: react-tsx
-→ Routing to react-tdd-executor
+→ Routing to release-tdd-executor
 
 → T01 RED: InvoiceList.test.tsx (8 failing tests)
    vitest: 8 failed ✓ (expected)
@@ -163,3 +163,10 @@ Safe only when wave tasks touch disjoint file sets. Wave executor verifies file 
 
 → Next: /release:verify 01
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

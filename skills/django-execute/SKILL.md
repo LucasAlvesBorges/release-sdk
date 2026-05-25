@@ -42,7 +42,7 @@ Executes a Django phase PLAN.md task-by-task with strict RED → GREEN → REFAC
 3. If `--resume`: check `.planning/STATE.md` cursor for last completed task
 4. Branch setup: checkout `feat/{NN}-{slug}` (create if missing, reuse if `--resume`)
 5. If `--waves`: spawn `release-wave-executor` (parallel via git worktree)
-   Else: spawn `django-tdd-executor` with `<plan_path>` config (serial)
+   Else: spawn `release-tdd-executor` with `<plan_path>` config (serial)
 6. Executor for each task in wave order:
    - **RED phase** (if `type: tdd-red`):
      - Write failing test file
@@ -126,7 +126,7 @@ vwx9012 test(frota): add failing tests for bulk import
 → Reading PLAN.md (7 tasks, wave structure: 0 → 1 → 2 → 3)
 → Reading PROJECT.md (LOCK-01 to LOCK-10)
 
-→ Spawning django-tdd-executor...
+→ Spawning release-tdd-executor...
 
 → T01 RED: tests/test_bulk_import.py (failing 5 tests)
    pytest: 5 failed ✓ (expected)
@@ -164,3 +164,10 @@ vwx9012 test(frota): add failing tests for bulk import
 
 → Next: /django:verify 01
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents (one agent per role, dispatched internally by `stack`). All agent spawns from this skill pass `stack: django` as input. The agents apply Django-stack rules from their `<django-stack>` blocks.

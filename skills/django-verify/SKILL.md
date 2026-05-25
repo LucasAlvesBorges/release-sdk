@@ -30,7 +30,7 @@ Verifies a phase actually delivered its goal — adversarially. Does NOT trust e
 3. Read `{NN}-SUMMARY.md` — note executor's claims (but don't trust).
 4. Read `.planning/PROJECT.md` — LOCK-XX.
 5. Read `.planning/ROADMAP.md` — phase `success_criteria`.
-6. Spawn `django-phase-verifier` agent.
+6. Spawn `release-phase-verifier` agent.
 7. Verifier performs 3-level audit per truth:
    - **L1 Artifact** — file/symbol exists
    - **L2 Substantive** — not stub (`pass`, `TODO`)
@@ -89,7 +89,7 @@ status: GAPS_FOUND
 → Reading CONTEXT.md... 6 D-XX decisions
 → Reading SUMMARY.md... executor reports 5/5 tasks done
 
-→ Spawning django-phase-verifier (adversarial mode)
+→ Spawning release-phase-verifier (adversarial mode)
 
 → Auditing truth T-01: "User can bulk-import CSV"
   L1 file exists ✓  L2 substantive ✓  L3 test_bulk_import passes ✓
@@ -114,3 +114,10 @@ status: GAPS_FOUND
 
 → Next: /django:plan 01 --gaps to plan fix
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents (one agent per role, dispatched internally by `stack`). All agent spawns from this skill pass `stack: django` as input. The agents apply Django-stack rules from their `<django-stack>` blocks.

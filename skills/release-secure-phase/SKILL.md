@@ -24,7 +24,7 @@ in the shipped code. Distinct from `/release:security` which is author-time guid
 | Tone | Recommends mitigations | Verifies mitigations exist |
 | Output | Inline guidance / SECURITY.md (open issues) | SECURITY.md scorecard (PASS/BLOCK/FLAG) |
 | Modifies code | No (advisory) | No (read-only audit) |
-| Agents | django-security-auditor / react-security-auditor | release-django-security-retro / release-react-security-retro |
+| Agents | release-security-auditor / release-security-auditor | release-django-security-retro / release-react-security-retro |
 
 ## Usage
 
@@ -158,3 +158,10 @@ Scorecard table format (see `templates/SECURITY.md`):
    Verdict: BLOCK (1 MISSING, 1 PARTIAL, 1 REGRESSION)
    Action items: 2
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

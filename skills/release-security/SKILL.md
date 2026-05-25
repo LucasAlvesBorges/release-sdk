@@ -1,7 +1,7 @@
 ---
 description: >
-  Context-aware 9-category security audit. Routes .py files to django-security-auditor and
-  .tsx/.ts files to react-security-auditor. Produces unified SECURITY.md.
+  Context-aware 9-category security audit. Routes .py files to release-security-auditor and
+  .tsx/.ts files to release-security-auditor. Produces unified SECURITY.md.
   Use when: feature complete, pre-merge, or periodic security review.
 allowed_tools: Agent, Read, Bash, Grep, Glob
 ---
@@ -22,7 +22,7 @@ Routes to the correct security auditor based on file type. Unified SECURITY.md o
 ## Routing logic
 
 1. Resolve scope: phase directory, explicit paths, or git diff.
-2. Split `.py` → `django-security-auditor`, `.tsx/.ts` → `react-security-auditor`.
+2. Split `.py` → `release-security-auditor`, `.tsx/.ts` → `release-security-auditor`.
 3. Run in parallel if both present.
 4. Merge into SECURITY.md with per-stack category tables.
 
@@ -78,12 +78,12 @@ When both stacks present:
 → Django files: 3 (.py)
 → React files: 4 (.tsx/.ts)
 
-→ Backend audit (django-security-auditor)...
+→ Backend audit (release-security-auditor)...
   Cat 1 (Cross-Tenant): CLOSED — TenantModel used, empresa filter in get_queryset
   Cat 4 (Mass Assignment): OPEN — InvoiceSerializer uses fields = '__all__'
   ...
 
-→ Frontend audit (react-security-auditor)...
+→ Frontend audit (release-security-auditor)...
   Cat 2 (Auth Token): CLOSED — no localStorage usage found
   Cat 3 (CSRF): PARTIAL — X-CSRFToken header set, but missing in multipart form requests
   ...
@@ -96,3 +96,10 @@ When both stacks present:
    Backend: 1 OPEN, 1 PARTIAL, 7 CLOSED
    Frontend: 0 OPEN, 1 PARTIAL, 8 CLOSED
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

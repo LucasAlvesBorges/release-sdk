@@ -23,17 +23,17 @@ Reviews Django/DRF source files for bugs, security issues, performance anti-patt
 - `$ARGUMENTS` — Paths to review (file, directory, or git diff range)
 - `--depth=quick|standard|deep` — Review depth (default: standard)
 - `--review-path=PATH` — Where to write REVIEW.md (default: `./REVIEW.md`)
-- `--fix` — After review, invoke django-code-fixer to apply Critical+Warning fixes
+- `--fix` — After review, invoke release-code-fixer to apply Critical+Warning fixes
 
 ## Workflow
 
 1. Parse arguments — resolve files to review
-2. Spawn `django-code-reviewer` agent with:
+2. Spawn `release-code-reviewer` agent with:
    - `files`: resolved file list
    - `depth`: requested depth
    - `review_path`: output location
 3. Agent produces REVIEW.md
-4. If `--fix` flag: spawn `django-code-fixer` agent with `review_path` to apply fixes
+4. If `--fix` flag: spawn `release-code-fixer` agent with `review_path` to apply fixes
 5. Report back to user: BLOCKER count, WARNING count, fix summary
 
 ## Output
@@ -50,7 +50,7 @@ Reviews Django/DRF source files for bugs, security issues, performance anti-patt
 ```
 /django:review backend/apps/abastecimento/
 
-→ Spawning django-code-reviewer (depth=standard)
+→ Spawning release-code-reviewer (depth=standard)
 → 4 files reviewed
 → REVIEW.md created at .planning/review/REVIEW.md
 
@@ -61,3 +61,10 @@ Found:
 
 Run /django:review --fix to apply auto-fixes.
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents (one agent per role, dispatched internally by `stack`). All agent spawns from this skill pass `stack: django` as input. The agents apply Django-stack rules from their `<django-stack>` blocks.

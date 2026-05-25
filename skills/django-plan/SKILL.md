@@ -40,11 +40,11 @@ Plans a Django feature phase. Honors locked D-XX decisions from CONTEXT.md. TDD 
    - `.planning/PROJECT.md` (LOCK-XX)
    - `.planning/ROADMAP.md` (phase goal + success_criteria)
    - `.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` (D-XX locked decisions)
-2. **Optional pre-step:** Spawn `django-feature-researcher` → `{NN}-RESEARCH.md`
+2. **Optional pre-step:** Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`
    - Probes affected apps, FK graph, existing patterns, migration state, risks
-3. **Optional pre-step:** Spawn `django-pattern-mapper` → `{NN}-PATTERNS.md`
+3. **Optional pre-step:** Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`
    - Maps each intended file to closest existing analog
-4. Spawn `django-feature-planner` with all artifacts → `{NN}-PLAN.md`
+4. Spawn `release-feature-planner` with all artifacts → `{NN}-PLAN.md`
    - TDD ordering (RED → GREEN → REFACTOR → SECURITY → conditional RACE/MEMRAY)
    - Each task: files, action (referencing D-XX), author_checklist (Q1-Q7), done_when
    - frontmatter: must_haves (truths + artifacts + key_links), threat_model (9 categories)
@@ -86,19 +86,19 @@ T07 (conditional) MEMRAY if Q7 active                     test({app}): add memra
 → Reading ROADMAP Phase 01: veiculo-bulk-import
 → Reading CONTEXT.md (6 decisions D-01 to D-06)
 
-→ Spawning django-feature-researcher...
+→ Spawning release-feature-researcher...
   RESEARCH.md created
   Primary app: frota
   Related models: Veiculo, Garagem, Empresa
   Q5 active: NO (no numeric mutation in bulk import)
   Q7 active: YES (bulk processing >1k rows possible)
 
-→ Spawning django-pattern-mapper...
+→ Spawning release-pattern-mapper...
   PATTERNS.md created
   Closest analog: backend/apps/frota/views.py::VeiculoViewSet
   Novel files: 1 (CSV parser service — first in this app)
 
-→ Spawning django-feature-planner...
+→ Spawning release-feature-planner...
   PLAN.md created with 7 tasks (T01-T07)
   Q1: select_related ['empresa', 'garagem'] (per D-01)
   Q6: chunk processing via .delay_on_commit (per D-05)
@@ -114,3 +114,10 @@ T07 (conditional) MEMRAY if Q7 active                     test({app}): add memra
 
 → Next: /django:execute 01
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents (one agent per role, dispatched internally by `stack`). All agent spawns from this skill pass `stack: django` as input. The agents apply Django-stack rules from their `<django-stack>` blocks.

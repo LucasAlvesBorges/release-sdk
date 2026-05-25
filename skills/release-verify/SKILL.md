@@ -1,7 +1,7 @@
 ---
 description: >
   Context-aware goal-backward verification. Detects which stacks were implemented in a phase,
-  spawns django-phase-verifier and/or react-phase-verifier, produces VERIFICATION.md.
+  spawns release-phase-verifier and/or release-phase-verifier, produces VERIFICATION.md.
   Use when: execute complete, before marking phase done.
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
@@ -25,7 +25,7 @@ Reads SUMMARY.md(s) from execute phase:
 - `{NN}-SUMMARY.md` with `stack: react-tsx` → frontend verify
 - Both exist → fullstack verify
 
-## Backend verification (django-phase-verifier)
+## Backend verification (release-phase-verifier)
 
 Goal-backward analysis:
 1. Every PLAN.md truth (must_haves.truths) observable in code?
@@ -79,3 +79,10 @@ RC2: isError state missing in InvoiceList
 PASS → /release:review 01 (optional), mark phase done
 GAPS_FOUND → /release:plan 01 --gaps → /release:execute 01 --gaps
 ```
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

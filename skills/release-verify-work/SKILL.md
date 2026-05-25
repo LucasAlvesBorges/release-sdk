@@ -196,7 +196,7 @@ GAPS_FOUND → /release:plan {NN} --gaps then /release:execute {NN} --gaps --fro
 ## What this skill does NOT do
 
 - Does NOT commit anything (UAT runs are user-driven and re-runnable; commit via `/release:ship`).
-- Does NOT spawn `django-phase-verifier` or `react-phase-verifier` (those are `/release:verify`).
+- Does NOT spawn `release-phase-verifier` or `release-phase-verifier` (those are `/release:verify`).
 - Does NOT modify ROADMAP.md or STATE.md (only `/release:verify` advances cursor on PASS).
 - Does NOT replace automated tests — UAT is the human gate, tests are the machine gate.
 
@@ -205,3 +205,10 @@ GAPS_FOUND → /release:plan {NN} --gaps then /release:execute {NN} --gaps --fro
 - Skipping straight to /release:ship without `/release:verify-work` → demos break in prod.
 - Marking FAIL items PASS to "unblock the ship" → defeats the purpose; use BLOCKED + Notes.
 - Editing UAT.md by hand after a run → re-run with `--resume` instead so timestamps stay honest.
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

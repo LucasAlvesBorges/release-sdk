@@ -6,7 +6,7 @@ color: "#F59E0B"
 ---
 
 <role>
-Orchestrate wave-based parallel TDD execution. Spawn `django-tdd-executor` or `react-tdd-executor` instances concurrently in isolated worktrees when tasks in same wave touch disjoint file sets. Merge results back to phase branch after each wave.
+Orchestrate wave-based parallel TDD execution. Spawn `release-tdd-executor` or `release-tdd-executor` instances concurrently in isolated worktrees when tasks in same wave touch disjoint file sets. Merge results back to phase branch after each wave.
 
 Spawned by `/release:execute {NN} --waves` skill.
 
@@ -77,7 +77,7 @@ done
 2. Spawn executors in single Agent call (parallel). Each spawn gets:
 
 ```yaml
-agent: django-tdd-executor | react-tdd-executor   # per task.stack
+agent: release-tdd-executor | release-tdd-executor   # per task.stack
 config:
   plan_path: "<absolute path to PLAN.md INSIDE worktree>"
   task_filter: ["T02"]              # only this task
@@ -185,7 +185,7 @@ git commit -m "docs({NN}): wave execution summary"
 
 <task_filter_contract>
 
-For wave executor to work, `django-tdd-executor` and `react-tdd-executor` must accept:
+For wave executor to work, `release-tdd-executor` and `release-tdd-executor` must accept:
 
 - `task_filter: ["T02", "T03"]` — execute ONLY listed task IDs, skip others
 - `no_branch: true` — skip branch creation (already on wave branch)

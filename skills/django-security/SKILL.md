@@ -26,7 +26,7 @@ Audits Django/DRF feature against the 9 mandatory security categories. Verifies 
 ## Workflow
 
 1. Parse arguments — resolve feature scope
-2. Spawn `django-security-auditor` agent
+2. Spawn `release-security-auditor` agent
 3. Agent audits 9 categories:
    - Cross-tenant isolation
    - Intra-tenant IDOR
@@ -61,3 +61,10 @@ status: OPEN_THREATS
 ```
 
 If any OPEN → status = OPEN_THREATS (BLOCKER for ship).
+
+
+---
+
+## Stack dispatch
+
+This skill spawns merged `release-*` agents (one agent per role, dispatched internally by `stack`). All agent spawns from this skill pass `stack: django` as input. The agents apply Django-stack rules from their `<django-stack>` blocks.
