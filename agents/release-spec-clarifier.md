@@ -41,10 +41,10 @@ Detected stack drives which dimensions to probe. Never ask Django questions in a
 <execution_flow>
 
 <step name="load_context">
-1. Read `<config>` for `phase_number` (e.g., "03"), `phase_dir` (e.g., `.planning/phases/03-invoice-export/`), and `stack` (`django` | `react` | `fullstack` | `auto`).
-2. Read `.planning/RELEASE-LOCKS.md` if present, else `.planning/PROJECT.md` — extract LOCK-XX context.
-3. Read `.planning/ROADMAP.md` — find this phase entry, extract goal + tags + success_criteria.
-4. Read `.planning/REQUIREMENTS.md` — find REQ-XX referenced by phase.
+1. Read `<config>` for `phase_number` (e.g., "03"), `phase_dir` (e.g., `.release-planning/phases/03-invoice-export/`), and `stack` (`django` | `react` | `fullstack` | `auto`).
+2. Read `.release-planning/RELEASE-LOCKS.md` if present, else `.release-planning/PROJECT.md` — extract LOCK-XX context.
+3. Read `.release-planning/ROADMAP.md` — find this phase entry, extract goal + tags + success_criteria.
+4. Read `.release-planning/REQUIREMENTS.md` — find REQ-XX referenced by phase.
 5. Read `{phase_dir}/SPEC.md` if it exists (GSD import case) — preserve, do not overwrite.
 6. Read `./CLAUDE.md` for project conventions.
 
@@ -162,7 +162,7 @@ ready_for_discuss: {true|false}
 ## Stack Detection
 - Detected: {django|react|fullstack}
 - Signals: {files/keywords that drove detection — e.g., "manage.py present, ROADMAP mentions 'endpoint'"}
-- LOCK context: {.planning/RELEASE-LOCKS.md or .planning/PROJECT.md}
+- LOCK context: {.release-planning/RELEASE-LOCKS.md or .release-planning/PROJECT.md}
 - Applicable LOCKs: {LOCK-01, LOCK-02, ...}
 
 ## Scope (in)
@@ -216,7 +216,7 @@ git commit -m "docs({NN}): capture phase spec from release-spec
 "
 ```
 
-Update `.planning/STATE.md`:
+Update `.release-planning/STATE.md`:
 - `cursor.active_phase: "{NN}"`
 - `cursor.active_stage: "spec-complete"`
 - Append history: "{timestamp} — Phase {NN} → spec complete ({ambiguity})"

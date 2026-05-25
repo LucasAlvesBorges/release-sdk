@@ -52,7 +52,7 @@ Reviews Django/DRF source files for bugs, security issues, performance anti-patt
 
 → Spawning release-code-reviewer (depth=standard)
 → 4 files reviewed
-→ REVIEW.md created at .planning/review/REVIEW.md
+→ REVIEW.md created at .release-planning/review/REVIEW.md
 
 Found:
   - 2 Blockers (mass_assignment in serializer, missing TenantModel inheritance)

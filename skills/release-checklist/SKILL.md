@@ -45,7 +45,7 @@ Spawns `release-test-auditor` + grep-based checks:
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/{NN}-CHECKLIST.md
+.release-planning/phases/{NN}-{slug}/{NN}-CHECKLIST.md
 
 ---
 phase: {NN}
@@ -75,4 +75,4 @@ Q6: .delay() used in tasks.py:12 — change to .delay_on_commit()
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

@@ -1,6 +1,6 @@
 ---
 description: >
-  Initialize .planning/ structure for a new Django project. Creates PROJECT.md (vision + LOCK-XX),
+  Initialize .release-planning/ structure for a new Django project. Creates PROJECT.md (vision + LOCK-XX),
   ROADMAP.md, STATE.md, REQUIREMENTS.md from templates. Asks user about Django version, multi-tenancy,
   auth strategy, and other project-level locks. Foundation for all subsequent /django:* workflows.
   Use when: starting a new Django project, or adopting django-sdk in existing project for first time.
@@ -9,7 +9,7 @@ allowed_tools: Agent, Read, Write, Bash, AskUserQuestion
 
 # /django:init — Initialize Project Planning
 
-Scaffolds `.planning/` directory with PROJECT.md, ROADMAP.md, STATE.md, REQUIREMENTS.md. Locks project-level architectural decisions that all subsequent planning honors.
+Scaffolds `.release-planning/` directory with PROJECT.md, ROADMAP.md, STATE.md, REQUIREMENTS.md. Locks project-level architectural decisions that all subsequent planning honors.
 
 ## Usage
 
@@ -21,11 +21,11 @@ Scaffolds `.planning/` directory with PROJECT.md, ROADMAP.md, STATE.md, REQUIREM
 ## Arguments
 
 - `--vision=...` — Skip vision-gathering prompt
-- `--existing` — Adopt for project with existing .planning/ from another tool (audit + merge)
+- `--existing` — Adopt for project with existing .release-planning/ from another tool (audit + merge)
 
 ## Workflow
 
-1. Check `.planning/` doesn't already exist (else suggest `/django:roadmap` instead).
+1. Check `.release-planning/` doesn't already exist (else suggest `/django:roadmap` instead).
 2. Spawn `django-discuss-orchestrator` in INIT MODE — asks user:
    - Project vision (one-paragraph)
    - Domain (industry / use case)
@@ -48,7 +48,7 @@ Scaffolds `.planning/` directory with PROJECT.md, ROADMAP.md, STATE.md, REQUIREM
 ## Output
 
 ```
-.planning/
+.release-planning/
 ├── PROJECT.md          # vision + LOCK-01 to LOCK-10 + Author Checklist (LOCKED)
 ├── ROADMAP.md          # phase list with goal, success_criteria, depends_on
 ├── REQUIREMENTS.md     # REQ-XX atomic requirements

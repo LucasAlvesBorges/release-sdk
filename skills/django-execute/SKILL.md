@@ -1,6 +1,6 @@
 ---
 description: >
-  Execute a planned Django phase TDD-strict. Reads .planning/phases/{NN}-{slug}/{NN}-PLAN.md, runs
+  Execute a planned Django phase TDD-strict. Reads .release-planning/phases/{NN}-{slug}/{NN}-PLAN.md, runs
   RED → GREEN → REFACTOR per task, atomic per-task commits with Conventional Commits format,
   .delay_on_commit() enforcement, migration generation. Produces SUMMARY.md with commit hashes + Q1-Q7 evidence.
   Use when: PLAN.md is ready (plan-checker PASS or WARN-accepted), implementing the phase.
@@ -31,15 +31,15 @@ Executes a Django phase PLAN.md task-by-task with strict RED → GREEN → REFAC
 
 ## Prerequisites
 
-- `.planning/phases/{NN}-{slug}/{NN}-PLAN.md` exists
+- `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` exists
 - `{NN}-PLAN-CHECK.md` verdict is PASS or WARN (not BLOCK)
 - Working tree clean (or `--allow-dirty` flag)
 
 ## Workflow
 
-1. Read `.planning/phases/{NN}-{slug}/{NN}-PLAN.md`
-2. Read `.planning/PROJECT.md` (LOCK-XX) + `./CLAUDE.md`
-3. If `--resume`: check `.planning/STATE.md` cursor for last completed task
+1. Read `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md`
+2. Read `.release-planning/PROJECT.md` (LOCK-XX) + `./CLAUDE.md`
+3. If `--resume`: check `.release-planning/STATE.md` cursor for last completed task
 4. Branch setup: checkout `feat/{NN}-{slug}` (create if missing, reuse if `--resume`)
 5. If `--waves`: spawn `release-wave-executor` (parallel via git worktree)
    Else: spawn `release-tdd-executor` with `<plan_path>` config (serial)
@@ -102,7 +102,7 @@ Beyond Rule 1-3 → checkpoint, escalate to user.
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   {NN}-SUMMARY.md           # this skill's output
 ```
 

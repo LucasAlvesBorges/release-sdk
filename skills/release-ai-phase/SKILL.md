@@ -48,13 +48,13 @@ Read every file that exists, skip gracefully if missing:
 
 | File | Used for |
 |---|---|
-| `.planning/phases/{NN}-{slug}/SPEC.md` | Problem statement, acceptance criteria, scope |
-| `.planning/PROJECT.md` | Project domain, team |
-| `.planning/RELEASE-LOCKS.md` | LOCK-01 (Django version), LOCK-03 (auth), LOCK-07 (React+Vite), LOCK-09 (httpOnly cookie), LOCK-10 (Zod), LOCK-12 (API contract) |
-| `.planning/ROADMAP.md` | Phase entry text |
+| `.release-planning/phases/{NN}-{slug}/SPEC.md` | Problem statement, acceptance criteria, scope |
+| `.release-planning/PROJECT.md` | Project domain, team |
+| `.release-planning/RELEASE-LOCKS.md` | LOCK-01 (Django version), LOCK-03 (auth), LOCK-07 (React+Vite), LOCK-09 (httpOnly cookie), LOCK-10 (Zod), LOCK-12 (API contract) |
+| `.release-planning/ROADMAP.md` | Phase entry text |
 | Existing AI code (probe) | `grep -rln "anthropic\|openai\|langchain\|llama_index" backend/ frontend/` |
 
-If `.planning/phases/{NN}-{slug}/SPEC.md` is missing → abort with:
+If `.release-planning/phases/{NN}-{slug}/SPEC.md` is missing → abort with:
 > "Run `/release:spec {NN}` first — AI phases need a clear problem statement before design."
 
 ### Step 2 — Detect already-answered questions
@@ -126,7 +126,7 @@ Ask which of these the feature needs (multi-select via AskUserQuestion):
 #### Q4 — Evaluation strategy
 
 Ask:
-- **Golden dataset** — initial size (target 20-50 cases minimum), source (manually curated / production logs / synthetic), stored where (`.planning/phases/{NN}-{slug}/eval/golden.jsonl`).
+- **Golden dataset** — initial size (target 20-50 cases minimum), source (manually curated / production logs / synthetic), stored where (`.release-planning/phases/{NN}-{slug}/eval/golden.jsonl`).
 - **Judge** — exact match / regex / LLM-as-judge / human review only. If LLM-as-judge, recommend Claude with a separate rubric prompt.
 - **Metrics** — accuracy, F1, BLEU, ROUGE, custom rubric score, refusal rate, latency p50/p95, cost per request.
 - **Cadence** — pre-merge gate? nightly CI? weekly? on every prompt change?
@@ -153,7 +153,7 @@ Ask:
 
 ### Step 4 — Write AI-SPEC.md
 
-Path: `.planning/phases/{NN}-{slug}/AI-SPEC.md`.
+Path: `.release-planning/phases/{NN}-{slug}/AI-SPEC.md`.
 
 Use `templates/AI-SPEC.md` as the template. Fill every section. For `[ANSWERED]` items, cite the source file
 (e.g., `from SPEC.md §Constraints`). For user-answered items, record the decision verbatim.
@@ -167,7 +167,7 @@ against LOCKs, and appends a `## Researcher Findings` section to AI-SPEC.md.
 ### Step 6 — Commit artifact
 
 ```bash
-git add .planning/phases/{NN}-{slug}/AI-SPEC.md
+git add .release-planning/phases/{NN}-{slug}/AI-SPEC.md
 git commit -m "ai-spec({NN}): design contract for {slug}"
 ```
 
@@ -202,7 +202,7 @@ Next: /release:plan {NN} --fullstack
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   AI-SPEC.md             # design contract (this skill's output)
 ```
 

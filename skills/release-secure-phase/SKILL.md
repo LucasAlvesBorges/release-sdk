@@ -38,7 +38,7 @@ in the shipped code. Distinct from `/release:security` which is author-time guid
 
 ## Detection / Scope Resolution
 
-1. Locate `.planning/phases/{NN}-{slug}/{NN}-PLAN.md`.
+1. Locate `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md`.
 2. Parse `threat_model:` block from frontmatter (list of T-XX entries with category + plan).
 3. Parse `{NN}-SUMMARY.md` for `stack:` field → `django`, `react-tsx`, or both.
 4. Resolve files in scope:
@@ -110,7 +110,7 @@ When both stacks shipped:
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/{NN}-SECURITY.md
+.release-planning/phases/{NN}-{slug}/{NN}-SECURITY.md
 ```
 
 Scorecard table format (see `templates/SECURITY.md`):
@@ -164,4 +164,4 @@ Scorecard table format (see `templates/SECURITY.md`):
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

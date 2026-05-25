@@ -20,11 +20,11 @@ Read-only summary of where the project is right now. Suggests next action.
 
 ## Workflow
 
-1. Read `.planning/STATE.md`.
-2. Read `.planning/ROADMAP.md` — count phases by status.
-3. Read `.planning/REQUIREMENTS.md` — count open/done REQs.
-4. Read recent git log: `git log --oneline -10 -- .planning/`.
-5. Detect uncommitted planning changes: `git status --porcelain .planning/`.
+1. Read `.release-planning/STATE.md`.
+2. Read `.release-planning/ROADMAP.md` — count phases by status.
+3. Read `.release-planning/REQUIREMENTS.md` — count open/done REQs.
+4. Read recent git log: `git log --oneline -10 -- .release-planning/`.
+5. Detect uncommitted planning changes: `git status --porcelain .release-planning/`.
 6. Render summary.
 
 ## Output (full)
@@ -50,14 +50,14 @@ Read-only summary of where the project is right now. Suggests next action.
     13:55  Phase 01 → discuss complete (CONTEXT.md committed: g7h8i9)
     13:40  Phase 01 → discuss started
 
-  Uncommitted:    .planning/STATE.md (modified)
+  Uncommitted:    .release-planning/STATE.md (modified)
 
   ─────────────────────────────────────────────────────────
   Next action:
     Continue execute:
       /django:execute 01 --resume    # resume from T04
     Or check progress:
-      /django:checklist .planning/phases/01-veiculo-bulk-import/
+      /django:checklist .release-planning/phases/01-veiculo-bulk-import/
 ═══════════════════════════════════════════════════════════
 ```
 
@@ -80,5 +80,5 @@ Read-only summary of where the project is right now. Suggests next action.
 - **What's blocked?** blockers from STATE.md
 - **What's pending?** open REQs, not-started phases
 - **Recent activity:** last 5 stage transitions
-- **Uncommitted:** any pending .planning/ changes
+- **Uncommitted:** any pending .release-planning/ changes
 - **Suggested next:** based on cursor + roadmap

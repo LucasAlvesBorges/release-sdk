@@ -36,7 +36,7 @@ ready_for_plan: false | true
 
 ## Stack Detection
 
-Detected from `.planning/RELEASE-LOCKS.md` (preferred) or `.planning/PROJECT.md`:
+Detected from `.release-planning/RELEASE-LOCKS.md` (preferred) or `.release-planning/PROJECT.md`:
 
 | Layer | Tech | Version | LOCK |
 |---|---|---|---|
@@ -183,7 +183,7 @@ export type {SlugType} = z.infer<typeof {SlugSchema}>;
 
 - **Initial size:** {N} cases (target ≥ 20 for v1; ≥ 100 for production-critical).
 - **Source:** {hand-curated / production logs with PII scrub / synthetic / mixed}.
-- **Storage:** `.planning/phases/{NN}-{slug}/eval/golden.jsonl`.
+- **Storage:** `.release-planning/phases/{NN}-{slug}/eval/golden.jsonl`.
 - **Record shape:**
   ```jsonl
   {"input": "...", "expected": "...", "tags": ["edge-case", "happy-path"]}
@@ -194,7 +194,7 @@ export type {SlugType} = z.infer<typeof {SlugSchema}>;
 **Type:** {exact-match | regex | LLM-as-judge | human-only | hybrid}.
 
 - **Exact-match / regex:** for deterministic outputs (codes, structured fields).
-- **LLM-as-judge:** Claude with rubric prompt at `.planning/phases/{NN}-{slug}/eval/judge_prompt.md`. Score 1-5 against the rubric.
+- **LLM-as-judge:** Claude with rubric prompt at `.release-planning/phases/{NN}-{slug}/eval/judge_prompt.md`. Score 1-5 against the rubric.
 - **Human review:** required for first {N} cases to calibrate judge.
 
 ### Metrics

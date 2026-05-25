@@ -36,8 +36,8 @@ Skip `/release:spec` and go straight to `/release:discuss` if:
 
 Same logic as `/release:plan` and `/release:discuss`:
 
-1. Read `.planning/ROADMAP.md` → extract phase goal and tags.
-2. Read existing phase artifacts in `.planning/phases/{NN}-{slug}/` if present.
+1. Read `.release-planning/ROADMAP.md` → extract phase goal and tags.
+2. Read existing phase artifacts in `.release-planning/phases/{NN}-{slug}/` if present.
 3. Classify stack:
 
 | Signal | Classification |
@@ -51,7 +51,7 @@ Same logic as `/release:plan` and `/release:discuss`:
 
 ## Workflow
 
-1. Load LOCK context: read `.planning/RELEASE-LOCKS.md` if exists, else `.planning/PROJECT.md`.
+1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists, else `.release-planning/PROJECT.md`.
 2. Load ROADMAP phase entry, REQUIREMENTS.md, and (if present) prior SPEC/CONTEXT artifacts.
 3. Spawn `release-spec-clarifier` agent with detected stack + LOCK context.
 4. Agent runs stack-aware WHAT-questions via `AskUserQuestion`.
@@ -94,7 +94,7 @@ Decisions captured as numbered open questions Q-XX in SPEC.md (not D-XX — thos
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/{NN}-SPEC.md
+.release-planning/phases/{NN}-{slug}/{NN}-SPEC.md
 
 ---
 phase: {NN}
@@ -112,7 +112,7 @@ ready_for_discuss: true | false
 ## Stack Detection
 - Detected: {django | react | fullstack}
 - Signals: {what files/keywords drove the detection}
-- LOCK context: {.planning/RELEASE-LOCKS.md or .planning/PROJECT.md}
+- LOCK context: {.release-planning/RELEASE-LOCKS.md or .release-planning/PROJECT.md}
 
 ## Scope (in)
 - {Capability 1}
@@ -154,7 +154,7 @@ ready_for_discuss: true | false
 
 → Reading ROADMAP.md Phase 03: "Invoice export with filters"
 → Detected stack: FULLSTACK (manage.py + package.json with react)
-→ Reading .planning/RELEASE-LOCKS.md for LOCK context
+→ Reading .release-planning/RELEASE-LOCKS.md for LOCK context
 
 → Spawning release-spec-clarifier...
 
@@ -172,7 +172,7 @@ ready_for_discuss: true | false
 → Integration WHAT:
   Q8: Job-status endpoint shape?                          → GET /api/exports/{id}/
 
-→ Writing .planning/phases/03-invoice-export/03-SPEC.md
+→ Writing .release-planning/phases/03-invoice-export/03-SPEC.md
   Ambiguity score: MED (6 questions, 1 HIGH)
   ready_for_discuss: true
 

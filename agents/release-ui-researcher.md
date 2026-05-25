@@ -25,12 +25,12 @@ Spawned with this config block:
 
 ```yaml
 phase_number: "{NN}"
-phase_dir: ".planning/phases/{NN}-{slug}"
+phase_dir: ".release-planning/phases/{NN}-{slug}"
 required_reading:
-  - .planning/RELEASE-LOCKS.md OR .planning/PROJECT.md
-  - .planning/phases/{NN}-{slug}/{NN}-SPEC.md (if exists)
-  - .planning/phases/{NN}-{slug}/{NN}-CONTEXT.md (if exists)
-  - .planning/phases/{NN}-{slug}/{NN}-RESEARCH-FRONTEND.md (if exists)
+  - .release-planning/RELEASE-LOCKS.md OR .release-planning/PROJECT.md
+  - .release-planning/phases/{NN}-{slug}/{NN}-SPEC.md (if exists)
+  - .release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md (if exists)
+  - .release-planning/phases/{NN}-{slug}/{NN}-RESEARCH-FRONTEND.md (if exists)
 detected_stack:
   routing: react-router-v6 | tanstack-router | next-app | UNKNOWN
   styling: tailwind | shadcn | mui | chakra | mantine | custom | UNKNOWN
@@ -252,7 +252,7 @@ design_system_fingerprint:
 Return to the orchestrator a short summary:
 
 ```
-✓ UI-SPEC.md written: .planning/phases/{NN}-{slug}/{NN}-UI-SPEC.md
+✓ UI-SPEC.md written: .release-planning/phases/{NN}-{slug}/{NN}-UI-SPEC.md
 
   • {N} UI-DEC locked
   • {M} components inventoried ({K} new, {L} reused)

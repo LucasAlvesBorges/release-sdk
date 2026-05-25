@@ -38,11 +38,11 @@ confirm the human can actually use what was built. Both gates should be PASS bef
 ## Phase Detection
 
 1. If `{NN}` argument provided → use it.
-2. Else read `.planning/STATE.md` cursor.active_phase.
+2. Else read `.release-planning/STATE.md` cursor.active_phase.
 3. Else parse current git branch — look for `phase/{NN}-{slug}` or `{NN}-{slug}`.
 4. Else abort: ask user to specify phase number.
 
-Resolves to `.planning/phases/{NN}-{slug}/`.
+Resolves to `.release-planning/phases/{NN}-{slug}/`.
 
 ## UAT Source Resolution
 
@@ -51,7 +51,7 @@ The conductor finds UAT items in this priority order:
 1. `{phase_dir}/{NN}-UAT.md` — if exists, parse the UAT Items table directly.
 2. `{phase_dir}/{NN}-PLAN.md` — extract `must_haves.truths` and `success_criteria` as UAT seeds.
 3. `{phase_dir}/{NN}-SPEC.md` — extract acceptance criteria / user-observable behaviors.
-4. `.planning/ROADMAP.md` phase entry `success_criteria`.
+4. `.release-planning/ROADMAP.md` phase entry `success_criteria`.
 
 If no UAT.md exists yet, conductor creates it from the template at
 `templates/UAT.md` (in this plugin) populated with derived items.
@@ -211,4 +211,4 @@ GAPS_FOUND → /release:plan {NN} --gaps then /release:execute {NN} --gaps --fro
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

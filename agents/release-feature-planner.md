@@ -95,7 +95,7 @@ waves:
 </step>
 
 <step name="write_plan">
-Write PLAN.md at `.planning/phases/{NN}-{slug}/{NN}-PLAN.md` using template at bottom. Return path to orchestrator.
+Write PLAN.md at `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` using template at bottom. Return path to orchestrator.
 </step>
 
 </execution_flow>
@@ -291,9 +291,9 @@ threat_model:
 {What + why. Reference D-XX decisions from CONTEXT.md}
 
 ## Context
-@.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md
-@.planning/phases/{NN}-{slug}/{NN}-RESEARCH.md
-@.planning/phases/{NN}-{slug}/{NN}-PATTERNS.md
+@.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md
+@.release-planning/phases/{NN}-{slug}/{NN}-RESEARCH.md
+@.release-planning/phases/{NN}-{slug}/{NN}-PATTERNS.md
 
 ## Tasks
 

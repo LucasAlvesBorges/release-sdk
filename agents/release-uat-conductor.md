@@ -35,10 +35,10 @@ Therefore: present steps **clearly enough that a developer who didn't build this
 
 <step name="load_phase">
 1. Read `<config>` for `phase_number`, `phase_dir`, optional flags (`--backend`, `--frontend`, `--resume`, `--reset`).
-2. If no `phase_number`: read `.planning/STATE.md` cursor.active_phase; else parse current git branch.
-3. Resolve `phase_dir = .planning/phases/{NN}-{slug}/`. Abort if missing.
-4. Read `.planning/PROJECT.md` to learn LOCK-XX values (auth strategy, ports, multi-tenancy) — used to render concrete commands.
-5. Read `.planning/RELEASE-LOCKS.md` if present (release-sdk imported from GSD).
+2. If no `phase_number`: read `.release-planning/STATE.md` cursor.active_phase; else parse current git branch.
+3. Resolve `phase_dir = .release-planning/phases/{NN}-{slug}/`. Abort if missing.
+4. Read `.release-planning/PROJECT.md` to learn LOCK-XX values (auth strategy, ports, multi-tenancy) — used to render concrete commands.
+5. Read `.release-planning/RELEASE-LOCKS.md` if present (release-sdk imported from GSD).
 </step>
 
 <step name="load_or_seed_uat">
@@ -49,7 +49,7 @@ Priority order:
 2. Else derive items from:
    - `{phase_dir}/{NN}-PLAN.md` → `must_haves.truths` (one UAT item per truth).
    - `{phase_dir}/{NN}-SPEC.md` → `acceptance_criteria` block if present.
-   - `.planning/ROADMAP.md` phase entry → `success_criteria` bullets.
+   - `.release-planning/ROADMAP.md` phase entry → `success_criteria` bullets.
 3. Deduplicate across sources (truths win on conflict — they are most specific).
 4. Assign IDs `U-01`, `U-02`, ... in source order.
 5. Tag each item with a stack (see `<stack_detection>` below).

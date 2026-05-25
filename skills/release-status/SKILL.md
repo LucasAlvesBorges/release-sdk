@@ -58,8 +58,8 @@ Recent commits (last 5):
   m3n4o5  refactor(financeiro): apply Q1-Q7
 
 Quality gates:
-  Last review:   .planning/phases/02-invoice-list/REVIEW.md — 0 BLOCKERs, 2 WARNINGs
-  Last security: .planning/phases/02-invoice-list/02-SECURITY.md (backend) — 9/9 CLOSED
+  Last review:   .release-planning/phases/02-invoice-list/REVIEW.md — 0 BLOCKERs, 2 WARNINGs
+  Last security: .release-planning/phases/02-invoice-list/02-SECURITY.md (backend) — 9/9 CLOSED
 
 Next suggested action:
   → /release:execute 02 --frontend --resume   (continue from T03)

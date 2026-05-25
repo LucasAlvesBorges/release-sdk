@@ -29,8 +29,8 @@ release-sdk React defaults (LOCK-07..LOCK-12).
 
 This skill MUST refuse backend-only phases.
 
-1. Read `.planning/ROADMAP.md` → extract phase goal and tags.
-2. If `.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` exists → read `stack:` frontmatter.
+1. Read `.release-planning/ROADMAP.md` → extract phase goal and tags.
+2. If `.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` exists → read `stack:` frontmatter.
 3. Classify (same signal logic as `/release:plan`):
 
 | Signal | Classification | Action |
@@ -68,12 +68,12 @@ Read in parallel (skip gracefully if missing):
 
 | File | Used for |
 |---|---|
-| `.planning/RELEASE-LOCKS.md` *(if present)* | LOCK-07..LOCK-12 (frontend stack, state, auth, types, tests, contract) |
-| `.planning/PROJECT.md` *(fallback)* | LOCK-07..LOCK-12 if no RELEASE-LOCKS.md |
-| `.planning/ROADMAP.md` | phase goal, tags |
-| `.planning/phases/{NN}-{slug}/{NN}-SPEC.md` *(if present)* | WHAT the phase delivers |
-| `.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` *(if present)* | locked D-XX decisions (especially D-11..D-20 frontend bucket) |
-| `.planning/phases/{NN}-{slug}/{NN}-RESEARCH-FRONTEND.md` *(if present)* | researcher output |
+| `.release-planning/RELEASE-LOCKS.md` *(if present)* | LOCK-07..LOCK-12 (frontend stack, state, auth, types, tests, contract) |
+| `.release-planning/PROJECT.md` *(fallback)* | LOCK-07..LOCK-12 if no RELEASE-LOCKS.md |
+| `.release-planning/ROADMAP.md` | phase goal, tags |
+| `.release-planning/phases/{NN}-{slug}/{NN}-SPEC.md` *(if present)* | WHAT the phase delivers |
+| `.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` *(if present)* | locked D-XX decisions (especially D-11..D-20 frontend bucket) |
+| `.release-planning/phases/{NN}-{slug}/{NN}-RESEARCH-FRONTEND.md` *(if present)* | researcher output |
 
 RELEASE-LOCKS.md takes precedence over PROJECT.md when both exist (same precedence rule as
 `/release:plan`).
@@ -115,12 +115,12 @@ Spawn the agent with these inputs:
 
 ```yaml
 phase_number: "{NN}"
-phase_dir: ".planning/phases/{NN}-{slug}"
+phase_dir: ".release-planning/phases/{NN}-{slug}"
 required_reading:
-  - .planning/RELEASE-LOCKS.md OR .planning/PROJECT.md
-  - .planning/phases/{NN}-{slug}/{NN}-SPEC.md (if exists)
-  - .planning/phases/{NN}-{slug}/{NN}-CONTEXT.md (if exists)
-  - .planning/phases/{NN}-{slug}/{NN}-RESEARCH-FRONTEND.md (if exists)
+  - .release-planning/RELEASE-LOCKS.md OR .release-planning/PROJECT.md
+  - .release-planning/phases/{NN}-{slug}/{NN}-SPEC.md (if exists)
+  - .release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md (if exists)
+  - .release-planning/phases/{NN}-{slug}/{NN}-RESEARCH-FRONTEND.md (if exists)
 detected_stack:
   routing: react-router-v6 | tanstack-router | next-app | UNKNOWN
   styling: tailwind | shadcn | mui | chakra | mantine | custom | UNKNOWN
@@ -146,14 +146,14 @@ The agent (`release-ui-researcher`) will:
 ### Step 4 — Output
 
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   {NN}-UI-SPEC.md           # design contract (component inventory, states, a11y, perf, optimistic)
 ```
 
 ### Step 5 — Report
 
 ```
-✓ UI-SPEC.md produced at .planning/phases/{NN}-{slug}/{NN}-UI-SPEC.md
+✓ UI-SPEC.md produced at .release-planning/phases/{NN}-{slug}/{NN}-UI-SPEC.md
 
 Detected stack:
   Routing:   react-router-v6     [EXTRACTED]
@@ -221,7 +221,7 @@ UI-DEC-XX are immutable after UI-SPEC.md is written. Changes require re-running
   Q2: Optimistic UI on bulk-archive?                     → user: "Yes, rollback toast on 4xx"
   Q3: Perf budget LCP target on /invoices?               → user: "1.5s on 3G Fast"
 
-→ Writing .planning/phases/03-invoice-list/03-UI-SPEC.md
+→ Writing .release-planning/phases/03-invoice-list/03-UI-SPEC.md
   • 7 components inventoried (4 reuse, 3 new)
   • 1 new route: /invoices (under <ProtectedRoute>)
   • Loading: shadcn Skeleton; Empty: custom EmptyState; Error: ErrorBoundary toast
@@ -237,4 +237,4 @@ UI-DEC-XX are immutable after UI-SPEC.md is written. Changes require re-running
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

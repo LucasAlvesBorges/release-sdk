@@ -1,7 +1,7 @@
 ---
 description: >
   CRUD for phases in ROADMAP.md — add, insert, remove, edit phase entries. Maintains dependency
-  graph consistency. Creates/removes corresponding .planning/phases/{NN}-{slug}/ directory.
+  graph consistency. Creates/removes corresponding .release-planning/phases/{NN}-{slug}/ directory.
   Use when: scoping new feature, re-prioritizing roadmap, removing canceled phase.
 allowed_tools: Read, Write, Edit, Bash, AskUserQuestion
 ---
@@ -36,7 +36,7 @@ Asks:
 
 Creates:
 - New entry in ROADMAP.md `## Phases` (numbered next available)
-- `.planning/phases/{NN}-{slug}/` directory
+- `.release-planning/phases/{NN}-{slug}/` directory
 
 Commits:
 ```
@@ -54,7 +54,7 @@ Inserts at position 03, shifts existing 03 → 04, 04 → 05, etc.
 Updates:
 - All ROADMAP.md phase numbers
 - All `depends_on` references that point to shifted phases
-- Renames `.planning/phases/{NN}-{slug}/` directories
+- Renames `.release-planning/phases/{NN}-{slug}/` directories
 
 Commits:
 ```
@@ -73,7 +73,7 @@ Confirms:
 
 Then:
 - Removes ROADMAP entry
-- Moves `.planning/phases/{NN}-{slug}/` to `.planning/phases/_removed/{NN}-{slug}/`
+- Moves `.release-planning/phases/{NN}-{slug}/` to `.release-planning/phases/_removed/{NN}-{slug}/`
 - Renumbers subsequent phases
 - Updates depends_on references
 
@@ -122,7 +122,7 @@ If violation:
 
 When phase is added:
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   (empty initially)
 ```
 
@@ -158,7 +158,7 @@ Populated by subsequent workflows:
    Depends: Phase 02
    Size: S
 
-→ Created .planning/phases/06-estorno-workflow/
+→ Created .release-planning/phases/06-estorno-workflow/
 → Committed: docs: add phase 06 (estorno-workflow)
 
 → Next: /django:discuss 06

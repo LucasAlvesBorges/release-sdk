@@ -1,10 +1,12 @@
 ---
 description: >
-  One-shot mass importer for projects that already use upstream GSD. Reads `.planning/` (PROJECT.md,
-  ROADMAP.md, STATE.md, ARCHITECTURE.md, CONVENTIONS.md, config.json, and every `.planning/phases/*/`
-  artifact), extracts LOCK-01..LOCK-12 into `.planning/RELEASE-LOCKS.md`, and ports each phase's GSD
-  SPEC/CONTEXT/PLAN/VERIFICATION into release-sdk-native `{NN}-*.md` siblings (with stack-aware
-  UI-SPEC / AI-SPEC / SECURITY stubs as needed). GSD originals are NEVER modified.
+  One-shot mass importer for projects that already use upstream GSD. Reads GSD `.planning/`
+  (PROJECT.md, ROADMAP.md, STATE.md, ARCHITECTURE.md, CONVENTIONS.md, config.json, and every
+  `.planning/phases/*/` artifact) and writes release-sdk artifacts to a parallel `.release-planning/`
+  tree. Extracts LOCK-01..LOCK-12 into `.release-planning/RELEASE-LOCKS.md`, and ports each phase's
+  GSD SPEC/CONTEXT/PLAN/VERIFICATION into release-sdk-native `{NN}-*.md` files under
+  `.release-planning/phases/{NN}-{slug}/` (with stack-aware UI-SPEC / AI-SPEC / SECURITY stubs as
+  needed). Files under `.planning/` are NEVER modified — the two trees coexist.
   Use when: an existing GSD project wants to switch to release-sdk in one pass — replaces the
   per-skill `--gsd-context` flag that was scattered across release-init/spec/plan/review/ui/ai.
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
@@ -45,12 +47,14 @@ Do NOT use if:
 1. **GSD presence:** `.planning/` and at least one of `.planning/PROJECT.md` or
    `.planning/phases/` must exist. Else abort with:
    > "No GSD planning artifacts detected at `.planning/`. Run `/release:init` for a fresh project."
-2. **Already imported:** if `.planning/RELEASE-LOCKS.md` exists and `--force` is NOT set, abort with:
-   > "Project already imported (RELEASE-LOCKS.md present). Re-run with `--force` to overwrite or
-   > use `/release:status` to inspect current state."
+2. **Already imported:** if `.release-planning/RELEASE-LOCKS.md` exists and `--force` is NOT
+   set, abort with:
+   > "Project already imported (.release-planning/RELEASE-LOCKS.md present). Re-run with
+   > `--force` to overwrite or use `/release:status` to inspect current state."
 3. **Force confirmation:** if `--force` is set, ask via `AskUserQuestion`:
-   > "Overwriting `.planning/RELEASE-LOCKS.md` and any existing `{NN}-*.md` siblings? This is
-   > irreversible." — options: `Yes, overwrite` / `Abort`. Only proceed on explicit Yes.
+   > "Overwriting `.release-planning/RELEASE-LOCKS.md` and any existing `{NN}-*.md` files under
+   > `.release-planning/phases/`? This is irreversible. GSD `.planning/` is untouched either
+   > way." — options: `Yes, overwrite` / `Abort`. Only proceed on explicit Yes.
 4. **Phases filter:** if `--phases=NN[,NN]` is set, verify each NN matches an existing phase
    directory. Unknown NN → abort and list available phases.
 
@@ -157,7 +161,8 @@ Stubs (only seeded when `--no-stubs` is NOT set):
    - `seed_stubs: bool` (default true)
 4. Orchestrator reads project-level artifacts, extracts LOCK-01..LOCK-12 with citations.
 5. Orchestrator iterates phases (in NN order), detects stack per phase, ports files.
-6. Orchestrator writes `.planning/RELEASE-LOCKS.md` and every `{NN}-*.md` sibling.
+6. Orchestrator writes `.release-planning/RELEASE-LOCKS.md` and every `{NN}-*.md` file under
+   `.release-planning/phases/{NN}-{slug}/`. `.planning/` is never written to.
 7. Orchestrator prints final extraction report (project LOCKs table + per-phase port table +
    gap-to-fill table + next steps).
 
@@ -165,18 +170,22 @@ Stubs (only seeded when `--no-stubs` is NOT set):
 
 ### Files written (project-level)
 
-- `.planning/RELEASE-LOCKS.md` — canonical LOCK-01..LOCK-12 (NEW)
+- `.release-planning/RELEASE-LOCKS.md` — canonical LOCK-01..LOCK-12 (NEW)
+- `.release-planning/STATE.md` — release-sdk-owned cursor + history (NEW; GSD's
+  `.planning/STATE.md` stays untouched)
 
-### Files written (per phase, only when source GSD file existed OR stub conditions hit)
+### Layout after import (two coexisting trees)
 
 ```
-.planning/phases/{NN}-{slug}/
-  SPEC.md                  # GSD original — UNTOUCHED
-  CONTEXT.md               # GSD original — UNTOUCHED
-  PLAN.md                  # GSD original — UNTOUCHED
-  VERIFICATION.md          # GSD original — UNTOUCHED
-  RESEARCH.md              # GSD original — UNTOUCHED
-  REVIEW.md                # GSD original — UNTOUCHED
+.planning/phases/{NN}-{slug}/             # GSD source — ALL files UNTOUCHED
+  SPEC.md                                 # read by import
+  CONTEXT.md                              # read by import
+  PLAN.md                                 # read by import
+  VERIFICATION.md                         # read by import
+  RESEARCH.md                             # read by import
+  REVIEW.md                               # read by import
+
+.release-planning/phases/{NN}-{slug}/     # release-sdk dest — written by import
   {NN}-SPEC.md             # NEW — release-sdk-native
   {NN}-CONTEXT.md          # NEW — release-sdk-native (preserves D-XX)
   {NN}-PLAN.md             # NEW — release-sdk-native (Q1-Q7 + 9-cat injected)
@@ -186,6 +195,8 @@ Stubs (only seeded when `--no-stubs` is NOT set):
   {NN}-AI-SPEC.md          # NEW only if AI surface, stub with [NEEDS REVIEW]
   {NN}-SECURITY.md         # NEW placeholder only if PLAN had threat_model
 ```
+
+Per-phase files only written when the source GSD file existed OR a stub condition fires.
 
 ### Extraction report (printed to user)
 
@@ -248,8 +259,9 @@ LOCKs locked:          11 EXTRACTED + 1 INFERRED + 1 MISSING (LOCK-12)
 
 ## Constraints
 
-- **GSD originals untouched.** Never rename, overwrite, or delete existing GSD files. Only WRITE
-  `{NN}-*.md` siblings and `.planning/RELEASE-LOCKS.md`.
+- **GSD originals untouched.** Never rename, overwrite, or delete any file under `.planning/`.
+  Only WRITE `.release-planning/RELEASE-LOCKS.md` and `{NN}-*.md` files under
+  `.release-planning/phases/{NN}-{slug}/`.
 - **Every claim is cited.** LOCK-XX status, stack detection, and any port decision must include
   `file:line` evidence in the extraction report.
 - **Evidence-based stack detection.** If a phase shows no clear signal, mark `unknown` and ask
@@ -266,7 +278,7 @@ LOCKs locked:          11 EXTRACTED + 1 INFERRED + 1 MISSING (LOCK-12)
 ```
 /release:import
 
-→ Pre-check: .planning/ found, RELEASE-LOCKS.md not present → proceed
+→ Pre-check: .planning/ found (GSD source); .release-planning/RELEASE-LOCKS.md not present → proceed
 → Reading project-level GSD artifacts...
   PROJECT.md (137 lines), STACK.md (61), CONVENTIONS.md (52), ROADMAP.md (94)
 → Extracting LOCK-01..LOCK-12 with citations... done (11 EXTRACTED, 1 INFERRED, 0 MISSING)
@@ -275,8 +287,8 @@ LOCKs locked:          11 EXTRACTED + 1 INFERRED + 1 MISSING (LOCK-12)
 → Phase 02 invoice-list-page       → stack: react      (signal: PLAN.md:21 ".tsx")
 → Phase 03 invoice-pdf-export      → stack: fullstack  (signals: PLAN.md:14, PLAN.md:42)
 → Phase 04 ai-summarize-orders     → stack: fullstack  (+ AI surface @ PLAN.md:18)
-→ Writing .planning/RELEASE-LOCKS.md...
-→ Writing 15 phase files + 4 stubs...
+→ Writing .release-planning/RELEASE-LOCKS.md...
+→ Writing 15 phase files + 4 stubs under .release-planning/phases/...
 → Committing: chore(import): port GSD planning tree to release-sdk format
 → Done. Report ↑
 

@@ -11,7 +11,7 @@ allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 
 Captures project vision and architecture. Locks decisions as LOCK-XX in PROJECT.md.
 
-> Importing from an existing GSD project? Use `/release:import` first to mass-port `.planning/` artifacts, then run `/release:init` to fill any remaining gaps.
+> Importing from an existing GSD project? Use `/release:import` first to mass-port `.release-planning/` artifacts, then run `/release:init` to fill any remaining gaps.
 
 ## Usage
 
@@ -81,7 +81,7 @@ Captures project vision and architecture. Locks decisions as LOCK-XX in PROJECT.
 ## Output
 
 ```
-.planning/
+.release-planning/
   PROJECT.md       # vision + LOCK-01..LOCK-12
   ROADMAP.md       # empty phases template
   REQUIREMENTS.md  # REQ-XX

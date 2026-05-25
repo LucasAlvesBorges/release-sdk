@@ -58,7 +58,7 @@ When both stacks present:
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/{NN}-SECURITY.md
+.release-planning/phases/{NN}-{slug}/{NN}-SECURITY.md
   ## Backend Security (Django)
     | Category | Status | Evidence |
   ## Frontend Security (React)
@@ -102,4 +102,4 @@ When both stacks present:
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

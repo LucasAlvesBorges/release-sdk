@@ -53,9 +53,9 @@ Every REQ-XX in REQUIREMENTS.md must be covered by ≥1 phase. Uncovered → fla
 <execution_flow>
 
 <step name="load_inputs">
-1. Read `.planning/PROJECT.md` — extract vision, domain, LOCK-XX, core value.
-2. Read `.planning/REQUIREMENTS.md` — extract all open REQ-XX.
-3. Read existing `.planning/ROADMAP.md` if present (refresh mode).
+1. Read `.release-planning/PROJECT.md` — extract vision, domain, LOCK-XX, core value.
+2. Read `.release-planning/REQUIREMENTS.md` — extract all open REQ-XX.
+3. Read existing `.release-planning/ROADMAP.md` if present (refresh mode).
 4. Read `./CLAUDE.md` for project conventions.
 </step>
 
@@ -120,7 +120,7 @@ If phase implies LOCK violation → flag for re-discussion.
 
 <step name="write_roadmap_md">
 
-Write `.planning/ROADMAP.md` using `templates/ROADMAP.md`.
+Write `.release-planning/ROADMAP.md` using `templates/ROADMAP.md`.
 
 For each phase, fill:
 ```markdown
@@ -177,11 +177,11 @@ Return structured result to orchestrator:
 <step name="commit">
 
 ```bash
-git add .planning/ROADMAP.md
+git add .release-planning/ROADMAP.md
 git commit -m "docs: scaffold roadmap with {N} phases ({M} requirements covered)"
 ```
 
-Update `.planning/STATE.md`:
+Update `.release-planning/STATE.md`:
 - `cursor.active_phase: null` (roadmap is between-phases artifact)
 - Append history: "{timestamp} — ROADMAP {created | refreshed}"
 

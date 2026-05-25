@@ -2,7 +2,7 @@
 description: >
   Plan a Django feature phase. Reads CONTEXT.md (locked D-XX decisions), spawns researcher + pattern-mapper
   + planner sequentially, produces PLAN.md with Q1-Q7 embedded + 9 security tests + TDD ordering, runs
-  plan-checker to verify before execute. Writes to .planning/phases/{NN}-{slug}/.
+  plan-checker to verify before execute. Writes to .release-planning/phases/{NN}-{slug}/.
   Use when: phase has been discussed (CONTEXT.md exists), ready to plan tasks.
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
@@ -30,16 +30,16 @@ Plans a Django feature phase. Honors locked D-XX decisions from CONTEXT.md. TDD 
 
 ## Prerequisites
 
-- `.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` must exist (run `/django:discuss {NN}` first)
-- `.planning/PROJECT.md` must exist with LOCK-XX
-- `.planning/ROADMAP.md` must contain Phase NN entry
+- `.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` must exist (run `/django:discuss {NN}` first)
+- `.release-planning/PROJECT.md` must exist with LOCK-XX
+- `.release-planning/ROADMAP.md` must contain Phase NN entry
 
 ## Workflow
 
 1. Load context:
-   - `.planning/PROJECT.md` (LOCK-XX)
-   - `.planning/ROADMAP.md` (phase goal + success_criteria)
-   - `.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` (D-XX locked decisions)
+   - `.release-planning/PROJECT.md` (LOCK-XX)
+   - `.release-planning/ROADMAP.md` (phase goal + success_criteria)
+   - `.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` (D-XX locked decisions)
 2. **Optional pre-step:** Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`
    - Probes affected apps, FK graph, existing patterns, migration state, risks
 3. **Optional pre-step:** Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`
@@ -70,7 +70,7 @@ T07 (conditional) MEMRAY if Q7 active                     test({app}): add memra
 ## Output files
 
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   {NN}-RESEARCH.md       # researcher (optional)
   {NN}-PATTERNS.md       # pattern-mapper (optional)
   {NN}-PLAN.md           # planner

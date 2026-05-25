@@ -25,11 +25,11 @@ Verifies a phase actually delivered its goal — adversarially. Does NOT trust e
 
 ## Workflow
 
-1. Read `.planning/phases/{NN}-*/{NN}-PLAN.md` — extract `must_haves`, `threat_model`.
+1. Read `.release-planning/phases/{NN}-*/{NN}-PLAN.md` — extract `must_haves`, `threat_model`.
 2. Read `{NN}-CONTEXT.md` — extract D-XX decisions.
 3. Read `{NN}-SUMMARY.md` — note executor's claims (but don't trust).
-4. Read `.planning/PROJECT.md` — LOCK-XX.
-5. Read `.planning/ROADMAP.md` — phase `success_criteria`.
+4. Read `.release-planning/PROJECT.md` — LOCK-XX.
+5. Read `.release-planning/ROADMAP.md` — phase `success_criteria`.
 6. Spawn `release-phase-verifier` agent.
 7. Verifier performs 3-level audit per truth:
    - **L1 Artifact** — file/symbol exists

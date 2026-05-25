@@ -26,7 +26,7 @@ Detects plan type and routes to the correct TDD executor.
 
 ## Detection logic
 
-1. Read `.planning/phases/{NN}-{slug}/{NN}-PLAN.md` frontmatter.
+1. Read `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` frontmatter.
    - `stack: django` → backend
    - `stack: react-tsx` → frontend
 2. If both `{NN}-PLAN-BACKEND.md` and `{NN}-PLAN-FRONTEND.md` exist → fullstack (require `--backend` or `--frontend` flag).
@@ -49,7 +49,7 @@ else
 fi
 
 # Record start SHA for rollback / diff
-git rev-parse HEAD > .planning/phases/{NN}-{slug}/.exec-start-sha
+git rev-parse HEAD > .release-planning/phases/{NN}-{slug}/.exec-start-sha
 ```
 
 **Rules:**
@@ -104,7 +104,7 @@ Then:
 ```
 git push -u origin feat/{NN}-{slug}
 gh pr create --base main --head feat/{NN}-{slug} --title "feat({NN}): {phase-slug}" \
-  --body "$(cat .planning/phases/{NN}-{slug}/{NN}-SUMMARY.md)"
+  --body "$(cat .release-planning/phases/{NN}-{slug}/{NN}-SUMMARY.md)"
 ```
 
 ## Parallel waves (--waves)
@@ -121,7 +121,7 @@ Safe only when wave tasks touch disjoint file sets. Wave executor verifies file 
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   {NN}-SUMMARY.md       # commits, RC1-RC7/Q1-Q7 evidence, security matrix
 ```
 
@@ -169,4 +169,4 @@ Safe only when wave tasks touch disjoint file sets. Wave executor verifies file 
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

@@ -27,9 +27,9 @@ Gathers phase decisions through adaptive questioning. Locks decisions as D-XX in
 
 ## Workflow
 
-1. Read `.planning/ROADMAP.md` — find phase NN.
-2. Read `.planning/PROJECT.md` — load LOCK-XX (not re-decideable).
-3. Read `.planning/REQUIREMENTS.md` — find REQ-XX covered by this phase.
+1. Read `.release-planning/ROADMAP.md` — find phase NN.
+2. Read `.release-planning/PROJECT.md` — load LOCK-XX (not re-decideable).
+3. Read `.release-planning/REQUIREMENTS.md` — find REQ-XX covered by this phase.
 4. Read `{phase_dir}/{NN}-SPEC.md` if present (ambiguity reduction).
 5. Spawn `django-discuss-orchestrator` agent.
 6. Orchestrator:
@@ -111,7 +111,7 @@ Q2: "Max file size?"
 → 2 ideas deferred (preview mode, async processing — Phase 02 candidate)
 → 1 discretion area (CSV column ordering — Claude chooses)
 
-→ Wrote .planning/phases/01-veiculo-bulk-import/01-CONTEXT.md
+→ Wrote .release-planning/phases/01-veiculo-bulk-import/01-CONTEXT.md
 → Committed: docs(01): capture decisions from discuss-phase
 
 → Next: /django:plan 01

@@ -5,13 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-05-25 — BREAKING
+
+### Changed
+
+- **BREAKING**: Renamed planning directory from `.planning/` to `.release-planning/` to avoid conflict with upstream GSD, which also uses `.planning/`. Projects with both tools can now coexist without file collisions.
+  - All release-sdk skills (`/release:init`, `/release:spec`, `/release:plan`, `/release:execute`, `/release:review`, `/release:ui-phase`, `/release:ai-phase`, `/release:status`, `/release:ship`, etc.) now read and write under `.release-planning/`.
+  - `/release:import` is the bridge: reads GSD `.planning/` (untouched) and writes release-sdk artifacts to a parallel `.release-planning/` tree.
+  - `release-import-orchestrator` agent rewritten with explicit source/dest separation: `.planning/` for READS, `.release-planning/` for WRITES. Idempotency check moved from `.planning/RELEASE-LOCKS.md` to `.release-planning/RELEASE-LOCKS.md`. State updates write to `.release-planning/STATE.md`; GSD's `.planning/STATE.md` is never touched.
+
+### Migration
+
+- **Standalone release-sdk projects** (no GSD): `mv .planning .release-planning`. No content change needed.
+- **GSD-imported projects**: re-run `/release:import` after upgrading. The orchestrator now writes the parallel `.release-planning/` tree and leaves GSD `.planning/` untouched. Old `.planning/RELEASE-LOCKS.md` and `{NN}-*.md` siblings from a prior import can be removed once `.release-planning/` is populated.
+- **Mixed setups**: both `.planning/` (GSD) and `.release-planning/` (release-sdk) can now live in the same repo.
+
 ## [0.4.0] — 2026-05-25
 
 ### Added
 
-- **`/release:import`** — one-shot mass importer that converts an existing GSD `.planning/` tree into release-sdk native format. Single pass:
-  - Project-level: extracts LOCK-01..LOCK-12 from `PROJECT.md`/`ARCHITECTURE.md`/`CONVENTIONS.md`/`config.json` → writes `.planning/RELEASE-LOCKS.md` with `[EXTRACTED]` / `[INFERRED]` / `[MISSING]` status per LOCK.
-  - Phase-level: globs `.planning/phases/*/`, detects stack (Django / React / fullstack) from PLAN/SPEC content, ports `SPEC.md` → `{NN}-SPEC.md` (stack-aware ambiguity), `CONTEXT.md` → `{NN}-CONTEXT.md` (preserves D-XX), `PLAN.md` → `{NN}-PLAN.md` (injects RC1-RC7 + Q1-Q7 + 9-cat security), `VERIFICATION.md` → `{NN}-VERIFICATION.md` + `{NN}-UAT.md` (splits machine vs user-observable items).
+- **`/release:import`** — one-shot mass importer that converts an existing GSD `.release-planning/` tree into release-sdk native format. Single pass:
+  - Project-level: extracts LOCK-01..LOCK-12 from `PROJECT.md`/`ARCHITECTURE.md`/`CONVENTIONS.md`/`config.json` → writes `.release-planning/RELEASE-LOCKS.md` with `[EXTRACTED]` / `[INFERRED]` / `[MISSING]` status per LOCK.
+  - Phase-level: globs `.release-planning/phases/*/`, detects stack (Django / React / fullstack) from PLAN/SPEC content, ports `SPEC.md` → `{NN}-SPEC.md` (stack-aware ambiguity), `CONTEXT.md` → `{NN}-CONTEXT.md` (preserves D-XX), `PLAN.md` → `{NN}-PLAN.md` (injects RC1-RC7 + Q1-Q7 + 9-cat security), `VERIFICATION.md` → `{NN}-VERIFICATION.md` + `{NN}-UAT.md` (splits machine vs user-observable items).
   - Stubs (never fabricated): seeds `{NN}-UI-SPEC.md` for React/fullstack phases, `{NN}-AI-SPEC.md` for LLM phases, `{NN}-SECURITY.md` placeholders — all flagged `ready_for_plan: false` with `[NEEDS REVIEW]`.
 - **`release-import-orchestrator`** agent — drives the mass port. Read-only against GSD originals; writes release-sdk siblings alongside.
 - Flags: `--dry-run`, `--force` (re-import with AskUserQuestion confirmation), `--phases=NN[,NN]`, `--no-stubs`.
@@ -37,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/release:verify-work {NN}` — conversational UAT walkthrough. Renders stack-specific verification scripts (Django curl + manage.py shell, React browser walk + a11y keyboard, fullstack e2e). PASS / FAIL / BLOCKED / SKIP per item. Resumable.
 - `/release:secure-phase {NN}` — retroactive threat-mitigation audit. Greps shipped source for every threat declared in PLAN.md against a 9-category scorecard. Verdict: PASS / FLAG / BLOCK with file:line evidence.
 - `/release:ai-phase {NN}` — AI-SPEC.md design contract for LLM features. Defaults to Anthropic SDK (`claude-sonnet-4-6`) with prompt caching, native tool use, SSE streaming via Django proxy (LOCK-09 httpOnly cookie enforced).
-- `/release:workstreams [list|create|switch|status|progress|complete|resume|remove]` — top-level parallel feature isolation. Each workstream gets its own `.planning/workstreams/<name>/` namespace, `ws-<name>` branch, session-scoped active pointer.
+- `/release:workstreams [list|create|switch|status|progress|complete|resume|remove]` — top-level parallel feature isolation. Each workstream gets its own `.release-planning/workstreams/<name>/` namespace, `ws-<name>` branch, session-scoped active pointer.
 
 **Agents**
 

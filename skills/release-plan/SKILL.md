@@ -27,8 +27,8 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 
 ## Context detection logic
 
-1. Read `.planning/ROADMAP.md` → extract phase goal text and tags.
-2. If `.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` exists → read D-XX decisions for stack signals.
+1. Read `.release-planning/ROADMAP.md` → extract phase goal text and tags.
+2. If `.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md` exists → read D-XX decisions for stack signals.
 3. Classify:
 
 | Signal keywords | Classification |
@@ -43,7 +43,7 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 ## Workflow by classification
 
 ### backend
-1. Load LOCK context: read `.planning/RELEASE-LOCKS.md` if exists (GSD import), else `.planning/PROJECT.md`. Both may coexist — RELEASE-LOCKS.md takes precedence for LOCK-XX values.
+1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists (GSD import), else `.release-planning/PROJECT.md`. Both may coexist — RELEASE-LOCKS.md takes precedence for LOCK-XX values.
 2. Load ROADMAP phase entry, CONTEXT.md.
 3. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
 4. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
@@ -53,7 +53,7 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 8. Commit artifacts.
 
 ### frontend
-1. Load LOCK context: read `.planning/RELEASE-LOCKS.md` if exists, else `.planning/PROJECT.md`.
+1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists, else `.release-planning/PROJECT.md`.
 2. Load ROADMAP phase entry, CONTEXT.md.
 2. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
 3. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
@@ -63,12 +63,12 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 
 ### fullstack (worktree-isolated parallel planning)
 
-Fullstack planning runs backend + frontend pipelines **in parallel** using `git worktree` to prevent agent collision on shared paths (PROJECT.md, ROADMAP.md reads, .planning/ writes).
+Fullstack planning runs backend + frontend pipelines **in parallel** using `git worktree` to prevent agent collision on shared paths (PROJECT.md, ROADMAP.md reads, .release-planning/ writes).
 
 #### Setup phase
 
 ```bash
-PHASE_DIR=".planning/phases/{NN}-{slug}"
+PHASE_DIR=".release-planning/phases/{NN}-{slug}"
 ROOT=$(git rev-parse --show-toplevel)
 WT_BASE="$ROOT/../release-worktrees"
 
@@ -86,21 +86,21 @@ Spawn both pipelines in one message — independent worktrees → safe parallel:
 - `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `django-plan-checker` execute in `$WT_BASE/{NN}-{slug}-backend`
 - `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner` execute in `$WT_BASE/{NN}-{slug}-frontend`
 
-Each pipeline writes its `{NN}-PLAN-*.md` + research artifacts under that worktree's `.planning/phases/{NN}-{slug}/`.
+Each pipeline writes its `{NN}-PLAN-*.md` + research artifacts under that worktree's `.release-planning/phases/{NN}-{slug}/`.
 
 #### Merge phase
 
 ```bash
 # Bring artifacts back into main working tree
-cp "$WT_BASE/{NN}-{slug}-backend/.planning/phases/{NN}-{slug}/"*-BACKEND* \
-   "$WT_BASE/{NN}-{slug}-backend/.planning/phases/{NN}-{slug}/"*-RESEARCH-BACKEND* \
-   "$WT_BASE/{NN}-{slug}-backend/.planning/phases/{NN}-{slug}/"*-PATTERNS-BACKEND* \
-   "$WT_BASE/{NN}-{slug}-backend/.planning/phases/{NN}-{slug}/"*-PLAN-CHECK* \
+cp "$WT_BASE/{NN}-{slug}-backend/.release-planning/phases/{NN}-{slug}/"*-BACKEND* \
+   "$WT_BASE/{NN}-{slug}-backend/.release-planning/phases/{NN}-{slug}/"*-RESEARCH-BACKEND* \
+   "$WT_BASE/{NN}-{slug}-backend/.release-planning/phases/{NN}-{slug}/"*-PATTERNS-BACKEND* \
+   "$WT_BASE/{NN}-{slug}-backend/.release-planning/phases/{NN}-{slug}/"*-PLAN-CHECK* \
    "$PHASE_DIR/" 2>/dev/null || true
 
-cp "$WT_BASE/{NN}-{slug}-frontend/.planning/phases/{NN}-{slug}/"*-FRONTEND* \
-   "$WT_BASE/{NN}-{slug}-frontend/.planning/phases/{NN}-{slug}/"*-RESEARCH-FRONTEND* \
-   "$WT_BASE/{NN}-{slug}-frontend/.planning/phases/{NN}-{slug}/"*-PATTERNS-FRONTEND* \
+cp "$WT_BASE/{NN}-{slug}-frontend/.release-planning/phases/{NN}-{slug}/"*-FRONTEND* \
+   "$WT_BASE/{NN}-{slug}-frontend/.release-planning/phases/{NN}-{slug}/"*-RESEARCH-FRONTEND* \
+   "$WT_BASE/{NN}-{slug}-frontend/.release-planning/phases/{NN}-{slug}/"*-PATTERNS-FRONTEND* \
    "$PHASE_DIR/" 2>/dev/null || true
 
 # Cleanup worktrees
@@ -141,7 +141,7 @@ Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, t
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/
+.release-planning/phases/{NN}-{slug}/
   {NN}-RESEARCH.md        # researcher output
   {NN}-PATTERNS.md        # pattern-mapper output
   {NN}-PLAN.md            # planner output (single-stack)
@@ -180,4 +180,4 @@ Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, t
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

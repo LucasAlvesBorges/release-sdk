@@ -25,7 +25,7 @@ Routes files to the correct reviewer based on extension. Produces unified REVIEW
 
 ## Routing logic
 
-0. Load LOCK constraints: read `.planning/RELEASE-LOCKS.md` if exists (GSD import), else `.planning/PROJECT.md`. Pass active LOCKs to each reviewer as forbidden-pattern context.
+0. Load LOCK constraints: read `.release-planning/RELEASE-LOCKS.md` if exists (GSD import), else `.release-planning/PROJECT.md`. Pass active LOCKs to each reviewer as forbidden-pattern context.
 1. Resolve files to review (from args, git diff, or changed since last commit).
 2. Split by extension:
    - `.py` → `django_files` → spawn `release-code-reviewer`
@@ -79,7 +79,7 @@ REVIEW.md (or path specified by --review-path):
   ⚠️ INTEGRATION: Django serializer uses snake_case, React schema uses camelCase.
      Ensure API client transforms keys (axios + camelcase-keys) or align naming.
 
-→ REVIEW.md written at .planning/review/REVIEW.md
+→ REVIEW.md written at .release-planning/review/REVIEW.md
    Total: 1 BLOCKER, 5 WARNINGS, 1 INTEGRATION ISSUE
 → Run /release:review --fix to apply auto-fixes.
 ```
@@ -89,4 +89,4 @@ REVIEW.md (or path specified by --review-path):
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

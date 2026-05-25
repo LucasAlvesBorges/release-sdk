@@ -1,6 +1,6 @@
 <!--
 # WORKSTREAM-STATE.md
-# Per-workstream cursor. Lives at .planning/workstreams/<name>/STATE.md.
+# Per-workstream cursor. Lives at .release-planning/workstreams/<name>/STATE.md.
 # Mirrors the top-level STATE.md model but scoped to a single parallel feature track.
 # Read by /release:workstreams and by stack skills when a workstream is active.
 # Updated by workflow agents — rarely edited manually.
@@ -57,7 +57,7 @@ All commits for this workstream MUST land on this branch. Verified by
 {phase number — workstream-local, NOT global. e.g., "02 — refund-flow"}
 
 Phases are scoped to this workstream's `ROADMAP.md`. The active-phase pointer
-here is independent of the top-level `.planning/STATE.md`.
+here is independent of the top-level `.release-planning/STATE.md`.
 
 ## Status
 

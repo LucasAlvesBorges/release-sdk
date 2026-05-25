@@ -73,7 +73,7 @@ These go to `/release:discuss` or orchestrator for user decision before planning
 </step>
 
 <step name="write_research_md">
-Write RESEARCH.md at `.planning/phases/{NN}-{slug}/{NN}-RESEARCH.md` using template at bottom.
+Write RESEARCH.md at `.release-planning/phases/{NN}-{slug}/{NN}-RESEARCH.md` using template at bottom.
 Return path. DO NOT modify source.
 </step>
 

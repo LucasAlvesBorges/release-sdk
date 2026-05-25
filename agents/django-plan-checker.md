@@ -33,8 +33,8 @@ Spawned by `/django:plan` after planner completes, before execute.
    - `{phase_dir}/{NN}-CONTEXT.md`
    - `{phase_dir}/{NN}-RESEARCH.md` (if present)
    - `{phase_dir}/{NN}-PATTERNS.md` (if present)
-   - `.planning/PROJECT.md`
-   - `.planning/ROADMAP.md` (extract phase entry)
+   - `.release-planning/PROJECT.md`
+   - `.release-planning/ROADMAP.md` (extract phase entry)
 3. Read `./CLAUDE.md`.
 </step>
 

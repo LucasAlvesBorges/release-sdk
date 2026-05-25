@@ -42,10 +42,10 @@ If a key dimension is ambiguous (data shape, concurrency model, permission model
 <execution_flow>
 
 <step name="load_context">
-1. Read `<config>` for `phase_number` (e.g., "01") and `phase_dir` (e.g., `.planning/phases/01-veiculo-bulk-import/`).
-2. Read `.planning/PROJECT.md` — extract LOCK-XX (cannot be re-decided).
-3. Read `.planning/ROADMAP.md` — find this phase, extract goal + success_criteria.
-4. Read `.planning/REQUIREMENTS.md` — find REQ-XX referenced by phase.
+1. Read `<config>` for `phase_number` (e.g., "01") and `phase_dir` (e.g., `.release-planning/phases/01-veiculo-bulk-import/`).
+2. Read `.release-planning/PROJECT.md` — extract LOCK-XX (cannot be re-decided).
+3. Read `.release-planning/ROADMAP.md` — find this phase, extract goal + success_criteria.
+4. Read `.release-planning/REQUIREMENTS.md` — find REQ-XX referenced by phase.
 5. Read `{phase_dir}/{NN}-SPEC.md` if present (optional ambiguity-reduction artifact).
 6. Read `./CLAUDE.md` for project conventions.
 
@@ -200,7 +200,7 @@ git commit -m "docs({NN}): capture decisions from discuss-phase
 "
 ```
 
-Update `.planning/STATE.md`:
+Update `.release-planning/STATE.md`:
 - `cursor.active_phase: "{NN}"`
 - `cursor.active_stage: "discuss-complete"`
 - Append to recent history: "{timestamp} — Phase {NN} → discuss complete"

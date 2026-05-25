@@ -62,7 +62,7 @@ If same pattern repeats 3+ times across mapping → flag for extraction to share
 </step>
 
 <step name="write_patterns_md">
-Write PATTERNS.md at `.planning/phases/{NN}-{slug}/{NN}-PATTERNS.md` using template at bottom. DO NOT modify source.
+Write PATTERNS.md at `.release-planning/phases/{NN}-{slug}/{NN}-PATTERNS.md` using template at bottom. DO NOT modify source.
 </step>
 
 </execution_flow>

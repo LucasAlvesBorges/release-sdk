@@ -57,7 +57,7 @@ Additional checks:
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/{NN}-VERIFICATION.md
+.release-planning/phases/{NN}-{slug}/{NN}-VERIFICATION.md
 
 ---
 verdict: PASS | GAPS_FOUND
@@ -85,4 +85,4 @@ GAPS_FOUND → /release:plan 01 --gaps → /release:execute 01 --gaps
 
 ## Stack dispatch
 
-This skill spawns merged `release-*` agents. Stack is inferred from `.planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.

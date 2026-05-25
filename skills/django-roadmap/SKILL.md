@@ -26,8 +26,8 @@ Decomposes the project into executable phases. Audits coverage. Surfaces gaps.
 
 ## Workflow
 
-1. Read `.planning/PROJECT.md` (vision + LOCKs).
-2. Read `.planning/REQUIREMENTS.md` (REQ-XX list).
+1. Read `.release-planning/PROJECT.md` (vision + LOCKs).
+2. Read `.release-planning/REQUIREMENTS.md` (REQ-XX list).
 3. Spawn `django-roadmapper` agent.
 4. Roadmapper:
    - Decomposes REQ-XX into vertical-slice phases (NOT horizontal layers)
@@ -35,7 +35,7 @@ Decomposes the project into executable phases. Audits coverage. Surfaces gaps.
    - Audits coverage: every REQ-XX covered by ≥1 phase, no orphan phases
    - Audits LOCK compliance for each phase
    - Estimates context cost (S <30%, M 30-50%, L 50-70% — L proposes split)
-5. Writes `.planning/ROADMAP.md` (or appends if `--add-phase`).
+5. Writes `.release-planning/ROADMAP.md` (or appends if `--add-phase`).
 6. Commits.
 
 ## Output

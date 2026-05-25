@@ -17,7 +17,7 @@ Spawned by `/release:execute {NN} --waves` skill.
 
 <step name="load_plan">
 
-1. Read `$PLAN_PATH` (`.planning/phases/{NN}-{slug}/{NN}-PLAN.md`).
+1. Read `$PLAN_PATH` (`.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md`).
 2. Parse frontmatter `wave_0`, `wave_1`, ... `wave_N` blocks.
 3. Build wave list: each wave = ordered list of task IDs.
 4. Read each task body to extract `files:` list (RED test files, GREEN impl files, migration paths).

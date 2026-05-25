@@ -58,8 +58,8 @@ Three-level check per truth:
 1. Read `{phase_dir}/{NN}-PLAN.md` — extract `must_haves`, `threat_model`, `covers_decisions`
 2. Read `{phase_dir}/{NN}-CONTEXT.md` — extract D-XX decisions
 3. Read `{phase_dir}/{NN}-SUMMARY.md` — note claims (DO NOT trust)
-4. Read `.planning/PROJECT.md` for LOCK-XX
-5. Read `.planning/ROADMAP.md` — extract phase `success_criteria`
+4. Read `.release-planning/PROJECT.md` for LOCK-XX
+5. Read `.release-planning/ROADMAP.md` — extract phase `success_criteria`
 
 If no SUMMARY.md → return `## NOT_YET_EXECUTED`
 </step>
@@ -128,7 +128,7 @@ If GAPS_FOUND:
 
 Commit:
 ```bash
-git add {phase_dir}/{NN}-VERIFICATION.md .planning/ROADMAP.md .planning/STATE.md
+git add {phase_dir}/{NN}-VERIFICATION.md .release-planning/ROADMAP.md .release-planning/STATE.md
 git commit -m "docs({NN}): verify phase ({status})"
 ```
 </step>

@@ -31,7 +31,7 @@ Appends a `## Researcher Findings` section to the existing AI-SPEC.md. Consumed 
 <step name="parse_ai_spec">
 1. Read `<config>` for `ai_spec_path` (AI-SPEC.md absolute path).
 2. Read `./CLAUDE.md` (root) and `backend/CLAUDE.md`, `frontend/CLAUDE.md` if they exist.
-3. Read `.planning/RELEASE-LOCKS.md` (preferred) or `.planning/PROJECT.md` for LOCK-01..LOCK-12.
+3. Read `.release-planning/RELEASE-LOCKS.md` (preferred) or `.release-planning/PROJECT.md` for LOCK-01..LOCK-12.
 4. Extract from AI-SPEC.md:
    - Provider + model
    - Hosting model (proxy / streaming mode)
@@ -114,7 +114,7 @@ If tool use → list each tool with its `name`, `description`, `input_schema` JS
 Propose a minimal eval layout:
 
 ```
-.planning/phases/{NN}-{slug}/eval/
+.release-planning/phases/{NN}-{slug}/eval/
   golden.jsonl                    # one record per case: {input, expected, tags}
   judge_prompt.md                 # LLM-as-judge rubric (if applicable)
   metrics.yaml                    # what we track per case
@@ -253,8 +253,8 @@ export const {SchemaName} = z.object({ ... });
 ### Eval Harness (proposed)
 
 ```
-.planning/phases/{NN}-{slug}/eval/golden.jsonl   # {N} cases
-.planning/phases/{NN}-{slug}/eval/judge_prompt.md
+.release-planning/phases/{NN}-{slug}/eval/golden.jsonl   # {N} cases
+.release-planning/phases/{NN}-{slug}/eval/judge_prompt.md
 backend/tests/eval/test_phase_{NN}_eval.py
 ```
 

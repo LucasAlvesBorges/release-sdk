@@ -25,7 +25,7 @@ ready_for_discuss: false | true
 
 - **Detected:** {django | react | fullstack}
 - **Signals:** {what files/keywords drove the detection — e.g., "manage.py present, ROADMAP goal mentions 'endpoint'"}
-- **LOCK source:** {.planning/RELEASE-LOCKS.md or .planning/PROJECT.md}
+- **LOCK source:** {.release-planning/RELEASE-LOCKS.md or .release-planning/PROJECT.md}
 - **Applicable LOCKs:** {LOCK-01, LOCK-02, ...}
 
 ## Scope (in)

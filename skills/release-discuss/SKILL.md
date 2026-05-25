@@ -61,7 +61,7 @@ Runs both dimension sets. Groups decisions:
 ## Output
 
 ```
-.planning/phases/{NN}-{slug}/{NN}-CONTEXT.md
+.release-planning/phases/{NN}-{slug}/{NN}-CONTEXT.md
 
 ---
 phase: {NN}

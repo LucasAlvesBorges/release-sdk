@@ -54,7 +54,7 @@ Findings without classification = invalid output.
 
 <step name="scope_files">
 Exclude (all stacks):
-- `.planning/` dir
+- `.release-planning/` dir
 - `*-PLAN.md`, `*-SUMMARY.md`, `STATE.md`, `ROADMAP.md`
 - Lock files (`poetry.lock`, `package-lock.json`, `yarn.lock`)
 - `node_modules/`, `dist/`, `build/`, `.next/`, `coverage/`

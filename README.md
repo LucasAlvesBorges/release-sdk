@@ -91,7 +91,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `release-ai-researcher` | AI/LLM framework research for `/release:ai-phase` |
 | `release-ui-researcher` | UI design contract author for `/release:ui-phase` |
 | `release-spec-clarifier` | SPEC.md ambiguity scoring before discuss-phase |
-| `release-import-orchestrator` | One-shot GSD → release-sdk migration of `.planning/` tree |
+| `release-import-orchestrator` | One-shot GSD → release-sdk migration of `.release-planning/` tree |
 | `release-uat-conductor` | Conversational UAT verification |
 | `release-wave-executor` | Parallel wave execution via git worktrees |
 | `release-django-security-retro` | Retroactive Django security audit |
@@ -108,7 +108,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 
 | Command | Stack | Purpose |
 |---|---|---|
-| `/release:import` | both | Mass-port GSD `.planning/` → release-sdk format (one-shot, all phases) |
+| `/release:import` | both | Mass-port GSD `.release-planning/` → release-sdk format (one-shot, all phases) |
 | `/release:init` | both | Initialize PROJECT.md (LOCK-01..LOCK-12) |
 | `/release:spec {NN}` | both | Clarify WHAT phase delivers (SPEC.md, ambiguity score) |
 | `/release:discuss {NN}` | both | Gather decisions (D-XX) for phase |
@@ -134,7 +134,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `django-validate-commit.sh` | PreToolUse:Bash | Conventional Commits enforcement (both stacks) |
 | `django-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — warns on Django core file edit without test |
 | `django-tenant-scope-check.sh` | PreToolUse:Write/Edit | Warns when new Model skips TenantModel |
-| `django-prompt-guard.js` | PreToolUse:Write/Edit | Scans .planning/ for prompt injection patterns |
+| `django-prompt-guard.js` | PreToolUse:Write/Edit | Scans .release-planning/ for prompt injection patterns |
 | `react-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — warns on React component edit without test |
 | `react-security-guard.js` | PreToolUse:Write/Edit | Warns on localStorage token storage, dangerouslySetInnerHTML, eval |
 | `release-read-injection-scanner.js` | PreToolUse:Read | Scans files read for prompt-injection patterns (ignore-previous, role overrides, hidden text) |
@@ -265,7 +265,7 @@ cd ~/my-project
 ## Planning artifacts
 
 ```
-.planning/
+.release-planning/
 ├── PROJECT.md                              # LOCK-01..LOCK-12 (immutable)
 ├── ROADMAP.md                              # phase list
 ├── REQUIREMENTS.md                         # REQ-XX
