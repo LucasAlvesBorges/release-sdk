@@ -17,8 +17,9 @@ Sharpens WHAT a phase will deliver. Produces SPEC.md with explicit scope, exclus
 /release:spec 01 --django            # force backend spec dimensions
 /release:spec 01 --react             # force frontend spec dimensions
 /release:spec 01 --fullstack         # both dimension sets
-/release:spec 01 --gsd-context       # respect existing GSD SPEC artifacts; only fill gaps
 ```
+
+> Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
 
 ## When to use
 
@@ -177,13 +178,3 @@ ready_for_discuss: true | false
 
 → Next: /release:discuss 03
 ```
-
-## GSD Context Mode (`--gsd-context`)
-
-If project was bootstrapped with `/release:init --gsd-context` and a GSD SPEC artifact exists at `.planning/phases/{NN}-{slug}/SPEC.md` (no NN prefix), the skill:
-
-1. Reads existing GSD SPEC.
-2. Maps its sections to release-sdk SPEC.md shape.
-3. Adds Stack Detection block (GSD SPEC lacks stack-awareness).
-4. Asks only stack-specific WHAT questions not covered by GSD SPEC.
-5. Writes `{NN}-SPEC.md` alongside the GSD SPEC (does not overwrite).

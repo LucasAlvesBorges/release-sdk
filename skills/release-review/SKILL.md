@@ -21,6 +21,8 @@ Routes files to the correct reviewer based on extension. Produces unified REVIEW
 /release:review --fix                        # apply fixes after review
 ```
 
+> Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
+
 ## Routing logic
 
 0. Load LOCK constraints: read `.planning/RELEASE-LOCKS.md` if exists (GSD import), else `.planning/PROJECT.md`. Pass active LOCKs to each reviewer as forbidden-pattern context.

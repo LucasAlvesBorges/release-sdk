@@ -25,6 +25,8 @@ before planning so prompt structure, eval strategy, and guardrails are decided u
 /release:ai-phase 01 --no-researcher # write AI-SPEC.md draft only, skip release-ai-researcher
 ```
 
+> Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
+
 ## When to use
 
 Activate this skill when the phase description includes any of:
@@ -68,7 +70,7 @@ Scan SPEC.md and PROJECT.md for signals that already pin a decision. Mark each o
 | Q5 Guardrails | "rate limit", "moderation", "prompt injection", "PII", "redaction" | `[INFERRED]` |
 | Q6 Monitoring | "Langfuse", "Helicone", "Phoenix", "OpenLLMetry", "cost tracking" | `[INFERRED]` |
 
-Show the extraction report (mirrors `/release:init --gsd-context` style):
+Show the extraction report:
 
 ```
 AI Phase Context — Extraction Report

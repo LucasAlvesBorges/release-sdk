@@ -21,8 +21,9 @@ release-sdk React defaults (LOCK-07..LOCK-12).
 /release:ui-phase 03 --frontend      # force frontend pipeline (skip stack detection)
 /release:ui-phase 03 --fullstack     # treat phase as fullstack — produce frontend-only spec
 /release:ui-phase 03 --revise        # re-run with prior UI-SPEC.md as input
-/release:ui-phase 03 --gsd-context   # honor co-installed GSD plugin; read RELEASE-LOCKS.md
 ```
+
+> Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
 
 ## Stack guard — React only
 
@@ -67,7 +68,7 @@ Read in parallel (skip gracefully if missing):
 
 | File | Used for |
 |---|---|
-| `.planning/RELEASE-LOCKS.md` *(if present — GSD co-install)* | LOCK-07..LOCK-12 (frontend stack, state, auth, types, tests, contract) |
+| `.planning/RELEASE-LOCKS.md` *(if present)* | LOCK-07..LOCK-12 (frontend stack, state, auth, types, tests, contract) |
 | `.planning/PROJECT.md` *(fallback)* | LOCK-07..LOCK-12 if no RELEASE-LOCKS.md |
 | `.planning/ROADMAP.md` | phase goal, tags |
 | `.planning/phases/{NN}-{slug}/{NN}-SPEC.md` *(if present)* | WHAT the phase delivers |
@@ -192,21 +193,6 @@ contract every TDD task must honor.
 
 UI-DEC-XX are immutable after UI-SPEC.md is written. Changes require re-running
 `/release:ui-phase {NN} --revise`.
-
----
-
-## Co-installed GSD plugin (`--gsd-context`)
-
-If `--gsd-context` flag is passed AND `.planning/RELEASE-LOCKS.md` exists:
-- LOCK-07..LOCK-12 are sourced from RELEASE-LOCKS.md (not re-asked).
-- Frontmatter `gsd_context: true` is added to UI-SPEC.md.
-- A note is appended pointing GSD's `gsd-ui-phase` users at the React-locked output:
-  > This UI-SPEC.md was produced by release-sdk's React-locked variant. The companion
-  > GSD `/gsd:ui-phase` skill is generic; this file supersedes it for any React TSX phase.
-
-If `.planning/RELEASE-LOCKS.md` is absent under `--gsd-context`:
-> GSD planning directory found but RELEASE-LOCKS.md missing.
-> Run `/release:init --gsd-context` first to import LOCKs.
 
 ---
 

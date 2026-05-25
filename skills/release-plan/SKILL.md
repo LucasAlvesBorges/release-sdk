@@ -23,6 +23,8 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 /release:plan 01 --no-worktree       # disable worktree isolation (sequential, main tree)
 ```
 
+> Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
+
 ## Context detection logic
 
 1. Read `.planning/ROADMAP.md` → extract phase goal text and tags.

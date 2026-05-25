@@ -1,7 +1,7 @@
 {
   "name": "release-sdk",
   "description": "Full-stack acceleration kit (Django + React TSX) — context-aware routing, adversarial code review, 9-category security audit, TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"

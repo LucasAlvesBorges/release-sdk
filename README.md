@@ -108,6 +108,7 @@ Override with `--backend`, `--frontend`, or `--fullstack` flags.
 
 | Command | Stack | Purpose |
 |---|---|---|
+| `/release:import` | both | Mass-port GSD `.planning/` → release-sdk format (one-shot, all phases) |
 | `/release:init` | both | Initialize PROJECT.md (LOCK-01..LOCK-12) |
 | `/release:spec {NN}` | both | Clarify WHAT phase delivers (SPEC.md, ambiguity score) |
 | `/release:discuss {NN}` | both | Gather decisions (D-XX) for phase |

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-05-25
+
+### Added
+
+- **`/release:import`** — one-shot mass importer that converts an existing GSD `.planning/` tree into release-sdk native format. Single pass:
+  - Project-level: extracts LOCK-01..LOCK-12 from `PROJECT.md`/`ARCHITECTURE.md`/`CONVENTIONS.md`/`config.json` → writes `.planning/RELEASE-LOCKS.md` with `[EXTRACTED]` / `[INFERRED]` / `[MISSING]` status per LOCK.
+  - Phase-level: globs `.planning/phases/*/`, detects stack (Django / React / fullstack) from PLAN/SPEC content, ports `SPEC.md` → `{NN}-SPEC.md` (stack-aware ambiguity), `CONTEXT.md` → `{NN}-CONTEXT.md` (preserves D-XX), `PLAN.md` → `{NN}-PLAN.md` (injects RC1-RC7 + Q1-Q7 + 9-cat security), `VERIFICATION.md` → `{NN}-VERIFICATION.md` + `{NN}-UAT.md` (splits machine vs user-observable items).
+  - Stubs (never fabricated): seeds `{NN}-UI-SPEC.md` for React/fullstack phases, `{NN}-AI-SPEC.md` for LLM phases, `{NN}-SECURITY.md` placeholders — all flagged `ready_for_plan: false` with `[NEEDS REVIEW]`.
+- **`release-import-orchestrator`** agent — drives the mass port. Read-only against GSD originals; writes release-sdk siblings alongside.
+- Flags: `--dry-run`, `--force` (re-import with AskUserQuestion confirmation), `--phases=NN[,NN]`, `--no-stubs`.
+
+### Removed — BREAKING
+
+- **`--gsd-context` flag** removed from `release-init`, `release-spec`, `release-ui-phase`, `release-ai-phase`, `release-plan`, `release-review`. Runtime translation of GSD artifacts is replaced by the one-shot `/release:import`. Migration: run `/release:import` once; all skills then assume release-sdk native format.
+- Sections removed: `GSD Context Mode (--gsd-context)`, `Co-installed GSD plugin (--gsd-context)`, Steps 1–7 of GSD-presence check in `release-init`.
+
+### Changed
+
+- `release-init` is now scoped strictly to greenfield project initialization. For imports, use `/release:import` first.
+- README slash-commands table now shows `/release:import` as the first command.
+
 ## [0.3.0] — 2026-05-25
 
 ### Added — close upstream GSD gaps with 6 new skills + 2 hooks
