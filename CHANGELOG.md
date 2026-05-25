@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-05-25
+
+### Added
+
+- **`CLAUDE.md` injection** in `/release:init` and `/release:import`. Both flows now write a delimited `<!-- release-sdk:start --> ... <!-- release-sdk:end -->` block into the repo-root `CLAUDE.md` so future Claude Code sessions know release-sdk is installed and where the planning artifacts live. Idempotent:
+  - File missing → created with a minimal header + the block.
+  - File present, block present → only the delimited block is replaced; every other byte preserved.
+  - File present, no block → block appended at the end (two blank lines before it).
+- Block surfaces: framework name + stack, paths (`.release-planning/RELEASE-LOCKS.md`, `STATE.md`, `phases/{NN}-{slug}/`), and the `/release:auto` entry point with the full `/release:*` skill index.
+
+### Fixed
+
+- Gap surfaced by user audit: 5 agents (`release-feature-planner`, `release-spec-clarifier`, `release-tdd-executor`, `release-code-reviewer`, `release-code-fixer`) and `templates/PLAN.md` already READ `CLAUDE.md` for conventions, but nothing in release-sdk wrote it — so brand-new projects had agents reading an empty or generic file. `/release:init` and `/release:import` now own that write.
+
 ## [0.6.0] — 2026-05-25
 
 ### Added

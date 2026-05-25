@@ -173,6 +173,9 @@ Stubs (only seeded when `--no-stubs` is NOT set):
 - `.release-planning/RELEASE-LOCKS.md` — canonical LOCK-01..LOCK-12 (NEW)
 - `.release-planning/STATE.md` — release-sdk-owned cursor + history (NEW; GSD's
   `.planning/STATE.md` stays untouched)
+- `CLAUDE.md` (repo root) — delimited `<!-- release-sdk:start --> ... <!-- release-sdk:end -->`
+  block injected. Idempotent: created if missing, block replaced if present, appended
+  otherwise. Every other byte preserved. See `release-init` SKILL for the block contents.
 
 ### Layout after import (two coexisting trees)
 

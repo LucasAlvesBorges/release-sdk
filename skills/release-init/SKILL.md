@@ -86,7 +86,48 @@ Captures project vision and architecture. Locks decisions as LOCK-XX in PROJECT.
   ROADMAP.md       # empty phases template
   REQUIREMENTS.md  # REQ-XX
   STATE.md         # cursor
+
+CLAUDE.md          # root — delimited release-sdk block injected (created if missing)
 ```
+
+## CLAUDE.md injection (always last step)
+
+After `.release-planning/` writes succeed, inject a delimited block into the repo-root
+`CLAUDE.md` so every future Claude Code session knows release-sdk is installed and where
+the artifacts live.
+
+Behavior:
+
+1. If `CLAUDE.md` does NOT exist → create with a minimal header + the release-sdk block.
+2. If `CLAUDE.md` exists AND contains `<!-- release-sdk:start -->` → replace only the
+   delimited block; preserve everything else byte-for-byte.
+3. If `CLAUDE.md` exists AND no delimited block → append the block at the end (two blank
+   lines before it).
+
+Block content (rendered with project name + stack from PROJECT.md):
+
+```markdown
+<!-- release-sdk:start -->
+## release-sdk framework
+
+This project uses **release-sdk** ({stack}). Planning artifacts live at
+`.release-planning/`.
+
+- LOCK-XX rules: `.release-planning/RELEASE-LOCKS.md`
+- Active phase cursor: `.release-planning/STATE.md`
+- Phase artifacts: `.release-planning/phases/{NN}-{slug}/`
+
+Entry point: **`/release:auto <freeform intent>`** — routes to the right `/release:*`
+skill (status / spec / discuss / plan / execute / review / verify / ui-phase / ai-phase /
+secure-phase / debug / fast / quick / ship / import / workstreams / checklist).
+
+GSD coexistence: if `.planning/` is also present, it belongs to upstream GSD and is
+read-only from release-sdk's side. `/release:import` is the bridge.
+<!-- release-sdk:end -->
+```
+
+Idempotent. Re-running `/release:init` updates the block in place without disturbing the
+rest of `CLAUDE.md`.
 
 ## Example
 
@@ -105,6 +146,7 @@ Captures project vision and architecture. Locks decisions as LOCK-XX in PROJECT.
 → Writing ROADMAP.md (template)...
 → Writing STATE.md...
 → Writing REQUIREMENTS.md...
+→ Injecting release-sdk block into CLAUDE.md (created — no existing file)...
 
 → Done. Next: /release:roadmap  (decompose milestone into phases)
 ```
