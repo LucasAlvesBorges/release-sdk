@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-05-25
+
+### Added
+
+- **`/release:auto`** — freeform-intent router. Reads the user's prompt + `.release-planning/` state and dispatches to the right `/release:*` skill (20 routes covering import / status / init / spec / discuss / plan / execute / review / verify / verify-work / secure-phase / security / ui-phase / ai-phase / workstreams / checklist / ship / debug / quick / fast). Always prints the chosen route + a 1-line reason before invoking; falls back to `AskUserQuestion` when classification confidence is low. Mirrors GSD's `gsd-progress` "unified situational command" pattern.
+- **`/release:debug`** — persistent debug session under `.release-planning/debug/{session_id}/`. Survives `/clear` via checkpoint protocol. Stack-aware (django / react / fullstack) dispatch to the existing `release-debugger` agent.
+- **`/release:fast`** — trivial inline task execution. No subagents, no phase machinery, no state writes. Clean-worktree gate + atomic commit. For < 30 LOC single-file edits where the work is faster than planning it.
+- **`/release:quick`** — bounded multi-file task with atomic commits + light state tracking (logs to `.release-planning/quick-log.md`) but skips the SPEC / DISCUSS / PLAN heavy envelope. Spawns `release-tdd-executor` in `quick_mode`. Cursor untouched.
+- **`/release:ship`** — final PR gate for verified phases. Pre-ship review via `release-code-reviewer`, PR title + body grounded in `{NN}-SPEC.md` / `{NN}-PLAN.md` / `{NN}-UAT.md`, `gh pr create`, then moves `.release-planning/STATE.md` cursor to `shipped`. Never auto-merges. Refuses to ship anything not at `active_stage: verified`.
+
+### Notes
+
+- All four new skills (`debug`, `fast`, `quick`, `ship`) are native to release-sdk and live under the `/release:*` namespace; `/release:auto` no longer falls back to `/gsd:*` for any route.
+- `/release:auto` is opt-in. Nothing else in release-sdk depends on it.
+
 ## [0.5.0] — 2026-05-25 — BREAKING
 
 ### Changed
