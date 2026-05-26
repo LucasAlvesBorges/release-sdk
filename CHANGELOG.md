@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] — 2026-05-26
+
+### Fixed — Token dashboard: "Sessão atual" sempre $0.00 + "Por skill" sempre vazio
+
+**Bug 1 — Sessão atual = $0.00:**
+
+Dashboard chamava `/api/stats` sem query `session_id`. Worker recebia `null`
+e nunca acumulava events na bucket `session`. Fix: quando `session_id` ausente
+na query, worker auto-detecta = `session_id` do evento mais recente (se < 30min).
+Dashboard agora exibe os 8 primeiros chars do session_id ativo (com tag "(auto)"
+quando inferido). Funciona transparentemente independente de qual sessão CC abriu o browser.
+
+**Bug 2 — POR SKILL sempre vazio:**
+
+`release-token-collector.js` extraía skill via regex `<command-name>X</command-name>`.
+Esse formato só aparece em comandos built-in (`/clear`, `/login`, `/model`).
+Slash commands de plugin (`/release:plan`, `/release:execute`) injetam conteúdo
+diferente no transcript — header `# /release:<name>` + path `.../skills/<name>/SKILL.md`.
+
+Fix: novo `extractSkill()` reconhece 3 formatos em ordem:
+1. Path `Base directory for this skill: .../skills/<name>` → `release:<name>`
+2. Header `# /<command>` → `<command>`
+3. Tag `<command-name>X</command-name>` (built-ins) → `X`
+
+Também removido `break;` prematuro que parava após primeira user message
+mesmo quando sem skill signal. Agora walk-back continua até encontrar ou esgotar.
+
+Events anteriores ao fix permanecem com `skill: null` — dashboard só
+preenche POR SKILL para events futuros. Clear `~/.claude/token-tracker/events.jsonl`
+para reset opcional.
+
 ## [0.11.0] — 2026-05-26
 
 ### BREAKING — Wave-split PLAN structure

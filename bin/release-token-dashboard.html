@@ -50,7 +50,7 @@
 
 <div class="grid">
   <div class="card">
-    <h3>Sessão atual</h3>
+    <h3>Sessão atual <span id="session-tag" style="color:var(--muted); font-size:10px; text-transform:none; letter-spacing:0"></span></h3>
     <div class="val cost" id="kpi-session-cost">$0.00</div>
     <div class="sub"><span class="brl" id="kpi-session-brl">R$0,00</span> · <span id="kpi-session-turns">0</span> turnos · <span id="kpi-session-tpt">0</span> tok/turno</div>
   </div>
@@ -145,6 +145,13 @@ function renderKPI(s) {
   const fxAge = s.meta.fx_fetched_at ? Math.floor((Date.now() - s.meta.fx_fetched_at) / 60000) : null;
   const fxLabel = `FX R$${s.meta.fx_rate.toFixed(4)}` + (fxAge !== null ? ` · ${fxAge}m` : '') + (s.meta.fx_source === 'fallback' ? ' (fallback)' : '');
   $('event-count').textContent = s.meta.events_count + ' eventos · ' + fxLabel;
+  const sid = s.meta.session_id;
+  if (sid) {
+    const tag = s.meta.session_auto_detected ? `${sid.slice(0,8)} (auto)` : sid.slice(0,8);
+    $('session-tag').textContent = ` · ${tag}`;
+  } else {
+    $('session-tag').textContent = '';
+  }
 }
 
 function renderTimeline(s) {

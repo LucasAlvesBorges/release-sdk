@@ -71,14 +71,29 @@ function postEvent(ev) {
 }
 
 function extractSkill(entries) {
-  // Last user message may contain a <command-name>X</command-name> tag from a slash command.
+  // Walk backwards through user messages looking for skill signals.
+  // Plugin slash commands inject content like:
+  //   "Base directory for this skill: .../skills/<name>\n# /release:<name>"
+  // Built-in commands inject: "<command-name>/clear</command-name>"
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i];
     if (e.type !== 'user') continue;
+    if (e.isMeta) continue;
     const content = JSON.stringify(e.message?.content || '');
-    const m = content.match(/<command-name>([^<]+)<\/command-name>/);
+
+    // Plugin slash commands — path-based (most reliable for /release:*)
+    let m = content.match(/Base directory for this skill:[^"\\n]*?\/skills\/([a-z][a-z0-9_-]+)/i);
+    if (m) return `release:${m[1]}`;
+
+    // Plugin slash commands — header `# /release:<name>` or `# /<name>`
+    m = content.match(/#\s+\/(release:[a-z0-9_-]+|[a-z][a-z0-9_-]+)/);
     if (m) return m[1];
-    break;
+
+    // Built-in slash commands — <command-name>/clear</command-name>
+    m = content.match(/<command-name>\/?([a-z][a-z0-9:_-]*)<\/command-name>/i);
+    if (m) return m[1];
+
+    // Pure text user message (not slash command) → keep walking back, don't break.
   }
   return null;
 }

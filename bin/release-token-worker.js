@@ -140,8 +140,18 @@ function buildStats(qs) {
   const events = readEvents();
   const now = Date.now() / 1000;
   const ONE_DAY = 86400;
-  const sessionId = qs.session_id || null;
   const cwd = qs.cwd || null;
+
+  // If no explicit session_id, auto-detect "current" = most-recent session within 30min
+  // of the latest event. Gives the dashboard a useful default without forcing a query param.
+  let sessionId = qs.session_id || null;
+  if (!sessionId && events.length > 0) {
+    const latest = events[events.length - 1];
+    const SESSION_FRESH_WINDOW = 30 * 60;
+    if (now - latest.ts < SESSION_FRESH_WINDOW) {
+      sessionId = latest.session_id;
+    }
+  }
 
   const session  = emptyAgg();
   const today    = emptyAgg();
@@ -209,7 +219,9 @@ function buildStats(qs) {
       data_file: EVENTS_FILE,
       fx_rate: rate,
       fx_source: fxCache.source,
-      fx_fetched_at: fxCache.fetched_at
+      fx_fetched_at: fxCache.fetched_at,
+      session_id: sessionId,
+      session_auto_detected: !qs.session_id && sessionId != null
     }
   };
 }
