@@ -1,28 +1,31 @@
 ---
 name: execute
 description: >
-  Context-aware phase executor. Detects backend/frontend phase type from PLAN.md, routes to
-  release-tdd-executor (stack-dispatched). Supports --backend/--frontend flags for fullstack phases.
-  TDD-strict: RED → GREEN → REFACTOR → SECURITY. Atomic per-task commits.
-  Use when: PLAN.md is ready (plan-checker PASS or WARN-accepted).
+  Context-aware phase executor (v0.12.0 BREAKING — waves-by-default). Detects backend/frontend
+  phase type from PLAN, ALWAYS spawns release-wave-executor which fans out N release-tdd-executor
+  in worktree-isolated parallel branches per disjoint task group. TDD-strict per task:
+  RED → GREEN → REFACTOR → SECURITY. Atomic Conventional commits cherry-picked back to phase branch.
+  Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 
-# /release:execute — Context-Aware Phase Executor
+# /release:execute — Context-Aware Phase Executor (waves-by-default)
 
-Detects plan type and routes to the correct TDD executor.
+**v0.12.0 BREAKING**: Always routes through `release-wave-executor`. Legacy direct `release-tdd-executor`
+serial path removed. Single-worktree falls out naturally for waves with 1 task / collision-bound waves.
 
 ## Usage
 
 ```
-/release:execute 01                  # auto-detect, branch-per-phase, execute
-/release:execute 01 --backend        # force Django executor
-/release:execute 01 --frontend       # force React executor
-/release:execute 01 --resume         # resume from last completed task (reuses existing branch)
-/release:execute 01 --dry-run        # preview without committing
-/release:execute 01 --gaps           # execute gap-closure plan
+/release:execute 01                  # auto-detect, branch-per-phase, waves-parallel
+/release:execute 01 --backend        # force Django planner+executor (waves-parallel)
+/release:execute 01 --frontend       # force React planner+executor (waves-parallel)
+/release:execute 01 --resume         # skip tasks already committed on phase branch
+/release:execute 01 --dry-run        # preview parallel_groups + spawn count without committing
+/release:execute 01 --gaps           # execute gap-closure plan (still via wave-executor)
 /release:execute 01 --no-branch      # disable branch-per-phase (commit to current branch)
-/release:execute 01 --waves          # parallel wave executor (worktree-isolated)
 ```
+
+`--waves` flag REMOVED in v0.12.0 — waves are the only execution mode.
 
 ## Detection logic
 
@@ -55,29 +58,37 @@ git rev-parse HEAD > .release-planning/phases/{NN}-{slug}/.exec-start-sha
 **Rules:**
 - New phase + clean tree → `git checkout -b feat/{NN}-{slug}` from current HEAD
 - New phase + dirty tree → ABORT (instruct user to commit/stash)
-- `--resume` and branch exists → `git checkout feat/{NN}-{slug}`
+- `--resume` and branch exists → `git checkout feat/{NN}-{slug}` + wave-executor skips tasks already committed (greps `T{NN}` in `git log`)
 - `--no-branch` → skip branch creation, commit to current branch (legacy behavior)
 - Fullstack: same branch holds both `--backend` and `--frontend` commits (no split)
+- Wave-executor creates short-lived `wave/{NN}-{TXX}` branches per worktree, deleted after cherry-pick back to phase branch
 
 PR is opened from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
 
 ## Workflow by stack
 
+`/release:execute` ALWAYS spawns `release-wave-executor`. Wave-executor:
+1. Parses PLAN (`{NN}-PLAN/manifest.md` wave-split dir, OR legacy `{NN}-PLAN.md`)
+2. Auto-derives `parallel_groups` per wave when frontmatter omits them (via `files:` per task disjoint analysis)
+3. Slices PLAN per task into worktree-local `PLAN-SLICE.md` (~3KB) to drop redundant context cost
+4. Spawns N `release-tdd-executor` concurrently in `git worktree`-isolated branches when disjoint files detected
+5. Falls back serial-in-main-tree when files collide (Django graph coherence, migrations, lockfiles)
+6. Cherry-picks per-task commits back to `feat/{NN}-{slug}` branch after each wave
+7. Verify per-wave (intermediate) + full suite at end-of-phase (terminal wave only)
+
 ### backend (stack: django)
-Delegates entirely to `/django:execute` workflow:
-- Spawns `release-tdd-executor`
-- RED → GREEN → REFACTOR → SECURITY (9-category) → RACE (if Q5) → MEMRAY (if Q7)
+- Wave-executor dispatches `release-tdd-executor` per task per worktree
+- Per-task: RED → GREEN → REFACTOR (Q1-Q7) → SECURITY (9-category) → RACE (if Q5) → MEMRAY (if Q7)
 - Conventional Commits: `test(app):`, `feat(app):`, `refactor(app):`
-- Verification: `pytest`, `ruff`, `makemigrations --check`
-- Produces: `{NN}-SUMMARY.md`
+- Verification per-wave: `ruff`, `makemigrations --check`. Full pytest sweep ONLY after terminal wave.
+- Produces: `{NN}-SUMMARY.md` + `{NN}-WAVE-SUMMARY.md`
 
 ### frontend (stack: react-tsx)
-Delegates entirely to release-tdd-executor:
-- Spawns `release-tdd-executor`
-- RED → GREEN → REFACTOR → SECURITY (9-category)
+- Wave-executor dispatches `release-tdd-executor` per task per worktree
+- Per-task: RED → GREEN → REFACTOR (RC1-RC7) → SECURITY (9-category)
 - Conventional Commits: `test(ui):`, `feat(ui):`, `refactor(ui):`
-- Verification: `vitest run`, `tsc --noEmit`
-- Produces: `{NN}-SUMMARY.md`
+- Verification per-wave: `tsc --noEmit`, RC6 grep. Full vitest sweep ONLY after terminal wave.
+- Produces: `{NN}-SUMMARY.md` + `{NN}-WAVE-SUMMARY.md`
 
 ### fullstack
 Requires explicit flag. When both plans exist and no flag given:
@@ -107,16 +118,28 @@ gh pr create --base main --head feat/{NN}-{slug} --title "feat({NN}): {phase-slu
   --body "$(cat .release-planning/phases/{NN}-{slug}/{NN}-SUMMARY.md)"
 ```
 
-## Parallel waves (--waves)
+## Parallel waves (default since v0.12.0)
 
-When `--waves` flag passed, executor delegates to `release-wave-executor` agent:
-- Reads `wave_X` blocks from PLAN.md frontmatter
-- Tasks inside a wave run in parallel via `git worktree` isolation
-- Each parallel task gets `../worktrees/{NN}-{slug}-w{wave}-t{task}` working dir
-- After wave finishes, commits cherry-picked back to `feat/{NN}-{slug}` branch
-- Next wave starts from merged state
+Wave-executor handles everything — no flag required.
 
-Safe only when wave tasks touch disjoint file sets. Wave executor verifies file disjointness before parallel spawn — falls back to serial if overlap detected.
+**Wave-split layout (preferred, v0.11.0+):**
+- Planner emits `{NN}-PLAN/manifest.md` + `W{X}-*.md` wave files (each 200-600 lines)
+- Wave-executor reads manifest DAG, executes waves in topological order
+- Parallel-safe waves with disjoint `files_touched` → fan out N worktrees concurrently
+- Each spawn receives sliced PLAN (~3KB) instead of monolithic `{NN}-PLAN.md` (100KB+)
+
+**Legacy single-file fallback:**
+- Monolithic `{NN}-PLAN.md` > 600 lines → wave-executor REFUSES with error pointing to `/release:plan {NN}` to re-split
+- ≤ 600 lines → executes as single wave (still uses 1 worktree + slice-per-task)
+
+**Disjointness rules (collision_detection automatic):**
+- Same file in 2+ tasks → serial-in-main-tree (no worktree)
+- Migration files in 2+ tasks → serial (numbering collision)
+- Lockfiles touched → serial
+- Django `models.py` + downstream (`admin/views/serializers/urls/filters.py`) when pre-commit runs `manage.py check` → coalesce_into_wave_commit (graph coherence)
+- Otherwise → parallel worktrees
+
+Token economy: serial PLAN re-read per spawn dropped from ~115KB × N spawns to ~3KB × N (-97% input cost).
 
 ## Output
 

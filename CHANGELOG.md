@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-05-26
+
+### BREAKING — Waves-by-default execution + PLAN slice token economy
+
+`/release:execute` no longer spawns `release-tdd-executor` directly. ALL phase execution
+now routes through `release-wave-executor`, which:
+
+1. **Parses PLAN** (wave-split dir `{NN}-PLAN/manifest.md` preferred; legacy monolithic
+   `{NN}-PLAN.md` accepted only if ≤ 600 lines — otherwise refused with re-split hint).
+2. **Auto-derives parallel_groups** within each wave when frontmatter omits explicit
+   declarations: greedy disjoint-files partition over per-task `files:` entries, plus
+   collision_detection rules (migrations, lockfiles, Django graph coherence).
+3. **Slices PLAN per task** (~3KB) into worktree-local `PLAN-SLICE-{TASK_ID}.md`.
+   Executor spawns full-read the slice instead of re-reading 100KB+ monolithic PLAN.
+4. **Spawns N `release-tdd-executor` concurrently** in `git worktree`-isolated branches
+   when disjoint files detected. Cherry-picks per-task commits back to `feat/{NN}-{slug}`
+   after each wave.
+5. **Verify per-wave** (intermediate, cheap gates only) + **full `parallel_test_sweep`
+   at end-of-phase** (terminal wave only — replaces redundant per-task sweep).
+6. **`--resume` idempotent** — skips tasks already committed by greping task IDs in
+   `git log` of phase branch.
+
+#### Removed flags
+
+- `--waves` — waves are now default; flag dropped from `/release:execute` CLI
+- `--serial` — no override; serial-in-main-tree falls out automatically when
+  collision_detection forces it (Django graph coherence, migration collisions, etc.)
+
+#### New `release-tdd-executor` spawn config
+
+- `skip_sweep: bool` — intermediate-wave spawns skip `parallel_test_sweep`; wave-executor
+  runs ONE sweep at end-of-phase
+- `is_slice: bool` — plan_path is a per-task slice; executor full-reads and MUST NOT
+  re-load parent PLAN/manifest (token economy contract)
+
+#### Token economy
+
+Phase 46 hubus baseline (Frontend, 40 tasks, monolithic 115KB PLAN):
+- Before: ~4.6MB input (40 spawns × 115KB PLAN re-read)
+- After:  ~120KB input (40 spawns × 3KB slice)
+- **-97% input tokens.** Estimated cost drop @ Opus 4.7 input rate: ~$8 → ~$0.40 per phase.
+
+#### Speed
+
+Phase 46 hubus baseline:
+- Before: 2h05 (Frontend serial) + 2h (Backend serial) = 4h05
+- After (estimated): ~1h Frontend + ~1h25 Backend (Django graph limits BE parallelism) = ~2h25
+- **~-42% wall time.**
+
+#### Migration guide
+
+- Existing phases with monolithic PLAN.md ≤ 600 lines: continue to work (back-compat).
+- Existing phases with monolithic PLAN.md > 600 lines: re-run `/release:plan {NN}` to
+  emit wave-split dir (planner already mandates this layout since v0.11.0).
+- CI/CD scripts using `/release:execute {NN} --waves`: drop the `--waves` flag.
+
+#### Files changed
+
+- `skills/execute/SKILL.md` — drop `--waves`, invert routing to wave-executor default
+- `agents/release-wave-executor.md` — add `<auto_derive_parallel_groups>` step + PLAN slice
+  generation + `<resume_skip_filter>` step + monolithic PLAN refusal + terminal vs
+  intermediate verify split
+- `agents/release-tdd-executor.md` — accept `skip_sweep` + `is_slice` spawn config; update
+  `<plan_read_protocol>` for slice mode; update `<parallel_test_sweep>` skip conditions;
+  description marks v0.12.0 spawn-by-wave-executor-only
+
+---
+
 ## [0.11.3] — 2026-05-26
 
 ### Changed — Model dispatch right-sizing per agent

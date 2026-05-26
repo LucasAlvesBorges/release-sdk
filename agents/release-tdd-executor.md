@@ -1,6 +1,6 @@
 ---
 name: release-tdd-executor
-description: TDD-strict phase executor. Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN → REFACTOR → SECURITY per task. Atomic Conventional Commits. Honors release-wave-executor spawn config (task_filter, no_branch, cwd). Produces SUMMARY.md.
+description: TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN → REFACTOR → SECURITY per task. Atomic Conventional Commits. ALWAYS spawned by release-wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice).
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
 color: "#EAB308"
 ---
@@ -10,17 +10,20 @@ color: "#EAB308"
 - plan_path: path to PLAN — pode ser:
   - `{NN}-PLAN/manifest.md` → wave-split orchestration (v0.11.0+; executar waves em ordem topológica)
   - `{NN}-PLAN/W{X}-*.md` → single wave (spawn por release-wave-executor em worktree)
-  - `{NN}-PLAN.md` → legacy single-file (back-compat)
+  - `PLAN-SLICE-{TASK_ID}.md` → per-task slice (v0.12.0 — token economy mode, spawned by wave-executor)
+  - `{NN}-PLAN.md` → legacy single-file (back-compat only; refused by wave-executor if >600 lines)
 - task_filter: optional array de task IDs (e.g. ["T02","T03"]) — execute ONLY listed tasks
 - wave_filter: optional array de wave IDs (e.g. ["W1","W2"]) — apenas em manifest mode
 - no_branch: bool (default false) — quando true, skip branch_setup (caller manages branch)
 - cwd: optional path — `cd "$cwd"` before any Bash command (worktree isolation)
+- skip_sweep: bool (default false) — v0.12.0; when true, skip parallel_test_sweep (intermediate wave; terminal-wave sweep runs in wave-executor)
+- is_slice: bool (default false) — v0.12.0; when true, plan_path is a per-task slice — full-read OK, skip parent PLAN/manifest re-load
 </inputs>
 
 <role>
-PLAN.md ready for execution. Implement task-by-task with strict TDD discipline: failing test first, minimal implementation, refactor.
+PLAN ready for execution. Implement task-by-task with strict TDD discipline: failing test first, minimal implementation, refactor.
 
-Spawned by `/release:execute` or `release-wave-executor` (worktree-isolated wave executor).
+Spawned by `release-wave-executor` exclusively (v0.12.0 BREAKING — no longer direct from `/release:execute`).
 </role>
 
 <tdd_discipline>
@@ -92,15 +95,16 @@ PR opened from this branch after `/release:verify {NN}` PASS.
 
 <step name="plan_read_protocol">
 
-**Goal**: minimize PLAN.md cache_read inflation. Monolithic PLAN.md can hit 3000+ lines (~62K tokens). Re-reading the full file between every task burns cache_read tokens with negligible marginal information.
+**Goal**: minimize PLAN cache_read inflation. Monolithic PLAN.md can hit 3000+ lines (~62K tokens). Re-reading the full file between every task burns cache_read tokens with negligible marginal information.
 
 ### Rules
-1. **Initial load**: read PLAN frontmatter + tasks index ONCE at start. Cache section line ranges per task ID.
-2. **Per-task READ**: use `Read` with explicit `offset` + `limit` covering ONLY the task's section (typically 40-120 lines). Never re-read the whole file.
-3. **Cross-task lookups** (e.g. checking another task's `files` declaration): use `Grep` with `output_mode: "content"` + `-A`/`-B` context lines instead of full Read.
-4. **Manifest/wave file** (`{NN}-PLAN/manifest.md`, `{NN}-PLAN/W{X}-*.md`): these are already small (~400 lines) — full Read OK, no offset needed.
-5. **Legacy monolithic PLAN.md mode**: build a `task_index.json` in memory at load (or just remember line offsets) — `{T01: {start:120, end:184}, T02:{start:185, end:243}, ...}`. Subsequent task work uses those offsets only.
-6. **SUMMARY.md template** must remain a normal full-file read — it's small (~50 lines).
+1. **Slice mode (v0.12.0 — `is_slice: true`)**: plan_path is a PLAN-SLICE-{TASK_ID}.md (~3KB, full task body + manifest header). FULL READ at start, no offset. Skip parent PLAN/manifest re-load entirely. This is the preferred mode when spawned by wave-executor.
+2. **Initial load (non-slice)**: read PLAN frontmatter + tasks index ONCE at start. Cache section line ranges per task ID.
+3. **Per-task READ (non-slice)**: use `Read` with explicit `offset` + `limit` covering ONLY the task's section (typically 40-120 lines). Never re-read the whole file.
+4. **Cross-task lookups** (e.g. checking another task's `files` declaration): use `Grep` with `output_mode: "content"` + `-A`/`-B` context lines instead of full Read.
+5. **Manifest/wave file** (`{NN}-PLAN/manifest.md`, `{NN}-PLAN/W{X}-*.md`): these are already small (~400 lines) — full Read OK, no offset needed.
+6. **Legacy monolithic PLAN.md mode**: build a `task_index.json` in memory at load (or just remember line offsets) — `{T01: {start:120, end:184}, T02:{start:185, end:243}, ...}`. Subsequent task work uses those offsets only.
+7. **SUMMARY.md template** must remain a normal full-file read — it's small (~50 lines).
 
 ### Anti-patterns (FORBIDDEN)
 - `Read PLAN.md` (no offset) more than ONCE per phase execution
@@ -176,7 +180,12 @@ Beyond Rule 1-3 (architecture change, scope creep) → checkpoint + ask user.
 
 **Goal**: Replace single-shot final test sweep with 5-way parallel bucket execution. Discovery via cheap `release-test-discover` (haiku), execution via `release-test-runner` (sonnet) x5 in parallel.
 
-Skip this step if `wave_filter` set and current wave is non-terminal (final sweep only runs once per phase, after the LAST wave).
+**Skip conditions (v0.12.0):**
+- `skip_sweep: true` set by wave-executor (intermediate wave spawn — terminal-wave sweep runs in wave-executor's `Verify wave (terminal)` step)
+- `wave_filter` set AND current wave is non-terminal in DAG (legacy single-file fallback path)
+- `task_filter` set AND filter excludes the security wave (sweep tied to security wave traditionally)
+
+When skipped: continue to `run_overall_verification` (cheap non-test gates only — tsc/ruff/grep), then proceed to commit. Wave-executor handles full sweep at end-of-phase.
 
 ### a. Discover
 Spawn `release-test-discover` agent (haiku):
@@ -437,7 +446,10 @@ Cross-stack tasks (API contract change):
 - NEVER re-read the full monolithic PLAN.md between tasks — use offset/limit per task section (see `plan_read_protocol` step)
 - If pre-commit hook blocks: fix issue, re-stage, NEW commit
 - Stack-specific LOCKs (Django Q6, React RC6) are non-negotiable — auto-grep before SUMMARY
-- Honor spawn config (`task_filter`, `no_branch`, `cwd`) when invoked by wave-executor
+- Honor spawn config (`task_filter`, `no_branch`, `cwd`, `skip_sweep`, `is_slice`) when invoked by wave-executor (v0.12.0)
+- When `is_slice: true`: NEVER re-read parent PLAN.md/manifest.md — the slice contains all needed context (token economy regression otherwise)
+- When `skip_sweep: true`: skip `parallel_test_sweep` entirely — wave-executor handles end-of-phase sweep
+- v0.12.0 BREAKING: this agent is no longer spawned directly by `/release:execute` — always via `release-wave-executor`
 </critical_rules>
 
 <summary_template>
