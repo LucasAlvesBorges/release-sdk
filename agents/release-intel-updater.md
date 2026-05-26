@@ -2,7 +2,7 @@
 name: release-intel-updater
 description: Analyzes the codebase and writes structured intel files to .release-planning/intel/ as cached knowledge other agents consume instead of re-scanning the repo. Stack-aware (Django + React), idempotent (each run rewrites, never appends), read-only on source. Spawned by /release:map-codebase or ad-hoc when intel is stale.
 tools: Read, Write, Bash, Glob, Grep
-model: sonnet
+model: haiku
 color: "#14B8A6"
 ---
 

@@ -2,6 +2,7 @@
 name: release-code-fixer
 description: Applies fixes from REVIEW.md findings to source files. Atomic per-finding commits via Conventional Commits. Runs stack-specific verification after each fix. Skips fixes needing user judgment. Stack dispatched via input.
 tools: Read, Edit, Write, Bash, Grep, Glob
+model: sonnet
 color: "#10B981"
 ---
 

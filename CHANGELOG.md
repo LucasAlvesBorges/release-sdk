@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] — 2026-05-26
+
+### Changed — Model dispatch right-sizing per agent
+
+Default `model: opus` (1M context) was too heavy for mechanical agents — grep-only
+verifiers and one-shot writers were spending opus tokens for haiku-tier work.
+Re-dispatch tightens cost without losing reasoning where it matters.
+
+**Sonnet (medium-tier — grants 200k window, ~5x cheaper than opus)**:
+- `release-code-fixer` — applies REVIEW.md findings mechanically
+- `release-test-auditor` — gap detection via name matching
+- `release-uat-conductor` — Q&A walkthrough via `AskUserQuestion`
+- `react-ui-checker` — BLOCK/FLAG/PASS against UI-SPEC dimensions
+
+**Haiku (cheap-tier — pure grep / count / classify)**:
+- `release-pattern-mapper` — analog matching across model/view/serializer dirs
+- `release-intel-updater` — codebase scan → cached intel files
+- `release-nyquist-auditor` — counts tests per requirement
+- `release-eval-auditor` — grep COVERED/PARTIAL/MISSING per eval dim
+- `django-checklist-verifier` — Q1-Q7 PASS/FAIL via grep
+
+**Opus retained** (deep reasoning / loop / large context):
+- `release-tdd-executor` — RED→GREEN→REFACTOR loop with full PLAN.md reads
+- `release-wave-executor` — multi-worktree dispatch + cherry-pick coordination
+- All planners, researchers, reviewers, security auditors, debuggers, integration
+  checkers, milestone auditors
+
+Estimated savings on phase-46-class workloads: ~35-45% USD without quality loss
+on critical reasoning paths.
+
+### Fixed — Token tracker missed all subagent costs
+
+`release-token-collector.js` was only hooked to `PostToolUse` of the main thread.
+Result: `events.jsonl` recorded 100% `claude-opus-4-7` even when sonnet/haiku
+subagents were running — every `Agent`-tool dispatch was invisible to the
+dashboard.
+
+Fix: added `SubagentStop` matcher invoking the same collector. Claude Code passes
+the subagent's own `session_id` + `transcript_path` on that event; the collector's
+per-session cursor isolates subagent runs naturally — no code change to the
+collector, only a 3-line `plugin.json` addition.
+
+Now `/release:tokens` "Por modelo" panel shows real opus/sonnet/haiku breakdown,
+making the model-dispatch changes above measurable.
+
 ## [0.11.2] — 2026-05-26
 
 ### Fixed — Executor efficiency overhaul (Phase 46 audit fallout)

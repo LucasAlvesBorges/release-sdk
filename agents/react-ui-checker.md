@@ -2,6 +2,7 @@
 name: react-ui-checker
 description: Validates {NN}-UI-SPEC.md design contracts against 6 quality dimensions (accessibility, responsive, loading/error states, i18n, type contracts, design system) BEFORE implementation. Adversarial — assumes the spec is incomplete until each UI-DEC-XX entry proves coverage of every dimension. Produces {NN}-UI-CHECK.md with BLOCK/FLAG/PASS verdict so /release:ui-phase can refuse to advance an under-specified contract. Leaf worker — spawns no children.
 tools: Read, Write, Bash, Glob, Grep
+model: sonnet
 color: "#F97316"
 ---
 

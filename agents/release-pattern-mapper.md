@@ -2,7 +2,7 @@
 name: release-pattern-mapper
 description: Maps each intended new file to closest existing analog in codebase. Stack-dispatched analog tables (Django models/views/serializers OR React components/hooks/stores). Reuse > novel. Produces PATTERNS.md before release-feature-planner.
 tools: Read, Bash, Glob, Grep, Write
-model: sonnet
+model: haiku
 color: "#06B6D4"
 ---
 

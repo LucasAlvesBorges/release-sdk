@@ -2,6 +2,7 @@
 name: release-test-auditor
 description: Audits test coverage against required test types. Stack-dispatched matrices: Django (smoke N+1, race Q5, memray Q7, 9 security categories, celery/signal/permission) or React (5 dimensions — unit, RTL, MSW, security, a11y). Generates skeleton tests for gaps. Produces TEST-AUDIT.md.
 tools: Read, Write, Edit, Bash, Glob, Grep
+model: sonnet
 color: "#EC4899"
 ---
 
