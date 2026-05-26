@@ -25,12 +25,17 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 
 ---
 
-## Novidades (v0.5 → v0.7)
+## Novidades (v0.5 → v0.11)
 
-- **v0.7.0** — 31 arquivos novos (20 agents + 11 skills) fechando audit gap vs upstream GSD. Routing `/release:auto` estendido de 21 → 32 regras. Highlights: `/release:autonomous` (multi-fase walk-away), `/release:audit-fix` (loop autônomo audit→fix), `/release:validate-phase` (cobertura Nyquist ≥2 testes/req), `/release:ui-review` (audit visual 6-pilares), `/release:eval-review` (cobertura de eval AI), `/release:docs-update` (regenera docs verificados), `/release:forensics` (post-mortems), `release-plan-checker` (verifica goal-backward pré-execute), `release-assumptions-analyzer` (análise profunda do codebase pré-discuss), `release-debug-session-manager` (loop multi-ciclo de debug em contexto isolado), `release-framework-selector` (matriz de decisão pra framework AI), família `release-doc-*` completa.
-- **v0.6.1** — `/release:init` e `/release:import` agora injetam bloco delimitado `<!-- release-sdk:start --> ... <!-- release-sdk:end -->` no `CLAUDE.md` raiz pra toda futura sessão Claude Code saber que release-sdk tá instalado e onde os artefatos vivem. Idempotente.
-- **v0.6.0** — `/release:auto` (roteador de intenção livre) + nativos `/release:debug`, `/release:fast`, `/release:quick`, `/release:ship` mantém o roteamento dentro do namespace `/release:*`.
-- **v0.5.0** — BREAKING: diretório de planning renomeado `.planning/` → `.release-planning/` pra coexistir com GSD upstream (que também usa `.planning/`). `/release:import` vira ponte: lê GSD `.planning/` (intocado) e escreve artefatos release-sdk em árvore paralela `.release-planning/`.
+- **v0.11.1** — Token tracker dashboard fix. `Sessão atual` $0 + `POR SKILL` vazio resolvidos. Worker auto-detecta `session_id` do evento mais recente (< 30min) quando query param ausente. `extractSkill` reconhece 3 formatos: path `skills/<name>`, header `# /release:<name>`, tag `<command-name>` (built-ins). Dashboard exibe tag de sessão ativa com `(auto)` quando inferido.
+- **v0.11.0** — BREAKING: PLAN.md monolítico substituído por diretório `{NN}-PLAN/` (manifest.md + N wave files). Target 400 linhas / 3-5 tasks por wave; hard cap 600 linhas (BLOCKER no plan-checker). Fullstack vira `{NN}-PLAN-BACKEND/` + `{NN}-PLAN-FRONTEND/`. Plan-checker novas regras: empty wave, tasks no manifest, cross-wave dep cycle, file overlap entre `parallel_safe` waves. Back-compat: PLAN.md legacy ainda lido com finding MED. **Model dispatch:** agents mecânicos (plan-checker, pattern-mapper, codebase-mapper, intel-updater, nyquist-auditor, eval-auditor, security-retros, checklist-verifier) rodam Sonnet 4.6; doc-verifier + doc-classifier rodam Haiku 4.5; planejadores/executores/researchers permanecem Opus 4.7. Ganho estimado vs Phase 46: latência plan stage 1h37min → ~35-45min, tokens 700k → ~280k.
+- **v0.10.x** — `/release:tokens` dashboard daemon HTTP em :47777 + USD/BRL com FX live awesomeapi (cache 1h, fallback) + breakdown por sessão/dia/semana/all-time/modelo/projeto/skill + cache hit ratio. Hook PostToolUse `release-token-collector.js` parseia transcript JSONL pra `~/.claude/token-tracker/events.jsonl`. Fixes: SKILL.md frontmatter (`name:` field obrigatório em CC v2.1.142, `allowed-tools` com hífen não underscore), `django-prompt-guard.js` U+2028 LINE SEPARATOR em regex literal.
+- **v0.9.x** — react-* prefix em agents React-puros pra clarificar dispatch + delete 2 orphan django-* agents desalinhados com taxonomy.
+- **v0.8.0** — Drop-in GSD substitution: milestone + session + undo + mvp + 4 orphan agents wired. Router `/release:auto` 32 → 39 regras.
+- **v0.7.0** — 31 arquivos novos (20 agents + 11 skills) fechando audit gap vs upstream GSD. Highlights: `/release:autonomous`, `/release:audit-fix`, `/release:validate-phase`, `/release:ui-review`, `/release:eval-review`, `/release:docs-update`, `/release:forensics`, `release-plan-checker`, `release-assumptions-analyzer`, `release-debug-session-manager`, `release-framework-selector`, família `release-doc-*` completa.
+- **v0.6.1** — `/release:init` e `/release:import` injetam bloco delimitado `<!-- release-sdk:start --> ... <!-- release-sdk:end -->` no `CLAUDE.md` raiz. Idempotente.
+- **v0.6.0** — `/release:auto` (roteador de intenção livre) + nativos `/release:debug`, `/release:fast`, `/release:quick`, `/release:ship`.
+- **v0.5.0** — BREAKING: `.planning/` → `.release-planning/` pra coexistir com GSD upstream. `/release:import` lê GSD `.planning/` (intocado) e escreve árvore paralela.
 
 ---
 
@@ -48,7 +53,8 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 │  POR FASE                              backend         frontend           │
 │  /release:spec {NN}     →  SPEC.md (score de ambiguidade)                 │
 │  /release:discuss {NN}  →  CONTEXT.md (D-01..10)    (D-11..20)            │
-│  /release:plan {NN}     →  PLAN.md  OR  PLAN-BACKEND.md + PLAN-FRONTEND.md│
+│  /release:plan {NN}     →  {NN}-PLAN/  (manifest.md + W1..WN wave files)  │
+│                            fullstack: -BACKEND/ + -FRONTEND/ dirs         │
 │  /release:execute {NN}  →  TDD: RED → GREEN → REFACTOR → SECURITY         │
 │                            Django: pytest, ruff                           │
 │                            React:  vitest, tsc                            │
@@ -67,6 +73,10 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 ├───────────────────────────────────────────────────────────────────────────┤
 │  REPO INTELLIGENCE                                                        │
 │  /release:map-codebase   |  /release:docs-update                          │
+├───────────────────────────────────────────────────────────────────────────┤
+│  OBSERVABILIDADE                                                          │
+│  /release:tokens         →  dashboard token tracker (USD/BRL, cache hit,  │
+│                            por sessão/dia/skill/projeto/modelo)           │
 ├───────────────────────────────────────────────────────────────────────────┤
 │  AUTONOMOUS                                                               │
 │  /release:autonomous     →  roda todas fases pendentes do ROADMAP em      │
@@ -423,10 +433,16 @@ Se você não quer decorar 32 comandos, use o roteador:
         ├── {NN}-RESEARCH.md                # output do researcher (single-stack)
         ├── {NN}-DOMAIN-RESEARCH.md         # release-domain-researcher (pra fases AI)
         ├── {NN}-ADVISOR-{D-XX}.md          # release-advisor-researcher (D-XX gray-area)
-        ├── {NN}-PLAN.md                    # output do planner (single-stack)
-        ├── {NN}-PLAN-BACKEND.md            # (fullstack: lado Django)
-        ├── {NN}-PLAN-FRONTEND.md           # (fullstack: lado React)
-        ├── {NN}-PLAN-CHECK.md              # release-plan-checker veredito pre-execute
+        ├── {NN}-PLAN/                      # v0.11.0+ wave-split DIR
+        │   ├── manifest.md                  # must_haves + threat_model 9-cat + waves table
+        │   ├── W1-red-tests.md              # ~200-600 linhas, 3-5 tasks (hard cap 600)
+        │   ├── W2-{subsystem}.md
+        │   ├── ...
+        │   └── WN-verify.md
+        ├── {NN}-PLAN-BACKEND/               # (fullstack: lado Django — dir de waves)
+        ├── {NN}-PLAN-FRONTEND/              # (fullstack: lado React — dir de waves)
+        ├── {NN}-PLAN.md                    # legacy single-file (pré-v0.11) OR fullstack orchestration < 200 linhas
+        ├── {NN}-PLAN-CHECK.md              # release-plan-checker veredito pre-execute (inclui wave budget audit)
         ├── {NN}-CONVERGENCE-LOG.md         # iterações de /release:plan-review-convergence
         ├── {NN}-PATTERNS.md                # output de pattern-mapper
         ├── {NN}-UI-SPEC.md                 # contrato design UI (fases frontend)
