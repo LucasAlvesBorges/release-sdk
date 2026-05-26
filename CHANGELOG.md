@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.3] — 2026-05-25
+
+### Fixed — `django-prompt-guard.js` regex parse error broke plugin init
+
+`hooks/django-prompt-guard.js:65` had a regex that embedded literal Unicode
+characters including U+2028 (JS LINE SEPARATOR) inside the character class:
+
+```js
+if (/[​-‏ - ﻿­]/.test(content)) { ... }
+```
+
+Node v22+ parses the literal U+2028 as a source-level line terminator,
+breaking the regex with `SyntaxError: Invalid regular expression: missing /`.
+Plugin manifest registers this hook on `PreToolUse:Write|Edit` — Claude Code
+fails to load the plugin's skills when any declared hook fails parse.
+
+Symptom: `/reload-plugins` reported "1 skill" total even after adding
+`release@release-sdk` to `enabledPlugins`. Agents and other hooks still loaded
+because the loader continued past the broken hook for those.
+
+Fix: rewrite the regex with escaped `\\uXXXX` source-form so the regex string
+is byte-safe — same semantics, parser-safe.
+
 ## [0.10.2] — 2026-05-25
 
 ### Fixed — `allowed_tools:` (invalid) broke skill registration

@@ -62,7 +62,7 @@ process.stdin.on('end', () => {
     }
 
     // Invisible Unicode (zero-width chars often used in injection)
-    if (/[​-‏ - ﻿­]/.test(content)) {
+    if (/[\u200B-\u200F\u2028-\u202F\uFEFF\u00AD]/u.test(content)) {
       findings.push('invisible-unicode-characters');
     }
 
