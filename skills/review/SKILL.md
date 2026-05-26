@@ -4,7 +4,6 @@ description: >
   Context-aware adversarial code review. Analyzes file paths to split .py files to release-code-reviewer
   and .tsx/.ts files to release-code-reviewer. Produces a unified REVIEW.md with sections per stack.
   Use when: reviewing PR diff, auditing recently-modified files, pre-merge quality gate.
-allowed_tools: Agent, Read, Bash, Grep, Glob
 ---
 
 ## Agent Policy (LOCKED)

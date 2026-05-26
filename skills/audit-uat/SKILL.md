@@ -5,7 +5,6 @@ description: >
   PENDING/FAIL items, cross-references STATE.md, produces .release-planning/AUDIT-UAT.md with a
   hot-list of items to address before milestone ship.
   Use when: preparing to close a milestone or starting a UAT-focused work session.
-allowed_tools: Read, Write, Bash, Grep, Glob
 ---
 
 # /release:audit-uat — Cross-Phase UAT Audit

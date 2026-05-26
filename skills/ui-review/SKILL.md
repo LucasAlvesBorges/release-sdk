@@ -5,7 +5,6 @@ description: >
   to score accessibility, responsive, loading/error states, i18n, type contracts, and design-system
   adherence. Produces scored UI-REVIEW.md with remediation table per dimension.
   Use when: a phase shipped but UI quality is suspect, or for regular UI debt audits.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:ui-review — Retroactive 6-Pillar Visual Audit

@@ -8,7 +8,6 @@ description: >
   under "Completed (archive)", and clears the active milestone in PROJECT.md.
   Use when: every phase in the current milestone is at stage `shipped` and you want to lock
   the cycle before starting the next one.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:complete-milestone — Archive and Lock a Milestone

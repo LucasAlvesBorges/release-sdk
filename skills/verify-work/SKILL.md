@@ -7,7 +7,6 @@ description: >
   AskUserQuestion, writes results back to UAT.md with timestamps and a Next Step verdict.
   Use when: phase is built and you want a human-in-the-loop acceptance pass before /release:ship.
   Distinct from /release:verify which is goal-backward STATIC analysis (no user prompts).
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:verify-work — Conversational UAT Walkthrough

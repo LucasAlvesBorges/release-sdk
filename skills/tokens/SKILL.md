@@ -8,7 +8,6 @@ description: >
   PostToolUse que parseia o transcript JSONL.
   Use quando: o usuário quiser ver gasto/eficiência de tokens, comparar custo entre skills,
   ou diagnosticar baixo cache hit.
-allowed_tools: Bash
 ---
 
 # /release:tokens — Token Tracker Dashboard

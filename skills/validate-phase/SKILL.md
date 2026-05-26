@@ -5,7 +5,6 @@ description: >
   in SPEC + every UAT item must be covered by >=2 tests (Nyquist-style sampling). Audit-only mode
   reports gaps; full mode dispatches /release:add-tests to fill them.
   Use when: phase shipped but coverage suspect; before declaring milestone complete.
-allowed_tools: Agent, Skill, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:validate-phase — Nyquist Sampling Audit

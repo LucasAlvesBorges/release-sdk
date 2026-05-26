@@ -5,7 +5,6 @@ description: >
   release-tdd-executor (stack-dispatched). Supports --backend/--frontend flags for fullstack phases.
   TDD-strict: RED → GREEN → REFACTOR → SECURITY. Atomic per-task commits.
   Use when: PLAN.md is ready (plan-checker PASS or WARN-accepted).
-allowed_tools: Agent, Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # /release:execute — Context-Aware Phase Executor

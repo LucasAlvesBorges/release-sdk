@@ -9,7 +9,6 @@ description: >
   delegates planning to `/release:plan {NN} --mvp`.
   Use when: a phase risks scope creep and you want to enforce a tight vertical slice before
   planning.
-allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion, Agent
 ---
 
 ## Agent Policy (LOCKED)

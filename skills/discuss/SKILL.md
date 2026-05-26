@@ -4,7 +4,6 @@ description: >
   Context-aware phase discussion. Detects phase type from ROADMAP.md, routes to backend-focused or
   frontend-focused questions, or runs both for fullstack phases. Locks D-XX decisions in CONTEXT.md.
   Use when: phase added to ROADMAP, ready to gather decisions before planning.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

@@ -5,7 +5,6 @@ description: >
   frontend (React), or fullstack — then routes to the appropriate planner pipeline.
   Django → release-feature-planner. React → release-feature-planner. Fullstack → both in parallel.
   Use when: phase has been discussed (CONTEXT.md exists), ready to plan.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 ## Agent Policy (LOCKED)

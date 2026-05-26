@@ -4,7 +4,6 @@ description: >
   Analyze the codebase with parallel mapper agents (tech, arch, quality, concerns) to produce
   structured analysis documents under `.release-planning/codebase/`. Stack-aware (django/react/fullstack).
   Use when: starting research on a phase, onboarding to a new repo, refreshing context after major refactors.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:map-codebase — Parallel Codebase Mapper

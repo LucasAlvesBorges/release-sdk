@@ -7,7 +7,6 @@ description: >
   surface as bugs in {NN}-TEST-GAP.md — never auto-fixed.
   Use when: phase UAT items lack regression coverage, or a debug session resolved a bug and you
   want a test that prevents regression.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:add-tests — Stack-Aware Test Backfill

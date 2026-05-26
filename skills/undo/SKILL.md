@@ -8,7 +8,6 @@ description: >
   via AskUserQuestion, supports `--dry-run` and `--force`.
   Use when: a phase or plan landed but needs to be undone without rewriting history or losing the
   audit trail.
-allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion, Agent
 ---
 
 ## Agent Policy (LOCKED)

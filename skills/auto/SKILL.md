@@ -7,7 +7,6 @@ description: >
   user can abort. Falls back to `AskUserQuestion` when classification confidence is low.
   Use when: the user describes an intent without specifying a command, or invokes
   `/release:auto <freeform prompt>`.
-allowed_tools: Read, Bash, Grep, Glob, Skill, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED — applies to all routed skills)

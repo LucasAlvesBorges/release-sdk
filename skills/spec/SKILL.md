@@ -4,7 +4,6 @@ description: >
   Clarify WHAT a phase delivers BEFORE discuss. Detects stack (Django / React TSX / fullstack),
   asks scope/boundary questions, produces SPEC.md with HIGH/MED/LOW ambiguity scoring.
   Use when: phase goal is fuzzy, scope-creep risk, or you want a sharper WHAT before /release:discuss.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

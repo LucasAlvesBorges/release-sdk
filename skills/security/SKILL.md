@@ -4,7 +4,6 @@ description: >
   Context-aware 9-category security audit. Routes .py files to release-security-auditor and
   .tsx/.ts files to release-security-auditor. Produces unified SECURITY.md.
   Use when: feature complete, pre-merge, or periodic security review.
-allowed_tools: Agent, Read, Bash, Grep, Glob
 ---
 
 # /release:security — Full-Stack Security Audit

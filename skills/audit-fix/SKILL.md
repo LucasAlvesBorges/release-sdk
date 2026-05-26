@@ -5,7 +5,6 @@ description: >
   dispatches release-code-fixer for AUTO_FIXABLE items, atomic-commits each fix, loops until clean
   or --max-iters. Read-only on findings; only the code-fixer writes code.
   Use when: phase is verified but quality auditors flag accumulated debt worth burning down.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:audit-fix — Autonomous Audit-to-Fix Pipeline

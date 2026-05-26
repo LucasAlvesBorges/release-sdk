@@ -8,7 +8,6 @@ description: >
   active phase or file signals in the repro.
   Use when: a bug is reported, a test fails unexpectedly, or behavior diverges from
   spec. Survives `/clear` and context compaction.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

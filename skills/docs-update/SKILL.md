@@ -6,7 +6,6 @@ description: >
   release-doc-writer + release-doc-verifier in parallel per in-scope doc; STALE claims trigger
   rewrites; commits as `docs: regenerate ... verified`.
   Use when: docs are out of date, onboarding a new contributor, or post-milestone cleanup.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:docs-update — Verified Documentation Refresh

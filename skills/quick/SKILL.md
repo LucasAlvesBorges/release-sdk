@@ -8,7 +8,6 @@ description: >
   Use when: multi-file edit that's too big for `/release:fast` but doesn't need a
   formal phase (e.g., "add a new field to the Invoice model + migration + serializer
   + form", "swap library X for Y across three files").
-allowed_tools: Agent, Read, Edit, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

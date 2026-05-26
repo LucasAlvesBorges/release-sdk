@@ -6,7 +6,6 @@ description: >
   with HANDOFF.md, cursor snapshot, git state, open files, and a free-text context note.
   Never commits, never stashes, never mutates the worktree — pause is purely additive metadata.
   Use when: pausing mid-phase, dropping context, or handing work off to another teammate / session.
-allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:pause-work — Session Handoff Snapshot

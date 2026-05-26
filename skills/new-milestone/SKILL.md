@@ -8,7 +8,6 @@ description: >
   Never deletes the previous milestone — it remains in ROADMAP.md under "Completed (archive)".
   Use when: the previous milestone has shipped (or been completed via /release:complete-milestone)
   and the team is ready to define the next cycle.
-allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:new-milestone — Start a New Milestone Cycle

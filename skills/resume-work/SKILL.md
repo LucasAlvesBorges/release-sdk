@@ -7,7 +7,6 @@ description: >
   the next /release:* command — but never auto-executes it. Multi-session aware: lists all
   paused sessions in reverse-chronological order and lets the user pick.
   Use when: returning from /clear, picking up someone else's handoff, or recovering after EOD.
-allowed_tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:resume-work — Session Restore from Handoff

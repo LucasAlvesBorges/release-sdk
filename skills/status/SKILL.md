@@ -4,7 +4,6 @@ description: >
   Show project status: current phase, active stage, recent commits, next suggested action.
   Detects full-stack state — reports Django phase progress + React phase progress separately.
   Use any time to get a quick read on where things stand.
-allowed_tools: Agent, Read, Bash, Grep, Glob
 ---
 
 # /release:status — Project Status

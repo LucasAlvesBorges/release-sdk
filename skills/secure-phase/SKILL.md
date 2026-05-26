@@ -7,7 +7,6 @@ description: >
   and .tsx/.ts files to react-security-retro. Produces SECURITY.md scorecard.
   Use when: phase shipped, before merge to main, periodic post-merge verification, audit recovery.
   Distinct from /release:security (author-time, runs during planning/execution).
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:secure-phase — Retroactive Threat Mitigation Audit

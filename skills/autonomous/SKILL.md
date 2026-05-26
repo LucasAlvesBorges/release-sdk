@@ -6,7 +6,6 @@ description: >
   in sequence. Aborts on first verify failure. Never auto-ships. Designed for stable, well-spec'd
   milestones where the user trusts the per-phase machinery to be correct without supervision.
   Use when: roadmap is locked, ambiguity is low, and you want to walk away while it runs.
-allowed_tools: Skill, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

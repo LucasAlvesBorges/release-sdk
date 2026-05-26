@@ -5,7 +5,6 @@ description: >
   Each workstream gets isolated `.release-planning/workstreams/<name>/`, dedicated `ws-<name>` branch,
   session-scoped active pointer. Stack-aware (Django / React / fullstack) per workstream.
   Use when two or more features must progress in parallel in the same milestone without colliding.
-allowed_tools: Agent, Read, Write, Edit, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:workstreams — Parallel Feature Isolation

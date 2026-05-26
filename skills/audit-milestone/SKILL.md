@@ -8,7 +8,6 @@ description: >
   does NOT commit (unless --commit).
   Use when: mid-milestone health check, pre-flight before /release:complete-milestone, or
   ad-hoc audit anytime to surface drift between SPEC, UAT, REQs, and shipped code.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # /release:audit-milestone — Non-Destructive Milestone Health Check

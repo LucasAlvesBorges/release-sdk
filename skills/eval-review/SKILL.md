@@ -5,7 +5,6 @@ description: >
   release-eval-auditor to score COVERED/PARTIAL/MISSING per dimension and produce EVAL-REVIEW.md
   with remediation plan.
   Use when: AI phase shipped but eval coverage is uncertain.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:eval-review — Retroactive Eval Coverage Audit

@@ -10,7 +10,6 @@ description: >
   needed). Files under `.planning/` are NEVER modified — the two trees coexist.
   Use when: an existing GSD project wants to switch to release-sdk in one pass — replaces the
   per-skill `--gsd-context` flag that was scattered across release-init/spec/plan/review/ui/ai.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

@@ -7,7 +7,6 @@ description: >
   tool use, and streaming. Produces AI-SPEC.md design contract consumed by /release:plan --fullstack.
   Use when: phase embeds LLM/AI features in a Django+React app (chat, summarization, structured extraction,
   RAG, agents, vision, tool use).
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

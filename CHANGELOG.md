@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] — 2026-05-25
+
+### Fixed — `allowed_tools:` (invalid) broke skill registration
+
+After v0.10.1 added `name:` to all 40 SKILL.md, skills still failed to register.
+Root cause: every skill used `allowed_tools: A, B, C` (underscore + CSV string).
+The Claude Code spec uses `allowed-tools:` (hyphen, YAML array) — same form as
+GSD's user-level skills in `~/.claude/skills/`. The underscore variant is not a
+recognized field and made the loader bail on each release-sdk skill silently.
+
+For now removed the line entirely. Skills load without per-skill tool
+restrictions. Future release will re-add as proper YAML:
+
+```yaml
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+```
+
 ## [0.10.1] — 2026-05-25
 
 ### Fixed — Skills not loading in Claude Code v2.1.142+

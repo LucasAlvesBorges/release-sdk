@@ -5,7 +5,6 @@ description: >
   (codex, gemini) and replans with the feedback until no HIGH concerns remain (or max iterations).
   Each iteration commits separately. Conservative convergence: HIGH=0 AND MED<=2.
   Use when: a phase plan is high-stakes and you want a multi-AI critique loop before execution.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 # /release:plan-review-convergence — Cross-AI Plan Convergence Loop

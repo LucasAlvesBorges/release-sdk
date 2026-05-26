@@ -4,7 +4,6 @@ description: >
   Context-aware goal-backward verification. Detects which stacks were implemented in a phase,
   spawns release-phase-verifier and/or release-phase-verifier, produces VERIFICATION.md.
   Use when: execute complete, before marking phase done.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 ## Agent Policy (LOCKED)

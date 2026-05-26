@@ -5,7 +5,6 @@ description: >
   phase didn't complete, verify failed, autonomous run aborted. Produces timeline + 5-whys root
   cause + recovery plan in .release-planning/forensics/.
   Use when: something broke and you need a structured explanation before retrying.
-allowed_tools: Read, Write, Bash, Grep, Glob
 ---
 
 # /release:forensics — Post-Mortem Failure Investigation

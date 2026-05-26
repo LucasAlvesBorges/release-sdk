@@ -5,7 +5,6 @@ description: >
   captures vision + architecture decisions, locks LOCK-01..LOCK-12 for full-stack projects.
   Produces PROJECT.md, ROADMAP.md, STATE.md, REQUIREMENTS.md.
   Use when: starting a new project from scratch.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob
 ---
 
 ## Agent Policy (LOCKED)

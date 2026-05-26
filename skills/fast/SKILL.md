@@ -7,7 +7,6 @@ description: >
   doesn't need to.
   Use when: rename a symbol, fix a typo, tweak a log line, change a single config value,
   or any task with a single-file feel and < 30 LOC of change.
-allowed_tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 
 # /release:fast — Trivial Task, Inline

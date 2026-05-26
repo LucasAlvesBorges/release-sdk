@@ -6,7 +6,6 @@ description: >
   `{NN}-SPEC.md` / `{NN}-PLAN.md` / `{NN}-UAT.md`, then opens the PR via `gh`. Updates
   `.release-planning/STATE.md` cursor to `shipped` on success. Does NOT auto-merge.
   Use when: phase is at `active_stage: verified` and you're ready to publish.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)

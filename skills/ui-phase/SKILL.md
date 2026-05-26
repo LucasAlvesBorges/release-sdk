@@ -6,7 +6,6 @@ description: >
   performance budgets, Zustand/TanStack Query patterns, optimistic UI plan.
   Detects existing design system (tailwind, shadcn, MUI) and locks tokens.
   Use when: phase is frontend or fullstack AND no UI-SPEC.md exists yet. Refuses backend-only phases.
-allowed_tools: Agent, Read, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
 ## Agent Policy (LOCKED)
