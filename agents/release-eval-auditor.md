@@ -2,6 +2,7 @@
 name: release-eval-auditor
 description: Retroactive audit of an executed AI phase's evaluation coverage. Reads {NN}-AI-SPEC.md (or companion AI-EVAL.md) for the declared eval dimensions, then globs tests/, eval suites, prompt registries, and the AILog model for evidence each dimension is actually implemented. Classifies each dimension as COVERED, PARTIAL, or MISSING with file:line evidence. Produces a scored {NN}-EVAL-REVIEW.md with per-dimension matrix, remediation table, and production-monitoring gaps. Read-only on source code. Spawned by /release:eval-review.
 tools: Read, Write, Bash, Glob, Grep
+model: sonnet
 color: "#65A30D"
 ---
 

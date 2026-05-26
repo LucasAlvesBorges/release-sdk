@@ -2,6 +2,7 @@
 name: release-doc-verifier
 description: Verifies factual claims in a generated doc against the live codebase. Extracts claims (file paths, function names, command examples, version pins, env vars) and probes each. Emits {doc_path}.verify.json with per-claim status — VERIFIED / STALE / UNVERIFIABLE — and evidence (file:line or command output snippet).
 tools: Read, Write, Bash, Grep, Glob
+model: haiku
 color: "#155E75"
 ---
 

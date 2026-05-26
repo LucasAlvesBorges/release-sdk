@@ -2,6 +2,7 @@
 name: react-security-retro
 description: Retroactive React/TSX security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model and greps the shipped .tsx/.ts source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the React half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence.
 tools: Read, Write, Bash, Grep, Glob
+model: sonnet
 color: "#B91C1C"
 ---
 

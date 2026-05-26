@@ -123,8 +123,8 @@ Researcher/planner agents MUST suffix outputs with `-BACKEND` / `-FRONTEND` to a
 
 | Pipeline | Outputs |
 |----------|---------|
-| backend  | `{NN}-RESEARCH-BACKEND.md`, `{NN}-PATTERNS-BACKEND.md`, `{NN}-PLAN-BACKEND.md`, `{NN}-PLAN-CHECK-BACKEND.md` |
-| frontend | `{NN}-RESEARCH-FRONTEND.md`, `{NN}-PATTERNS-FRONTEND.md`, `{NN}-PLAN-FRONTEND.md` |
+| backend  | `{NN}-RESEARCH-BACKEND.md`, `{NN}-PATTERNS-BACKEND.md`, `{NN}-PLAN-BACKEND/` (dir com manifest + W*.md), `{NN}-PLAN-CHECK-BACKEND.md` |
+| frontend | `{NN}-RESEARCH-FRONTEND.md`, `{NN}-PATTERNS-FRONTEND.md`, `{NN}-PLAN-FRONTEND/` (dir), `{NN}-PLAN-CHECK-FRONTEND.md` |
 
 #### Integration check (in main tree, after merge)
 
@@ -147,17 +147,35 @@ If `git worktree` unsupported (Windows + WSL edge cases) or `--no-worktree` flag
 
 Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, then `--frontend`."
 
-## Output
+## Output (v0.11.0 — WAVE-SPLIT)
 
 ```
 .release-planning/phases/{NN}-{slug}/
-  {NN}-RESEARCH.md        # researcher output
-  {NN}-PATTERNS.md        # pattern-mapper output
-  {NN}-PLAN.md            # planner output (single-stack)
-  {NN}-PLAN-BACKEND.md    # (fullstack only — Django side)
-  {NN}-PLAN-FRONTEND.md   # (fullstack only — React side)
-  {NN}-PLAN-CHECK.md      # checker verdict (Django backend)
+  {NN}-RESEARCH.md             # researcher output
+  {NN}-PATTERNS.md             # pattern-mapper output
+  {NN}-PLAN/                   # ← DIR, não file (v0.11.0+)
+    manifest.md                # must_haves + threat_model 9-cat + waves table
+    W1-red-tests.md            # ~200-600 linhas, 3-5 tasks
+    W2-{subsystem}.md
+    ...
+    WN-verify.md
+  {NN}-PLAN-CHECK.md           # checker verdict — inclui wave-budget audit
 ```
+
+**Fullstack:**
+```
+{NN}-PLAN-BACKEND/   manifest.md + W*.md
+{NN}-PLAN-FRONTEND/  manifest.md + W*.md
+{NN}-PLAN.md         (< 200 linhas orchestration apenas — refs ambos dirs + cross-stack T-XX)
+{NN}-PLAN-CHECK-BACKEND.md
+{NN}-PLAN-CHECK-FRONTEND.md
+```
+
+**Wave budget contract (HARD):**
+- Target: 400 linhas / 3-5 tasks por wave
+- Hard cap: 600 linhas — plan-checker bloqueia
+- manifest.md: < 300 linhas, frontmatter + waves table
+- Cada wave file: frontmatter `wave`, `depends_on`, `parallel_safe`, `files_touched`
 
 ## Example
 
@@ -193,4 +211,7 @@ This skill spawns merged `release-*` agents. Stack is inferred from `.release-pl
 
 ## Notes / Constraints
 
-- `release-plan-checker` (v0.7.0) is auto-spawned after `release-feature-planner` for ALL stacks (backend, frontend, fullstack), BEFORE commit. Verdict gates: BLOCK aborts (suggests `--revise`); WARN logs to PLAN-CHECK.md and proceeds; PASS commits. Replaces legacy `django-plan-checker`.
+- `release-plan-checker` (v0.7.0) é auto-spawnado after `release-feature-planner` for ALL stacks, BEFORE commit. Verdict gates: BLOCK aborts (suggests `--revise`); WARN logs to PLAN-CHECK.md and proceeds; PASS commits.
+- **v0.11.0 BREAKING:** PLAN.md monolítico substituído por `{NN}-PLAN/` dir (manifest.md + N wave files). Plans monolíticos pré-v0.11 são lidos (back-compat) mas checker emite MED finding sugerindo re-rodar `/release:plan`.
+- **Wave budget:** target 400 linhas / 3-5 tasks per wave; hard cap 600 linhas (BLOCKER).
+- **Model dispatch:** `release-plan-checker`, `release-pattern-mapper`, `release-codebase-mapper`, `release-intel-updater`, `release-nyquist-auditor`, `release-eval-auditor`, security-retro pairs, `django-checklist-verifier` rodam em **Sonnet 4.6**. `release-doc-verifier` e `release-doc-classifier` rodam em **Haiku 4.5**. Planejadores e executores permanecem em Opus 4.7.

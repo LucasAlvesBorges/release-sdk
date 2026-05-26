@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-05-26
+
+### BREAKING — Wave-split PLAN structure
+
+PLAN.md monolíticos (3000+ linhas vistos em fases reais) substituídos por diretório
+de waves. Cada wave file = 3-5 tasks, 200-600 linhas. Cap duro 600 linhas. Drasticamente
+reduz contexto consumido por executores e plan-checkers, e permite paralelização real
+entre waves.
+
+**Antes:**
+```
+{NN}-PLAN.md            (3101 linhas, 34 tasks)
+{NN}-PLAN-CHECK.md
+```
+
+**Depois:**
+```
+{NN}-PLAN/
+  manifest.md           (frontmatter + waves table, < 300 linhas)
+  W1-red-tests.md       (~300 linhas, 4 tasks)
+  W2-models-migration.md
+  W3-viewsets.md
+  W4-serializers.md
+  W5-security.md
+  W6-verify.md
+{NN}-PLAN-CHECK.md      (inclui wave-budget audit)
+```
+
+Para fullstack: `{NN}-PLAN-BACKEND/` + `{NN}-PLAN-FRONTEND/` (dois dirs paralelos).
+
+#### Wave budget contract (HARD)
+
+- `WAVE_TARGET_LINES: 400` (alvo)
+- `WAVE_HARD_CAP_LINES: 600` — plan-checker emite BLOCKER acima
+- `TASKS_PER_WAVE: 3-5`
+- Manifest < 300 linhas; tasks moram nos W*.md
+- Cada wave: `wave`, `depends_on`, `parallel_safe`, `files_touched` no frontmatter
+- Tasks NUNCA atravessam wave files
+
+#### Plan-checker novas regras (BLOCKER)
+
+- Wave file > 600 linhas
+- Empty wave (0 tasks)
+- Tasks no manifest.md
+- Cross-wave dep cycle
+- Task duplicada em ≥2 waves
+- File overlap entre waves `parallel_safe: true`
+
+#### Back-compat
+
+PLAN.md legacy (single-file) ainda é lido por checker e executor.
+Plan-checker emite finding MED sugerindo re-rodar `/release:plan` para wave-split.
+
+### Changed — Model dispatch per agent
+
+Agents mecânicos (grep evidências, mapping estrutural) agora rodam em modelos mais baratos:
+
+| Agent | Model | Razão |
+|---|---|---|
+| release-plan-checker | sonnet | grep + trace traceability |
+| release-pattern-mapper | sonnet | map files → analogs |
+| release-codebase-mapper | sonnet | inventário estruturado |
+| release-intel-updater | sonnet | rewrite intel/ files |
+| release-nyquist-auditor | sonnet | test counting |
+| django-checklist-verifier | sonnet | Q1-Q7 grep |
+| release-eval-auditor | sonnet | eval coverage grep |
+| release-django-security-retro | sonnet | mitigation grep |
+| react-security-retro | sonnet | mitigation grep |
+| release-doc-verifier | haiku | factual claim verification |
+| release-doc-classifier | haiku | 1-doc classifier |
+
+Planejadores (`release-feature-planner`), executores (`release-tdd-executor`,
+`release-wave-executor`) e researchers permanecem em Opus 4.7 — trabalho que exige
+raciocínio profundo.
+
+**Ganho medido vs Phase 46 (hubus, refactor quadros-horário):**
+- Latência plan stage: 1h37min → ~35-45min estimado (~55% redução)
+- Tokens plan+check: 700k → ~280k estimado (~60% redução)
+- Custo proporcional
+
+### Migration
+
+Projetos pré-v0.11 funcionam — checker lê PLAN.md legacy e emite MED suggesting
+re-run. Para migrar uma fase existente para wave-split:
+
+```bash
+/release:plan {NN}    # re-roda planejamento, emite {NN}-PLAN/ dir
+```
+
 ## [0.10.3] — 2026-05-25
 
 ### Fixed — `django-prompt-guard.js` regex parse error broke plugin init

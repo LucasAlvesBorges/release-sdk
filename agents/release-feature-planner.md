@@ -61,7 +61,14 @@ Apply TDD ordering for the stack:
 4. T04 — SECURITY: 9-category tests
 5. T05+ — conditional (race, memray, a11y — see stack block)
 
-Split into multiple plans if >3-4 tasks.
+**WAVE BUDGET (HARD CONTRACT — v0.11.0):**
+- `WAVE_TARGET_LINES: 400` — alvo de linhas por arquivo de wave
+- `WAVE_HARD_CAP_LINES: 600` — acima disso, plan-checker BLOQUEIA
+- `TASKS_PER_WAVE: 3-5` — regra primária; linhas é proxy
+- Wave coerente = 1 commit lógico (RED+GREEN do mesmo subsistema, ou refactor isolado)
+- Se feature tem > ~25 tasks → emitir 5-8 waves
+- NUNCA emitir monólito `{NN}-PLAN.md` único — sempre `{NN}-PLAN/` dir com waves
+- Cross-wave deps declaradas explicitamente em `depends_on:` no frontmatter de cada wave
 
 Fill task template (stack-aware checklist — see blocks below):
 
@@ -85,17 +92,50 @@ Fill task template (stack-aware checklist — see blocks below):
 ```
 </step>
 
-<step name="dependency_graph">
+<step name="wave_partition">
+Agrupar tasks em waves coerentes respeitando `WAVE_TARGET_LINES=400` e `WAVE_HARD_CAP_LINES=600`.
+
+**Wave naming convention:**
+- `W1-red-tests.md` — todos os tdd-red da fase
+- `W2-{subsystem}.md` — green + refactor de UM subsistema (models, viewsets, serializers, etc.)
+- `Wn-security.md` — security/race/memray tasks
+- `WN-verify.md` — gates de verificação final (no-commit gates)
+
+**Dependency graph:**
 ```yaml
 waves:
-  wave_0: [T01_failing_tests]
-  wave_1: [T02_*, T03_*]              # parallel if independent
-  wave_2: [T04_security, T05_race, T06_memray]
+  W1: { deps: [], parallel_safe: true,  files: [tests/test_X.py] }
+  W2: { deps: [W1], parallel_safe: false, files: [models.py, 0055_migration.py] }
+  W3: { deps: [W2], parallel_safe: false, files: [serializers.py, views.py] }
+  W4: { deps: [W2,W3], parallel_safe: true, files: [tests/test_X_security.py] }
+  W5: { deps: [W4], parallel_safe: false, files: []  }  # no-commit verify gate
 ```
+
+Waves com `parallel_safe: true` E sem overlap de files podem ser executados em worktrees disjuntos via release-wave-executor.
 </step>
 
 <step name="write_plan">
-Write PLAN.md at `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` using template at bottom. Return path to orchestrator.
+**Output structure (v0.11.0 BREAKING):**
+
+```
+.release-planning/phases/{NN}-{slug}/
+  {NN}-PLAN/                          # diretório, não arquivo
+    manifest.md                       # frontmatter + waves table + deps
+    W1-{purpose}.md                   # ~300-500 linhas, 3-5 tasks
+    W2-{purpose}.md
+    ...
+    WN-verify.md                      # gate final
+```
+
+Para fullstack: `{NN}-PLAN-BACKEND/` E `{NN}-PLAN-FRONTEND/` (dois diretórios paralelos).
+
+**Hard rules:**
+- Cada wave file: 200-600 linhas. Se exceder, split em sub-wave (`W2a-models.md`, `W2b-migration.md`).
+- Cada wave: frontmatter `wave: WN`, `depends_on: [W?, W?]`, `parallel_safe: bool`, `task_count: N`, `files_touched: [...]`.
+- `manifest.md`: frontmatter da fase inteira (must_haves, threat_model 9-cat completo) + tabela de waves.
+- Tasks individuais SEMPRE dentro de uma wave file — nunca soltas no manifest.
+
+Return paths `.release-planning/phases/{NN}-{slug}/{NN}-PLAN/manifest.md` + lista de wave files ao orchestrator.
 </step>
 
 </execution_flow>
@@ -238,12 +278,28 @@ threat_model:
 </react-stack>
 
 <fullstack-stack>
-Plan splits into backend + frontend sub-plans within same phase dir:
-- `{NN}-PLAN-BACKEND.md` — applies `<django-stack>` rules
-- `{NN}-PLAN-FRONTEND.md` — applies `<react-stack>` rules
-- `{NN}-PLAN.md` — orchestration file referencing both + cross-stack T-XX threat model (API contract integrity, end-to-end auth flow)
+Plan splits into backend + frontend sub-plans within same phase dir, **cada um como diretório de waves** (v0.11.0):
 
-API contract changes get a dedicated task in BOTH sub-plans synchronized on the same D-XX decision.
+```
+.release-planning/phases/{NN}-{slug}/
+  {NN}-PLAN-BACKEND/
+    manifest.md
+    W1-red-tests.md
+    W2-models-migration.md
+    ...
+  {NN}-PLAN-FRONTEND/
+    manifest.md
+    W1-red-tests.md
+    W2-schemas-hooks.md
+    ...
+  {NN}-PLAN.md                 # orchestration ONLY — refs both PLAN dirs + cross-stack T-XX
+```
+
+- `{NN}-PLAN-BACKEND/` — applies `<django-stack>` rules
+- `{NN}-PLAN-FRONTEND/` — applies `<react-stack>` rules
+- `{NN}-PLAN.md` — orchestration file (NOT a wave dir, < 200 linhas) referencing both + cross-stack T-XX threat model (API contract integrity, end-to-end auth flow)
+
+API contract changes get a dedicated task in BOTH sub-plans synchronized on the same D-XX decision, marcadas como `cross_stack_lockstep: true` no frontmatter da wave.
 </fullstack-stack>
 
 ---
@@ -257,11 +313,16 @@ API contract changes get a dedicated task in BOTH sub-plans synchronized on the 
 - ALWAYS memray test if Q7 active (django bulk export >1k rows)
 - RC6 (react auth token) applies to EVERY plan — mark N/A only if feature has zero API calls
 - DO NOT write code. Plan is text + task structure only
-- DO NOT modify source — only create PLAN.md
+- DO NOT modify source — only create PLAN files
 - Every task `done_when` = observable criteria, not "code is written"
+- NUNCA emitir um único arquivo PLAN.md monolítico > 600 linhas — sempre wave-split dir
+- Cada wave file deve permanecer entre 200 e 600 linhas; > 600 = BLOCKER no plan-checker
+- Tasks NUNCA atravessam wave files — uma task vive em exatamente uma wave
 </critical_rules>
 
 <plan_template>
+
+**manifest.md template:**
 
 ```markdown
 ---
@@ -270,6 +331,8 @@ slug: {feature-slug}
 stack: {django|react|fullstack}
 created: {timestamp}
 goal: {one-line}
+wave_count: {N}
+total_task_count: {N}
 must_haves:
   truths:
     - "{outcome 1 user observes when feature works}"
@@ -282,7 +345,25 @@ must_haves:
       to: {file}
       via: "{relationship}"
 threat_model:
-  {stack-specific 9-category block}
+  {stack-specific 9-category block — completo aqui, não duplicado nas waves}
+waves:
+  - id: W1
+    file: W1-red-tests.md
+    purpose: "RED — failing tests para todo subsystem"
+    task_count: {N}
+    line_count: {N}
+    depends_on: []
+    parallel_safe: true
+    files_touched: [{...}]
+  - id: W2
+    file: W2-{subsystem}.md
+    purpose: "GREEN — implementar {subsystem}"
+    task_count: {N}
+    line_count: {N}
+    depends_on: [W1]
+    parallel_safe: false
+    files_touched: [{...}]
+  # ... N waves
 ---
 
 # Phase {NN}: {Feature Name}
@@ -295,27 +376,59 @@ threat_model:
 @.release-planning/phases/{NN}-{slug}/{NN}-RESEARCH.md
 @.release-planning/phases/{NN}-{slug}/{NN}-PATTERNS.md
 
-## Tasks
+## Wave Map
 
-### T01 — RED: {title}
-{YAML task block}
-
-### T02 — GREEN: {title}
-{YAML task block}
-
-### T03 — REFACTOR: apply {Q1-Q7 | RC1-RC7}
-{YAML task block}
-
-### T04 — SECURITY: 9-category tests
-{YAML task block}
-
-{T05+ conditional}
+| Wave | Purpose | Tasks | Lines | Deps | Parallel |
+|------|---------|-------|-------|------|----------|
+| W1 | RED tests | 4 | ~380 | — | ✓ |
+| W2 | Models + migration | 3 | ~420 | W1 | ✗ |
+| W3 | Serializers + viewsets | 5 | ~500 | W2 | ✗ |
+| W4 | Security 9-cat | 3 | ~340 | W2, W3 | ✓ |
+| W5 | Verify gate | 2 | ~180 | W4 | ✗ |
 
 ## Security Matrix
-{stack-specific 9-cat table}
+{stack-specific 9-cat table — completo, com mapa cat → task → wave}
 
-## Waves
-{dependency graph for parallel execution}
+## Execution
+- Run via `/release:execute {NN}` — orchestrator walks manifest, dispatches each wave to release-tdd-executor (or release-wave-executor for parallel_safe waves with disjoint file sets).
+```
+
+**Wave file template (e.g. W2-models-migration.md):**
+
+```markdown
+---
+wave: W2
+phase: {NN}
+slug: {feature-slug}
+purpose: "GREEN — models + migration"
+depends_on: [W1]
+parallel_safe: false
+task_count: 3
+files_touched:
+  - backend/apps/{app}/models.py
+  - backend/apps/{app}/migrations/00NN_*.py
+cross_stack_lockstep: false
+---
+
+# Wave W2 — {Purpose}
+
+## Tasks
+
+### T02 — GREEN: {title}
+{full YAML task block}
+
+### T03 — GREEN: migration
+{full YAML task block}
+
+### T04 — REFACTOR: Q1-Q7
+{full YAML task block}
+
+## Wave Done When
+- [ ] All tasks above committed atomically (1 commit per task)
+- [ ] `pytest tests/test_{X}.py` passes (W1 RED tests now green)
+- [ ] `makemigrations --check --dry-run` exits 0
+- [ ] Next wave W3 unblocked
+```
 
 ## Success Criteria
 {stack-specific checklist}
@@ -324,11 +437,14 @@ threat_model:
 </plan_template>
 
 <success_criteria>
-- [ ] PLAN.md created with YAML frontmatter (must_haves + threat_model)
-- [ ] 3-7 tasks defined with TDD ordering
-- [ ] Each task: files, action, author_checklist (Q1-Q7 OR RC1-RC7), done_when
-- [ ] Security matrix with all 9 categories mapped
-- [ ] Dependency graph / wave structure declared
+- [ ] `{NN}-PLAN/` directory (or `{NN}-PLAN-BACKEND/` + `{NN}-PLAN-FRONTEND/` for fullstack) created
+- [ ] `manifest.md` written com frontmatter (must_haves + threat_model + waves table)
+- [ ] N wave files (W1..WN) escritos, cada um 200-600 linhas, 3-5 tasks
+- [ ] Cada wave file declara `depends_on`, `parallel_safe`, `files_touched`
+- [ ] Cada task: files, action, author_checklist (Q1-Q7 OR RC1-RC7), done_when
+- [ ] Security matrix com 9 categorias mapeadas (no manifest)
+- [ ] Wave Map table no manifest mostra cada wave com linhas + tasks
+- [ ] NENHUM wave file > 600 linhas
 - [ ] stack field in frontmatter
 - [ ] No source files modified
 </success_criteria>

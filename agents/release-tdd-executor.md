@@ -7,9 +7,13 @@ color: "#EAB308"
 
 <inputs>
 - stack: django | react | fullstack (required)
-- plan_path: path to PLAN.md (required)
-- task_filter: optional array of task IDs (e.g. ["T02","T03"]) — when set, execute ONLY listed tasks
-- no_branch: bool (default false) — when true, skip branch_setup (caller manages branch)
+- plan_path: path to PLAN — pode ser:
+  - `{NN}-PLAN/manifest.md` → wave-split orchestration (v0.11.0+; executar waves em ordem topológica)
+  - `{NN}-PLAN/W{X}-*.md` → single wave (spawn por release-wave-executor em worktree)
+  - `{NN}-PLAN.md` → legacy single-file (back-compat)
+- task_filter: optional array de task IDs (e.g. ["T02","T03"]) — execute ONLY listed tasks
+- wave_filter: optional array de wave IDs (e.g. ["W1","W2"]) — apenas em manifest mode
+- no_branch: bool (default false) — quando true, skip branch_setup (caller manages branch)
 - cwd: optional path — `cd "$cwd"` before any Bash command (worktree isolation)
 </inputs>
 
@@ -39,15 +43,26 @@ Never:
 <execution_flow>
 
 <step name="load_plan">
-1. Read PLAN.md from `plan_path`
-2. Parse:
-   - `must_haves` from frontmatter
-   - `threat_model` (9 categories)
-   - Tasks (T01-TNN) with `files`, `action`, `author_checklist`, `done_when`
-   - Success criteria
-3. Read `./CLAUDE.md` for project conventions
-4. Verify dependencies (models exist + migrations applied OR types exist + hooks exported)
-5. Apply spawn config: `task_filter`, `no_branch`, `cwd` if set
+1. **Detect plan_path shape:**
+   - termina em `manifest.md` → wave-split orchestration mode
+   - termina em `/W{X}-*.md` → single wave mode (spawn por wave-executor)
+   - termina em `{NN}-PLAN.md` → legacy single-file mode
+2. **Wave-split orchestration mode** (plan_path = manifest.md):
+   - Read `manifest.md` frontmatter (must_haves + threat_model + waves table)
+   - Topological sort por `depends_on`
+   - Para cada wave em ordem:
+     - Read `W{X}-*.md` (frontmatter + tasks)
+     - Skip se `wave_filter` set e wave não listada
+     - Execute tasks da wave via subseção `execute_each_task`
+     - Após última task da wave: re-check sweep mínimo (pytest/vitest) e prossegue
+3. **Single wave mode** (plan_path = `W{X}-*.md`):
+   - Read wave file diretamente (tasks + frontmatter)
+   - Read sibling `manifest.md` SÓ para must_haves + threat_model (NÃO re-orquestrar)
+   - Execute tasks da wave única
+4. **Legacy single-file**: read PLAN.md completo, execute todas tasks (comportamento prévio)
+5. Read `./CLAUDE.md` for project conventions
+6. Verify dependencies (models exist + migrations applied OR types exist + hooks exported)
+7. Apply spawn config: `task_filter`, `wave_filter`, `no_branch`, `cwd` se set
 </step>
 
 <step name="branch_setup">
@@ -78,6 +93,7 @@ PR opened from this branch after `/release:verify {NN}` PASS.
 <step name="execute_each_task">
 
 Apply `task_filter` if set (only run listed task IDs).
+Apply `wave_filter` if set (skip tasks de waves não-listadas — wave-split mode apenas).
 
 For each task:
 
@@ -363,5 +379,7 @@ _Executed by release-tdd-executor (release-sdk) — stack: {stack}_
 - [ ] Stack LOCK enforced (`.delay(` for django OR `localStorage.*token` for react — both must grep empty)
 - [ ] SUMMARY.md created with commit hashes + stack field
 - [ ] Final metadata commit: `docs({scope}): complete {feature} plan`
-- [ ] If spawned by wave-executor: respected `task_filter`, `no_branch`, `cwd`
+- [ ] If spawned by wave-executor: respected `task_filter`, `wave_filter`, `no_branch`, `cwd`
+- [ ] Wave-split orchestration: waves executadas em ordem topológica
+- [ ] Single wave mode: somente tasks da wave executadas; manifest lido apenas para must_haves+threat
 </success_criteria>

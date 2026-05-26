@@ -1,6 +1,6 @@
 ---
 name: release-wave-executor
-description: Parallel wave executor. Reads PLAN.md wave_X structure, spawns N TDD executors concurrently via git worktree isolation when wave tasks touch disjoint file sets. Cherry-picks commits back to feat/{NN}-{slug} branch after wave completes. Falls back to serial when file overlap detected. Use via /release:execute {NN} --waves.
+description: Parallel wave executor. Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, spawns N TDD executors concurrently via git worktree isolation when wave tasks touch disjoint file sets. Cherry-picks commits back to feat/{NN}-{slug} branch after wave completes. Falls back to serial when file overlap detected. Use via /release:execute {NN} --waves.
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
 color: "#F59E0B"
 ---
@@ -17,11 +17,25 @@ Spawned by `/release:execute {NN} --waves` skill.
 
 <step name="load_plan">
 
-1. Read `$PLAN_PATH` (`.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md`).
-2. Parse frontmatter `wave_0`, `wave_1`, ... `wave_N` blocks.
-3. Build wave list: each wave = ordered list of task IDs.
-4. Read each task body to extract `files:` list (RED test files, GREEN impl files, migration paths).
-5. Identify phase branch: `feat/{NN}-{slug}` (must already exist — created by release-execute).
+**Detect layout:**
+- `$PLAN_PATH` = `.release-planning/phases/{NN}-{slug}/{NN}-PLAN/manifest.md` → **wave-split dir** (v0.11.0+)
+- `$PLAN_PATH` = `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` → **legacy single-file**
+
+**Wave-split layout (v0.11.0+):**
+1. Read `manifest.md` frontmatter `waves:` table (id, file, depends_on, parallel_safe, files_touched, task_count)
+2. Build dependency graph a partir de `depends_on`
+3. Topological sort → execution order
+4. **Parallel-eligible wave groups:** waves no mesmo depth do DAG marcadas `parallel_safe: true` E sem overlap em `files_touched` → spawn N executors em worktrees disjuntos, uma wave por worktree
+5. Para cada wave file `W{X}-*.md`: tasks + files já listados em frontmatter
+
+**Legacy single-file layout:**
+1. Read `$PLAN_PATH`
+2. Parse frontmatter `wave_0`, `wave_1`, ... `wave_N` blocks
+3. Build wave list: cada wave = ordered list de task IDs
+4. Read each task body para `files:`
+
+**Comum:**
+6. Identify phase branch: `feat/{NN}-{slug}` (must already exist — created by release-execute)
 
 </step>
 
@@ -49,7 +63,9 @@ mkdir -p "$WT_BASE"
 
 <step name="execute_each_wave">
 
-For each `wave_N` in order:
+**Wave-split layout extra:** waves no mesmo depth do DAG marcadas `parallel_safe: true` com `files_touched` disjuntos podem rodar **em paralelo entre si** — spawn N `release-tdd-executor` (uma por wave) com `plan_path={NN}-PLAN/W{X}-*.md` em worktrees isolados. Cherry-pick back após todos completarem.
+
+For each wave (ou wave-group em paralelo) em ordem topológica:
 
 ### Disjoint file analysis
 
@@ -185,13 +201,15 @@ git commit -m "docs({NN}): wave execution summary"
 
 <task_filter_contract>
 
-For wave executor to work, `release-tdd-executor` and `release-tdd-executor` must accept:
+For wave executor to work, `release-tdd-executor` must accept:
 
-- `task_filter: ["T02", "T03"]` — execute ONLY listed task IDs, skip others
-- `no_branch: true` — skip branch creation (already on wave branch)
+- `task_filter: ["T02", "T03"]` — intra-wave granularidade (only listed task IDs)
+- `wave_filter: ["W2"]` — cross-wave granularidade (manifest mode apenas)
+- `no_branch: true` — skip branch creation
 - `cwd: <path>` — Bash commands run inside this worktree
+- `plan_path: <path>` — pode ser manifest.md, W{X}-*.md, OU PLAN.md (legacy)
 
-Both executor agents read these from the Agent spawn config. If unset, default behavior (all tasks, branch-per-phase, current cwd).
+Executor reads these from Agent spawn config. If unset, default behavior (all tasks/waves, branch-per-phase, current cwd).
 
 </task_filter_contract>
 

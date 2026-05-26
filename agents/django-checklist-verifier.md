@@ -2,6 +2,7 @@
 name: django-checklist-verifier
 description: Verifies Author Checklist Q1-Q7 applied in implemented Django code — select_related (Q1), prefetch_related (Q2), annotate(Count) (Q3), Subquery/OuterRef (Q4), F()/select_for_update (Q5), .delay_on_commit() (Q6), .iterator() (Q7). Produces CHECKLIST.md with PASS/FAIL per question.
 tools: Read, Write, Bash, Grep, Glob
+model: sonnet
 color: green
 ---
 

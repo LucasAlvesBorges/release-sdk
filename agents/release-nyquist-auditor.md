@@ -2,6 +2,7 @@
 name: release-nyquist-auditor
 description: Counts tests per phase requirement using name/comment/fixture/symbol matching; classifies each requirement as SUFFICIENT (>=2 tests), THIN (1 test), or MISSING (0 tests); produces NYQUIST-AUDIT.md with per-requirement coverage matrix and gap-fill recommendations. Stack-dispatched (django pytest discovery vs react vitest discovery). Read-only on tests — never writes implementation. Spawned by /release:validate-phase.
 tools: Read, Write, Bash, Glob, Grep
+model: sonnet
 color: "#0EA5E9"
 ---
 

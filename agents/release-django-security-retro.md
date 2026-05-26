@@ -2,6 +2,7 @@
 name: release-django-security-retro
 description: Retroactive Django/DRF security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model block and greps the shipped source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the Django half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence.
 tools: Read, Write, Bash, Grep, Glob
+model: sonnet
 color: "#B91C1C"
 ---
 

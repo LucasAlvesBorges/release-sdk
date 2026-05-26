@@ -2,6 +2,7 @@
 name: release-codebase-mapper
 description: Writes ONE structured analysis document per focus area (tech | arch | quality | concerns) for the codebase. Stack-dispatched probes — Django (apps, models, settings, celery, migrations) or React (components, stores, routing, build tooling) or both. Spawned in parallel by /release:map-codebase; each instance writes to a distinct output_path under .release-planning/codebase/. Read-only on source.
 tools: Read, Write, Bash, Glob, Grep
+model: sonnet
 color: "#3B82F6"
 ---
 
