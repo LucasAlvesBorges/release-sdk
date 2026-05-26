@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-05-25
+
+### Added — Token tracker dashboard
+
+New `/release:tokens` skill opens a local HTTP dashboard at `http://localhost:47777`
+showing token usage, cost ($), cache hit ratio, and efficiency metrics for every
+Claude Code turn — across sessions, models, projects, and skills.
+
+**Files:**
+- `bin/release-token-worker.js` — Node HTTP daemon, no external deps; JSONL storage at `~/.claude/token-tracker/events.jsonl`
+- `bin/release-token-dashboard.html` — single-file UI, Chart.js via CDN, auto-refresh 5s
+- `hooks/release-token-collector.js` — PostToolUse hook; parses transcript tail, POSTs new assistant `usage` events to `/event`
+- `skills/tokens/SKILL.md` — `/release:tokens` skill entry (spawn worker + open browser)
+
+**Endpoints:**
+- `POST /event` — append usage event to JSONL
+- `GET /api/stats?session_id=X` — aggregates by session/today/week/month/all-time + breakdown by model/project/skill + timeline
+- `GET /api/health` — `{ok, port, pid}`
+- `GET /` — dashboard
+
+**Pricing table** (hardcoded in worker, $/Mtok): Opus 4.7 `15/75 cache 1.5/18.75`, Sonnet 4.6 `3/15 cache 0.3/3.75`, Haiku 4.5 `1/5 cache 0.1/1.25`.
+
+**Privacy:** worker binds `127.0.0.1` only; records token counters, never message content.
+
+**Port choice:** 47777 (claude-mem uses 37777 — no conflict).
+
+### Fixed — Commit hook heredoc bypass
+
+`hooks/django-validate-commit.sh` was rejecting `git commit -m "$(cat <<'EOF' ... EOF)"`
+because the Conventional Commits regex ran on the raw `$CMD` string before shell
+expansion, capturing the literal `$(cat <<'EOF'` token as the subject.
+
+Now skips validation when MSG contains command substitution (`$(cat`) or heredoc
+markers (`<<'`, `<<"`, `<<NAME`) — same fallback used for empty `-m` (interactive
+editor case).
+
 ## [0.9.1] — 2026-05-25
 
 ### Changed — Agent taxonomy: stack-pure prefix

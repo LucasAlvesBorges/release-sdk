@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>release-sdk · token tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0b0d10; --panel:#13171c; --border:#1f262d; --text:#e6edf3; --muted:#8b949e;
+    --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px -apple-system,BlinkMacSystemFont,'SF Pro',sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  header .meta { color:var(--muted); font-size:12px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:16px 24px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; }
+  .card h3 { margin:0 0 8px; font-size:11px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .card .val { font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .card .sub { font-size:11px; color:var(--muted); margin-top:4px; font-variant-numeric:tabular-nums; }
+  .row { display:grid; grid-template-columns:2fr 1fr; gap:12px; padding:0 24px 16px; }
+  .row > .card { padding:16px; }
+  .chart-wrap { position:relative; height:260px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { padding:8px 6px; text-align:right; border-bottom:1px solid var(--border); font-size:13px; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; }
+  .cost { color:var(--accent); }
+  .brl { color:#7ee787; font-weight:500; }
+  .good { color:var(--good); }
+  .warn { color:var(--warn); }
+  .bad  { color:var(--bad); }
+  .tabs { display:flex; gap:8px; margin-bottom:10px; }
+  .tab { padding:4px 10px; background:#1c2128; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:12px; color:var(--muted); }
+  .tab.active { color:var(--text); border-color:var(--accent); }
+  footer { padding:12px 24px; color:var(--muted); font-size:11px; border-top:1px solid var(--border); }
+  .empty { text-align:center; padding:40px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>release-sdk · token tracker</h1>
+  <div class="meta">
+    <span id="last-update">—</span> ·
+    <span id="event-count">0 eventos</span> ·
+    porta 47777
+  </div>
+</header>
+
+<div class="grid">
+  <div class="card">
+    <h3>Sessão atual</h3>
+    <div class="val cost" id="kpi-session-cost">$0.00</div>
+    <div class="sub"><span class="brl" id="kpi-session-brl">R$0,00</span> · <span id="kpi-session-turns">0</span> turnos · <span id="kpi-session-tpt">0</span> tok/turno</div>
+  </div>
+  <div class="card">
+    <h3>Hoje</h3>
+    <div class="val cost" id="kpi-today-cost">$0.00</div>
+    <div class="sub"><span class="brl" id="kpi-today-brl">R$0,00</span> · <span id="kpi-today-cache">0%</span> cache</div>
+  </div>
+  <div class="card">
+    <h3>7 dias</h3>
+    <div class="val cost" id="kpi-week-cost">$0.00</div>
+    <div class="sub"><span class="brl" id="kpi-week-brl">R$0,00</span> · <span id="kpi-week-tokens">0</span> tok</div>
+  </div>
+  <div class="card">
+    <h3>All-time</h3>
+    <div class="val cost" id="kpi-all-cost">$0.00</div>
+    <div class="sub"><span class="brl" id="kpi-all-brl">R$0,00</span> · <span id="kpi-all-turns">0</span> turnos</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <div class="tabs">
+      <div class="tab active" data-metric="cost_usd">Custo $</div>
+      <div class="tab" data-metric="input">Input</div>
+      <div class="tab" data-metric="output">Output</div>
+      <div class="tab" data-metric="cache_read">Cache read</div>
+      <div class="tab" data-metric="turns">Turnos</div>
+    </div>
+    <div class="chart-wrap"><canvas id="timeline-chart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Por modelo</h3>
+    <div class="chart-wrap"><canvas id="model-chart"></canvas></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h3>Por projeto (cwd)</h3>
+    <table id="project-table">
+      <thead><tr><th>Projeto</th><th>Custo $</th><th>Custo R$</th><th>Tokens</th><th>Turnos</th><th>Cache</th><th>tok/turno</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Por skill (release:*)</h3>
+    <table id="skill-table">
+      <thead><tr><th>Skill</th><th>Custo $</th><th>Custo R$</th><th>Turnos</th><th>tok/turno</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  Auto-refresh 5s · Worker grava em <code>~/.claude/token-tracker/events.jsonl</code>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const sessionId = new URLSearchParams(location.search).get('session_id') || '';
+let timelineChart, modelChart;
+let currentMetric = 'cost_usd';
+
+function fmtCost(n) { return '$' + (n || 0).toFixed(2); }
+function fmtBrl(n) { return 'R$' + (n || 0).toFixed(2).replace('.', ','); }
+function fmtTok(n) { if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return String(n||0); }
+function fmtPct(n) { return (n || 0).toFixed(1) + '%'; }
+
+async function fetchStats() {
+  const r = await fetch('/api/stats' + (sessionId ? `?session_id=${sessionId}` : ''));
+  return r.json();
+}
+
+function totalTokens(a) { return (a.input||0)+(a.output||0)+(a.cache_read||0)+(a.cache_create||0); }
+
+function renderKPI(s) {
+  $('kpi-session-cost').textContent = fmtCost(s.session.cost_usd);
+  $('kpi-session-brl').textContent = fmtBrl(s.session.cost_brl);
+  $('kpi-session-turns').textContent = s.session.turns;
+  $('kpi-session-tpt').textContent = fmtTok(s.session.tokens_per_turn);
+  $('kpi-today-cost').textContent = fmtCost(s.today.cost_usd);
+  $('kpi-today-brl').textContent = fmtBrl(s.today.cost_brl);
+  $('kpi-today-cache').textContent = fmtPct(s.today.cache_hit_pct);
+  $('kpi-week-cost').textContent = fmtCost(s.week.cost_usd);
+  $('kpi-week-brl').textContent = fmtBrl(s.week.cost_brl);
+  $('kpi-week-tokens').textContent = fmtTok(totalTokens(s.week));
+  $('kpi-all-cost').textContent = fmtCost(s.all_time.cost_usd);
+  $('kpi-all-brl').textContent = fmtBrl(s.all_time.cost_brl);
+  $('kpi-all-turns').textContent = s.all_time.turns;
+  $('last-update').textContent = new Date().toLocaleTimeString();
+  const fxAge = s.meta.fx_fetched_at ? Math.floor((Date.now() - s.meta.fx_fetched_at) / 60000) : null;
+  const fxLabel = `FX R$${s.meta.fx_rate.toFixed(4)}` + (fxAge !== null ? ` · ${fxAge}m` : '') + (s.meta.fx_source === 'fallback' ? ' (fallback)' : '');
+  $('event-count').textContent = s.meta.events_count + ' eventos · ' + fxLabel;
+}
+
+function renderTimeline(s) {
+  const labels = s.timeline.map(d => d.day);
+  const data = s.timeline.map(d => currentMetric === 'cost_usd' ? +d.cost_usd.toFixed(4) : d[currentMetric] || 0);
+  const config = {
+    type: 'line',
+    data: { labels, datasets: [{ label: currentMetric, data, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.15)', tension: 0.3, fill: true, pointRadius: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { ticks: { color: '#8b949e' }, grid: { color: '#1f262d' } }, y: { ticks: { color: '#8b949e' }, grid: { color: '#1f262d' } } },
+      plugins: { legend: { display: false } } }
+  };
+  if (timelineChart) { timelineChart.data = config.data; timelineChart.update(); }
+  else timelineChart = new Chart($('timeline-chart'), config);
+}
+
+function renderModelChart(s) {
+  const entries = Object.entries(s.by_model);
+  const labels = entries.map(([k]) => k.replace('claude-', ''));
+  const data = entries.map(([, v]) => +v.cost_usd.toFixed(4));
+  const colors = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff'];
+  const config = {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#e6edf3', font: { size: 11 } } } } }
+  };
+  if (modelChart) { modelChart.data = config.data; modelChart.update(); }
+  else modelChart = new Chart($('model-chart'), config);
+}
+
+function renderProjectTable(s) {
+  const rows = Object.entries(s.by_project).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
+  const tbody = $('project-table').querySelector('tbody');
+  if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="empty">sem dados</td></tr>'; return; }
+  tbody.innerHTML = rows.map(([k, v]) => `
+    <tr>
+      <td>${k}</td>
+      <td class="cost">${fmtCost(v.cost_usd)}</td>
+      <td class="brl">${fmtBrl(v.cost_brl)}</td>
+      <td>${fmtTok(totalTokens(v))}</td>
+      <td>${v.turns}</td>
+      <td class="${v.cache_hit_pct > 70 ? 'good' : v.cache_hit_pct > 40 ? 'warn' : 'bad'}">${fmtPct(v.cache_hit_pct)}</td>
+      <td>${fmtTok(v.tokens_per_turn)}</td>
+    </tr>`).join('');
+}
+
+function renderSkillTable(s) {
+  const rows = Object.entries(s.by_skill).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
+  const tbody = $('skill-table').querySelector('tbody');
+  if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">sem dados de skill (use /release:*)</td></tr>'; return; }
+  tbody.innerHTML = rows.map(([k, v]) => `
+    <tr>
+      <td>${k}</td>
+      <td class="cost">${fmtCost(v.cost_usd)}</td>
+      <td class="brl">${fmtBrl(v.cost_brl)}</td>
+      <td>${v.turns}</td>
+      <td>${fmtTok(v.tokens_per_turn)}</td>
+    </tr>`).join('');
+}
+
+async function refresh() {
+  try {
+    const s = await fetchStats();
+    renderKPI(s);
+    renderTimeline(s);
+    renderModelChart(s);
+    renderProjectTable(s);
+    renderSkillTable(s);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  currentMetric = t.dataset.metric;
+  refresh();
+}));
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

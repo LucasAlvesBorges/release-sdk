@@ -62,6 +62,12 @@ if [ -z "$MSG" ]; then
   exit 0
 fi
 
+# Allow command substitution / heredoc passed to -m — regex captures the literal
+# `$(cat <<'EOF'...EOF)` before shell expansion, so MSG isn't the real subject.
+if [[ "$MSG" =~ \$\(cat || "$MSG" =~ \<\<\' || "$MSG" =~ \<\<\" || "$MSG" =~ \<\<[A-Za-z_] ]]; then
+  exit 0
+fi
+
 SUBJECT=$(echo "$MSG" | head -1)
 
 # Conventional Commits regex — scope is optional, accepts comma-separated

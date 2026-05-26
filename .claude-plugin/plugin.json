@@ -1,7 +1,7 @@
 {
   "name": "release",
   "description": "Full-stack acceleration kit (Django + React TSX) — context-aware routing, adversarial code review, 9-category security audit, TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
@@ -90,6 +90,11 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-context-monitor.js\"",
             "timeout": 3,
             "statusMessage": "Tracking context..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-token-collector.js\"",
+            "timeout": 3
           }
         ]
       }
