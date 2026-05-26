@@ -218,6 +218,9 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 - NEVER cherry-pick wave commits with unresolved conflicts → abort + serial fallback
 - NEVER delete a worktree before cherry-pick completes
 - NEVER spawn parallel executors when ANY file overlap detected
+- NEVER spawn parallel executors when wave touches Django `models.py` AND any of `admin.py`/`views.py`/`serializers.py`/`urls.py`/`filters.py` — `manage.py check` requires full graph coherence; force `coalesce_into_wave_commit`
+- DETECT pre-commit hook policy: if `.pre-commit-config.yaml` references `manage.py check` OR `django-system-check`, treat any cross-file-touching wave as collision-bound regardless of file-set disjointness
+- DECLARE `coalesce_into_wave_commit: true` in WAVE-SUMMARY.md whenever pre-commit forces single-commit-per-wave so audit trail is honest
 - NEVER run wave executor on dirty tree (must be on clean phase branch)
 - ALWAYS verify after each wave before starting next (catch regressions early)
 - ALWAYS write WAVE-SUMMARY.md even on partial failure (audit trail)
@@ -235,6 +238,14 @@ Before spawning parallel:
 # pseudo
 def waves_parallel_safe(tasks):
     files_per_task = {t.id: set(t.files) for t in tasks}
+    # Django pre-commit graph coherence (manage.py check covers full project)
+    if has_django_system_check_precommit():
+        all_files = {f for t in tasks for f in t.files}
+        model_files     = {f for f in all_files if f.endswith('models.py')}
+        downstream_exts = ('admin.py', 'views.py', 'serializers.py', 'urls.py', 'filters.py')
+        downstream      = {f for f in all_files if any(f.endswith(s) for s in downstream_exts)}
+        if model_files and downstream:
+            return False, "Django pre-commit graph coherence — coalesce_into_wave_commit"
     for a, b in combinations(tasks, 2):
         if files_per_task[a.id] & files_per_task[b.id]:
             return False, f"{a.id} and {b.id} share files"
@@ -245,6 +256,13 @@ def waves_parallel_safe(tasks):
             if count_with_migrations > 1:
                 return False, "multiple migration-generating tasks"
     return True, "ok"
+
+def has_django_system_check_precommit():
+    """Detect if .pre-commit-config.yaml runs manage.py check on commit."""
+    cfg = read_text('.pre-commit-config.yaml')
+    if not cfg:
+        return False
+    return ('manage.py check' in cfg) or ('django-system-check' in cfg)
 ```
 
 </collision_detection>

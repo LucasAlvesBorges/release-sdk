@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] — 2026-05-26
+
+### Fixed — Executor efficiency overhaul (Phase 46 audit fallout)
+
+Audit forense da Phase 46 (hubus refactor, 68min wall / $32-60 USD / `status: PARTIAL`)
+identificou 4 gargalos no `release-tdd-executor` + `release-wave-executor`. Fixes:
+
+**1. Django pre-commit graph coherence (`release-wave-executor.md`)**
+
+Phase 46 forçou coalesce de 22 tasks num único commit (gap de 37min). Causa: Django
+`manage.py check` valida grafo inteiro (models → admin → views → serializers → urls)
+— wave-executor spawnava parallel workers em worktrees, mas pre-commit no cherry-pick
+rejeitava partial states.
+
+Fix: `<collision_detection>` agora detecta `models.py` + downstream files na mesma
+wave → força `coalesce_into_wave_commit: true`. Nova função
+`has_django_system_check_precommit()` inspeciona `.pre-commit-config.yaml`.
+WAVE-SUMMARY.md declara o coalesce explicitamente (audit trail honesto).
+
+**2. Fullstack BACKEND-then-FRONTEND dispatch (`release-tdd-executor.md`)**
+
+Phase 46 era fullstack mas PLAN-FRONTEND.md (40 tasks) nunca rodou — executor saiu
+silenciosamente após backend. SUMMARY ficou `PARTIAL` mas sem checkpoint explícito.
+
+Fix: novo bloco "Two-PLAN protocol" no `<fullstack-stack>`. Quando phase dir tem
+`{NN}-PLAN-BACKEND.md` + `{NN}-PLAN-FRONTEND.md`: executa BACKEND completo, escreve
+`SUMMARY-BACKEND.md`, executa FRONTEND, escreve `SUMMARY-FRONTEND.md`, agrega em
+`SUMMARY.md` unificado. `half: backend|frontend` spawn config respeitado.
+Critical rule: NEVER `status: SUCCESS` com metade untouched — força `PARTIAL`
++ checkpoint.
+
+**3. Parallel test sweep unconditional**
+
+`parallel_test_sweep` (introduzido no v0.11.2 step inicial) tinha skip-when-small
+(<20 tests OR <5 files). Removido: agora sempre roda 5-way para coletar telemetria
++ inventory + `sweep-B*.json` requeridos pelo SUMMARY. Única exceção: `total_tests
+== 0` → smoke single-shot.
+
+**4. PLAN read protocol (`release-tdd-executor.md`)**
+
+Phase 46 burned ~2.1M tokens em cache_read da PLAN.md monolítica (3121 linhas ×
+34 tasks). Novo step `plan_read_protocol` força:
+- Initial PLAN load ONCE (frontmatter + task index com line offsets)
+- Per-task: `Read` com offset/limit cobrindo só section da task (~40-120 linhas)
+- Cross-task lookups: `Grep` com `-A`/`-B` context, nunca full Read
+- Wave files (~400 linhas) podem full-read — overhead negligível
+- Anti-pattern explícito: `cat PLAN.md | grep` proibido, usar Grep tool
+
+Redução estimada: 2.1M → ~100K tokens cache_read por phase (~95%).
+
+### Added — 5-way parallel test sweep + cheaper models
+
+**Problema:** Final test sweep do `release-tdd-executor` rodava `pytest`/`vitest`
+em série sobre 200+ testes via Opus → 5+ min wall time + custo alto. Em fases
+com waves paralelas (v0.11.0) o sweep virava o novo gargalo.
+
+**Solução:** Novo step `parallel_test_sweep` substitui o sweep serial:
+
+1. **`release-test-discover`** (model: **haiku**) — roda `pytest --collect-only`
+   ou `vitest list`, emite JSON `{file: test_count}` ordenado desc.
+2. **Bucket greedy bin-packing** — distribui arquivos em 5 buckets balanceados
+   por número de testes (~total/5 por bucket).
+3. **`release-test-runner`** (model: **sonnet**) — 5x spawn em paralelo, cada
+   um roda seu bucket, emite JSON `{passed, failed, failures[]}` com traceback
+   head capado em 10 linhas.
+4. **Aggregate** — qualquer FAIL → Opus re-roda só arquivo afetado pra diagnose
+   completa + fix flow normal (Rule 1/2 deviation).
+
+**Skip parallel** quando `total_tests < 20` OU `total_files < 5` (overhead > ganho).
+
+**Ganho estimado:** sweep 5 min → ~1 min wall time (5x parallel). Custo cai
+~80% no sweep (haiku discover + sonnet runners vs opus serial).
+
+**Telemetria:** SUMMARY.md ganha bloco `parallel_sweep:` com `wall_time_seconds`,
+`serial_estimate_seconds`, `speedup`.
+
+**Stack blocks atualizados:** `### Final sweep` em django-stack e react-stack
+agora cobre só lint/grep/tsc — pytest/vitest delegado pro novo step. Suítes
+especializadas (smoke/race/memray/security) também usam `release-test-runner`
+mas com 1 bucket (já são pequenas).
+
+**Backward-compat:** se inventário vier vazio (`total_tests == 0`), executor
+roda sweep single-shot inline (comportamento legacy).
+
 ## [0.11.1] — 2026-05-26
 
 ### Fixed — Token dashboard: "Sessão atual" sempre $0.00 + "Por skill" sempre vazio

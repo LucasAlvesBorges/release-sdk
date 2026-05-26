@@ -54,7 +54,7 @@ Never:
      - Read `W{X}-*.md` (frontmatter + tasks)
      - Skip se `wave_filter` set e wave não listada
      - Execute tasks da wave via subseção `execute_each_task`
-     - Após última task da wave: re-check sweep mínimo (pytest/vitest) e prossegue
+     - Após última task da wave: re-check rápido per-task (já feito em GREEN). NÃO rodar sweep completo aqui — `parallel_test_sweep` roda UMA vez após última wave.
 3. **Single wave mode** (plan_path = `W{X}-*.md`):
    - Read wave file diretamente (tasks + frontmatter)
    - Read sibling `manifest.md` SÓ para must_haves + threat_model (NÃO re-orquestrar)
@@ -88,6 +88,28 @@ git rev-parse HEAD > "$PHASE_DIR/.exec-start-sha" 2>/dev/null || true
 ```
 
 PR opened from this branch after `/release:verify {NN}` PASS.
+</step>
+
+<step name="plan_read_protocol">
+
+**Goal**: minimize PLAN.md cache_read inflation. Monolithic PLAN.md can hit 3000+ lines (~62K tokens). Re-reading the full file between every task burns cache_read tokens with negligible marginal information.
+
+### Rules
+1. **Initial load**: read PLAN frontmatter + tasks index ONCE at start. Cache section line ranges per task ID.
+2. **Per-task READ**: use `Read` with explicit `offset` + `limit` covering ONLY the task's section (typically 40-120 lines). Never re-read the whole file.
+3. **Cross-task lookups** (e.g. checking another task's `files` declaration): use `Grep` with `output_mode: "content"` + `-A`/`-B` context lines instead of full Read.
+4. **Manifest/wave file** (`{NN}-PLAN/manifest.md`, `{NN}-PLAN/W{X}-*.md`): these are already small (~400 lines) — full Read OK, no offset needed.
+5. **Legacy monolithic PLAN.md mode**: build a `task_index.json` in memory at load (or just remember line offsets) — `{T01: {start:120, end:184}, T02:{start:185, end:243}, ...}`. Subsequent task work uses those offsets only.
+6. **SUMMARY.md template** must remain a normal full-file read — it's small (~50 lines).
+
+### Anti-patterns (FORBIDDEN)
+- `Read PLAN.md` (no offset) more than ONCE per phase execution
+- `Bash: cat PLAN.md | grep ...` — use Grep tool instead (it caches better)
+- Re-reading PLAN.md after each commit "to refresh state"
+- Reading PLAN.md inside a `for task in tasks:` loop
+
+### Cache discipline
+The cache_read tier is cheap ($1.50/1M Opus) but multiplied across 34 tasks × 62K tokens = 2.1M tokens / phase. Targeted reads bring this to ~150 lines × 34 tasks ≈ 100K tokens — **~95% reduction** without info loss.
 </step>
 
 <step name="execute_each_task">
@@ -150,8 +172,87 @@ During execution, you WILL find work not in plan. Apply rules:
 Beyond Rule 1-3 (architecture change, scope creep) → checkpoint + ask user.
 </step>
 
+<step name="parallel_test_sweep">
+
+**Goal**: Replace single-shot final test sweep with 5-way parallel bucket execution. Discovery via cheap `release-test-discover` (haiku), execution via `release-test-runner` (sonnet) x5 in parallel.
+
+Skip this step if `wave_filter` set and current wave is non-terminal (final sweep only runs once per phase, after the LAST wave).
+
+### a. Discover
+Spawn `release-test-discover` agent (haiku):
+```
+inputs:
+  stack: {stack}
+  cwd: {cwd if set, else "."}
+  test_root: {django: "backend/apps/" | react: "src/"}
+  scope_filter: {derived from phase scope — e.g. "backend/apps/scheduling/" for Django scope}
+  output_path: {PHASE_DIR}/test-inventory.json
+```
+
+Wait for completion. Read `test-inventory.json`.
+
+### b. Bucket (greedy bin-packing)
+- N_BUCKETS = 5 (configurable via env `RELEASE_TEST_BUCKETS`)
+- Run 5-way parallel UNCONDITIONALLY when `total_tests > 0`. Do NOT skip for small suites — telemetry, bucket inventory, and `sweep-B*.json` artifacts are required by SUMMARY.md for cost/timing audit. Overhead of 5 sonnet spawns for a 10-test suite is negligible vs lost observability.
+- EXCEPTION: if `total_tests == 0` (inventory empty) → write SUMMARY note `parallel_sweep: skipped (no tests discovered)`, run single-shot inline as smoke check, continue.
+- Build buckets:
+  ```
+  buckets = [[] for _ in range(5)]
+  loads   = [0]*5
+  for file, count in sorted(inventory.files.items(), key=lambda x: -x[1]):
+      i = argmin(loads)
+      buckets[i].append(file)
+      loads[i] += count
+  ```
+  - Target load: ~total_tests/5 per bucket (±10% acceptable).
+
+### c. Spawn parallel runners
+Spawn 5x `release-test-runner` (sonnet) in ONE message (parallel):
+```
+For each bucket_id in [B1..B5]:
+  inputs:
+    stack: {stack}
+    cwd: {cwd}
+    bucket_id: B{i}
+    test_files: buckets[i-1]
+    output_path: {PHASE_DIR}/sweep-B{i}.json
+    extra_args: ""
+```
+
+Wait for ALL 5 to complete.
+
+### d. Aggregate
+Read all 5 `sweep-B*.json`:
+- `total_run = sum(passed + failed + errors + skipped)` across buckets
+- `total_failed = sum(failed) + sum(errors)`
+- `total_duration = max(duration_seconds)` (wall time = slowest bucket)
+
+If `total_failed == 0`:
+- Log `PARALLEL SWEEP: {total_run} tests passed in {total_duration}s across 5 buckets`
+- Continue to `run_overall_verification`.
+
+If `total_failed > 0`:
+- Collect all `failures[]` from each bucket JSON.
+- For each unique failing file: re-run locally for full diagnosis:
+  - Django: `pytest <failing_file> -v --tb=long`
+  - React: `npx vitest run <failing_file> --reporter=verbose`
+- Diagnose root cause. Apply fix per task TDD flow (this becomes a deviation under Rule 1 or 2).
+- New commit (no amend): `fix({scope}): resolve test failure in {file}`
+- After fix, re-run the originally failing buckets (NOT full 5x — only impacted buckets).
+- Loop until 0 failures OR 3 fix attempts exhausted → checkpoint + escalate.
+
+### e. Cleanup
+Keep `test-inventory.json` and `sweep-B*.json` in PHASE_DIR — useful for SUMMARY.md cost/timing analysis and future bucket calibration.
+</step>
+
 <step name="run_overall_verification">
-Run stack-specific final sweep (see stack blocks).
+
+**After `parallel_test_sweep` passes**, run the NON-TEST portions of the stack-specific final sweep:
+- Django: `makemigrations --check --dry-run`, `ruff check`, `ruff format --check`, Q6 grep, smoke/race/memray conditional sweeps
+- React: `tsc --noEmit`, `eslint --max-warnings=0`, RC6 grep, `vite build` error check
+
+Pytest/vitest themselves are NOT re-run here — they ran in `parallel_test_sweep`.
+
 Any failure → fix + new commit (no amend).
 </step>
 
@@ -204,8 +305,9 @@ Write `tests/test_{feature}_security.py` using `auth_client_a`, `auth_client_b` 
 Tests for: cross_tenant_isolation, idor_within_tenant, privilege_escalation, mass_assignment_blocked, jwt_expiry, injection_payload_rejected, auth_state_safe, csrf_required, cookie_flags.
 
 ### Final sweep
+**Pytest is delegated to `parallel_test_sweep` step (5-way parallel via release-test-runner + sonnet).**
+Non-test sweep below:
 ```bash
-pytest backend/apps/{app}/tests/ -q --tb=short
 python backend/manage.py makemigrations --check --dry-run
 ruff check backend/apps/{app}/
 ruff format --check backend/apps/{app}/
@@ -213,12 +315,14 @@ ruff format --check backend/apps/{app}/
 # Q6 enforcement (LOCK-CRITICAL)
 grep -rn '\.delay(' backend/apps/{app}/ --include='*.py' | grep -v tests/
 # Any match → fix to .delay_on_commit() + commit
-
-# Conditional
-pytest backend/apps/{app}/tests/test_*_smoke.py
-pytest backend/apps/{app}/tests/test_*_race.py
-pytest backend/apps/{app}/tests/test_*_memray.py --memray
 ```
+
+Conditional specialized suites — run via `release-test-runner` with `extra_args`:
+- smoke: `test_files: glob("**/test_*_smoke.py")`, `extra_args: ""`
+- race: `test_files: glob("**/test_*_race.py")`, `extra_args: ""`
+- memray: `test_files: glob("**/test_*_memray.py")`, `extra_args: "--memray"`
+
+Each specialized suite usually fits in 1 bucket (small) — spawn 1 runner, not 5.
 
 ### Commit scope rules (Django)
 - `backend/apps/<app>/` → scope = `<app>`
@@ -269,8 +373,9 @@ Write `ComponentName.security.test.tsx` covering:
 - Cat 9 (validation): invalid input rejected by Zod before API call
 
 ### Final sweep
+**Vitest is delegated to `parallel_test_sweep` step (5-way parallel via release-test-runner + sonnet).**
+Non-test sweep below:
 ```bash
-npx vitest run --reporter=verbose
 npx tsc --noEmit
 npx eslint src/ --max-warnings=0
 
@@ -279,10 +384,10 @@ grep -r "localStorage.setItem" src/ --include="*.tsx" --include="*.ts" \
   | grep -v "test\|spec\|mock" \
   | grep -i "token\|auth\|jwt\|session"
 # Any match → BLOCKER, fix before SUMMARY
-
-# Security suite
-npx vitest run **/*.security.test.* --reporter=verbose
 ```
+
+Security suite — run via `release-test-runner` (1 bucket, small):
+- `test_files: glob("**/*.security.test.*")`, `extra_args: "--reporter=verbose"`
 
 ### Commit scope rules (React)
 - `src/features/<feature>/` → scope = `<feature>`
@@ -302,6 +407,16 @@ PLAN may contain backend + frontend sub-plans. Dispatch per file:
 - Tasks touching `backend/` paths → use `<django-stack>` verification + commit scope
 - Tasks touching `src/` paths → use `<react-stack>` verification + commit scope
 
+### Two-PLAN protocol (BACKEND-then-FRONTEND)
+
+If TWO separate PLAN files exist in phase dir (`{NN}-PLAN-BACKEND.md` + `{NN}-PLAN-FRONTEND.md`):
+1. Read both. Execute BACKEND first to completion. Write `{NN}-SUMMARY-BACKEND.md`.
+2. THEN execute FRONTEND. Write `{NN}-SUMMARY-FRONTEND.md`.
+3. Write unified `{NN}-SUMMARY.md` aggregating both halves.
+4. If spawn config sets `half: backend` or `half: frontend`, execute ONLY that half and exit.
+5. NEVER declare phase `status: SUCCESS` with one half untouched — set `status: PARTIAL` and log explicitly which half was skipped + why.
+6. If BACKEND completes but FRONTEND fails to start (missing PLAN-FRONTEND.md, env issues, etc.) → checkpoint + escalate. Do NOT silently exit.
+
 Cross-stack tasks (API contract change):
 - Apply backend first (full django verification)
 - Then frontend (full react verification)
@@ -315,7 +430,11 @@ Cross-stack tasks (API contract change):
 - NEVER squash test commit with implementation commit
 - NEVER amend commits — always new commits
 - ALWAYS run pre-commit hooks normally (no `--no-verify`)
-- ALWAYS run full final sweep before writing SUMMARY.md
+- ALWAYS run `parallel_test_sweep` + `run_overall_verification` before writing SUMMARY.md
+- NEVER run full pytest/vitest inline in the executor — delegate to `release-test-runner` x5
+- NEVER declare a fullstack phase `status: SUCCESS` with only one half executed — STOP, set `PARTIAL`, report skipped half explicitly
+- NEVER mark a security gate as "PASS — INHERITED" without writing the 9-category test file — DEFER or block
+- NEVER re-read the full monolithic PLAN.md between tasks — use offset/limit per task section (see `plan_read_protocol` step)
 - If pre-commit hook blocks: fix issue, re-stage, NEW commit
 - Stack-specific LOCKs (Django Q6, React RC6) are non-negotiable — auto-grep before SUMMARY
 - Honor spawn config (`task_filter`, `no_branch`, `cwd`) when invoked by wave-executor
@@ -344,6 +463,12 @@ security:
   cat9: ...
 deviations:
   - "[Rule 1 - Auto-add] {desc} → {sha}"
+parallel_sweep:
+  total_tests: {N}
+  buckets: 5
+  wall_time_seconds: {max bucket duration}
+  serial_estimate_seconds: {sum of bucket durations}
+  speedup: {serial/wall}x
 status: SUCCESS | PARTIAL | FAILED
 ---
 
