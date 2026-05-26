@@ -1,4 +1,5 @@
 ---
+name: workstreams
 description: >
   Manage parallel workstreams within a milestone: list/create/switch/status/progress/complete/resume/remove.
   Each workstream gets isolated `.release-planning/workstreams/<name>/`, dedicated `ws-<name>` branch,

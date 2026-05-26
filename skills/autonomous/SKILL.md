@@ -1,4 +1,5 @@
 ---
+name: autonomous
 description: >
   Run all remaining phases autonomously: for each phase in ROADMAP.md not yet shipped,
   runs /release:spec → /release:discuss → /release:plan → /release:execute → /release:verify-work

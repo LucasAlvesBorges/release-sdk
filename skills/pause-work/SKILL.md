@@ -1,4 +1,5 @@
 ---
+name: pause-work
 description: >
   Capture a session handoff snapshot before /clear, end-of-day, or any forced context reset.
   Writes a timestamped session directory under .release-planning/sessions/{YYYY-MM-DD-HHhMM}/

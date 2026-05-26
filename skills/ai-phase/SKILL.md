@@ -1,4 +1,5 @@
 ---
+name: ai-phase
 description: >
   AI/LLM phase design contract. Reads SPEC.md + PROJECT.md + RELEASE-LOCKS.md, asks only unanswered
   questions (LLM provider, hosting model, prompt structure, evaluation strategy, guardrails, monitoring),

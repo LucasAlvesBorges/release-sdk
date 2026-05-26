@@ -1,4 +1,5 @@
 ---
+name: forensics
 description: >
   Post-mortem investigation for failed release-sdk workflows. Diagnoses what went wrong when a
   phase didn't complete, verify failed, autonomous run aborted. Produces timeline + 5-whys root

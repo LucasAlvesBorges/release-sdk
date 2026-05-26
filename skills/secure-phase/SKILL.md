@@ -1,4 +1,5 @@
 ---
+name: secure-phase
 description: >
   Retroactive (post-implementation) security audit. Reads the phase PLAN.md threat model and
   the author-time 9-category checklist, then greps shipped source/diff for evidence that

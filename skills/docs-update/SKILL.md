@@ -1,4 +1,5 @@
 ---
+name: docs-update
 description: >
   Generate or update project documentation (README, CONTRIBUTING, ARCHITECTURE, ONBOARDING)
   grounded in .release-planning/ artifacts and verified against the live codebase. Spawns

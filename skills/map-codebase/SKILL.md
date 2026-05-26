@@ -1,4 +1,5 @@
 ---
+name: map-codebase
 description: >
   Analyze the codebase with parallel mapper agents (tech, arch, quality, concerns) to produce
   structured analysis documents under `.release-planning/codebase/`. Stack-aware (django/react/fullstack).

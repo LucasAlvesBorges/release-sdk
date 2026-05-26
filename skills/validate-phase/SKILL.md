@@ -1,4 +1,5 @@
 ---
+name: validate-phase
 description: >
   Retroactively audit and fill Nyquist validation gaps for a completed phase. Every requirement
   in SPEC + every UAT item must be covered by >=2 tests (Nyquist-style sampling). Audit-only mode

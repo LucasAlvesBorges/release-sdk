@@ -1,4 +1,5 @@
 ---
+name: add-tests
 description: >
   Generate tests for a completed phase based on UAT criteria and implementation, or regression
   tests for a specific file after a fix. Stack-aware (django=pytest/factory-boy, react=vitest/RTL/MSW).

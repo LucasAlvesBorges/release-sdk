@@ -1,4 +1,5 @@
 ---
+name: plan-review-convergence
 description: >
   Cross-AI plan convergence loop. Requests peer review of {NN}-PLAN.md from external AI CLIs
   (codex, gemini) and replans with the feedback until no HIGH concerns remain (or max iterations).

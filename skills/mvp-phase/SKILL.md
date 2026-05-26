@@ -1,4 +1,5 @@
 ---
+name: mvp-phase
 description: >
   Plan a phase as a vertical MVP slice. Captures a canonical user story (As a / I want to / So
   that), runs a heuristic size check, and offers SPIDR (Spoke / Paths / Interfaces / Data / Rules)

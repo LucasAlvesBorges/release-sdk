@@ -1,4 +1,5 @@
 ---
+name: quick
 description: >
   Execute a bounded task with release-sdk guarantees (atomic commits, light state
   tracking) but skip the heavy phase machinery (no SPEC, no DISCUSS, no formal PLAN,

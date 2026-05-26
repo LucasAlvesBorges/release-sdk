@@ -1,4 +1,5 @@
 ---
+name: init
 description: >
   Initialize a new project with release-sdk. Asks stack questions (Django / React TSX / fullstack),
   captures vision + architecture decisions, locks LOCK-01..LOCK-12 for full-stack projects.

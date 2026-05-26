@@ -1,4 +1,5 @@
 ---
+name: undo
 description: >
   Safe rollback for release-sdk phases, plans, or the last commit via `git revert` (additive — never
   rewrites history). Three modes: default (HEAD only), `--plan {NN.X}` (one plan slug), or `--phase

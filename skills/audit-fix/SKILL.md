@@ -1,4 +1,5 @@
 ---
+name: audit-fix
 description: >
   Autonomous audit-to-fix pipeline. Runs all relevant auditors in parallel, classifies findings,
   dispatches release-code-fixer for AUTO_FIXABLE items, atomic-commits each fix, loops until clean

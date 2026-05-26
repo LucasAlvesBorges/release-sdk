@@ -1,4 +1,5 @@
 ---
+name: ui-review
 description: >
   Retroactive 6-pillar visual audit of implemented React code for a phase. Spawns react-ui-auditor
   to score accessibility, responsive, loading/error states, i18n, type contracts, and design-system

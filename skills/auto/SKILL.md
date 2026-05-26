@@ -1,4 +1,5 @@
 ---
+name: auto
 description: >
   Freeform-intent router for release-sdk. Reads the user's prompt + `.release-planning/`
   state and dispatches to the right `/release:*` skill (or proposes inline execution for

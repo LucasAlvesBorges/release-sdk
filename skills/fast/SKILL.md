@@ -1,4 +1,5 @@
 ---
+name: fast
 description: >
   Execute a trivial task inline — no subagents, no phase machinery, no state tracking.
   For one-shot edits where the work is faster than the overhead of planning it.

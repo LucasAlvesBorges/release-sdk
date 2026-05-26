@@ -1,4 +1,5 @@
 ---
+name: execute
 description: >
   Context-aware phase executor. Detects backend/frontend phase type from PLAN.md, routes to
   release-tdd-executor (stack-dispatched). Supports --backend/--frontend flags for fullstack phases.

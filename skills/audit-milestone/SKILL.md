@@ -1,4 +1,5 @@
 ---
+name: audit-milestone
 description: >
   Standalone, non-destructive milestone audit. Runs the release-milestone-auditor agent against
   the current (or a specified) milestone and writes a timestamped MILESTONE-AUDIT-{name}-{date}.md

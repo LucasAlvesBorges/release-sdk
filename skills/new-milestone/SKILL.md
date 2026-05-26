@@ -1,4 +1,5 @@
 ---
+name: new-milestone
 description: >
   Initialize a new milestone cycle (e.g. v1.0 → v1.1). Bumps the `Milestone:` field in
   PROJECT.md, appends a new milestone section to ROADMAP.md (empty phases list), and optionally

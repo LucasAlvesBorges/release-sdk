@@ -1,4 +1,5 @@
 ---
+name: spec
 description: >
   Clarify WHAT a phase delivers BEFORE discuss. Detects stack (Django / React TSX / fullstack),
   asks scope/boundary questions, produces SPEC.md with HIGH/MED/LOW ambiguity scoring.

@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "release",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "source": "./",
       "description": "Full-stack acceleration kit (Django + React TSX) — context-aware /release:* routing, SPEC/UI-SPEC/AI-SPEC design contracts, conversational UAT, retroactive security audit, parallel workstreams, prompt-injection scanner, 9-category security audit, TDD-first execution.",
       "author": {

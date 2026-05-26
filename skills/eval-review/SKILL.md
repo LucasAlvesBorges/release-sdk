@@ -1,4 +1,5 @@
 ---
+name: eval-review
 description: >
   Audit an executed AI phase's evaluation coverage against its AI-SPEC.md eval plan. Spawns
   release-eval-auditor to score COVERED/PARTIAL/MISSING per dimension and produce EVAL-REVIEW.md

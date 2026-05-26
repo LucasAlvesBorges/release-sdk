@@ -1,4 +1,5 @@
 ---
+name: verify-work
 description: >
   Conversational UAT walkthrough for a completed phase. Reads UAT.md (or extracts from
   PLAN.md / SPEC.md), surfaces stack-aware verification steps (curl for Django, browser

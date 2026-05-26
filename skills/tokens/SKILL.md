@@ -1,4 +1,5 @@
 ---
+name: tokens
 description: >
   Token tracker dashboard. Inicia worker daemon HTTP em localhost:47777 (se ainda não estiver
   rodando) e abre o dashboard no browser padrão. Mostra custo $ por sessão/dia/semana/all-time,

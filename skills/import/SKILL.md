@@ -1,4 +1,5 @@
 ---
+name: import
 description: >
   One-shot mass importer for projects that already use upstream GSD. Reads GSD `.planning/`
   (PROJECT.md, ROADMAP.md, STATE.md, ARCHITECTURE.md, CONVENTIONS.md, config.json, and every

@@ -1,4 +1,5 @@
 ---
+name: complete-milestone
 description: >
   Close the current milestone. Runs the release-milestone-auditor to verify every phase is
   shipped, every UAT closed, every REQ covered, then archives phase dirs under

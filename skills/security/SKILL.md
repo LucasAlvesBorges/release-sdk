@@ -1,4 +1,5 @@
 ---
+name: security
 description: >
   Context-aware 9-category security audit. Routes .py files to release-security-auditor and
   .tsx/.ts files to release-security-auditor. Produces unified SECURITY.md.

@@ -1,4 +1,5 @@
 ---
+name: verify
 description: >
   Context-aware goal-backward verification. Detects which stacks were implemented in a phase,
   spawns release-phase-verifier and/or release-phase-verifier, produces VERIFICATION.md.

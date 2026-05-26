@@ -1,4 +1,5 @@
 ---
+name: ui-phase
 description: >
   Frontend design contract generator. Produces UI-SPEC.md BEFORE React TDD coding starts —
   component inventory, routes, state contracts (loading/empty/error/success), a11y contract,

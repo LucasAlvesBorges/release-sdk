@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] — 2026-05-25
+
+### Fixed — Skills not loading in Claude Code v2.1.142+
+
+All 40 `skills/*/SKILL.md` files were missing the `name:` frontmatter field.
+Claude Code v2.1.142 silently fails to register skills without `name:` —
+result: `/release:*` autocomplete showed no skills in new sessions and
+`/reload-plugins` reported only "1 skill" total across all installed plugins.
+
+Added `name: <dirname>` to every SKILL.md in the plugin. Slug matches the
+directory name (e.g. `skills/auto/SKILL.md` → `name: auto`).
+
+Other plugins (claude-mem, caveman) had `name:` already; release-sdk relied on
+dir-name inference which stopped working in recent Claude Code releases.
+
 ## [0.10.0] — 2026-05-25
 
 ### Added — Token tracker dashboard

@@ -1,4 +1,5 @@
 ---
+name: debug
 description: >
   Systematic debugging with persistent session state across context resets. Reads bug
   report (stack trace, repro steps, expected vs actual), spawns the `release-debugger`

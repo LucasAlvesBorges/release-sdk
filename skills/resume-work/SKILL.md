@@ -1,4 +1,5 @@
 ---
+name: resume-work
 description: >
   Restore context from a previously paused session captured under .release-planning/sessions/.
   Reads HANDOFF.md + cursor.yaml + git-state.txt, detects drift between pause and now

@@ -1,4 +1,5 @@
 ---
+name: review
 description: >
   Context-aware adversarial code review. Analyzes file paths to split .py files to release-code-reviewer
   and .tsx/.ts files to release-code-reviewer. Produces a unified REVIEW.md with sections per stack.

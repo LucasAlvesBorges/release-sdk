@@ -1,4 +1,5 @@
 ---
+name: status
 description: >
   Show project status: current phase, active stage, recent commits, next suggested action.
   Detects full-stack state — reports Django phase progress + React phase progress separately.

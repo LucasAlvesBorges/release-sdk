@@ -1,4 +1,5 @@
 ---
+name: ship
 description: >
   Create a PR for the active phase after verification passes. Runs a final review pass
   (via `release-code-reviewer`), drafts a PR title + body grounded in the phase's

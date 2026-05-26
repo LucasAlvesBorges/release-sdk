@@ -1,4 +1,5 @@
 ---
+name: discuss
 description: >
   Context-aware phase discussion. Detects phase type from ROADMAP.md, routes to backend-focused or
   frontend-focused questions, or runs both for fullstack phases. Locks D-XX decisions in CONTEXT.md.

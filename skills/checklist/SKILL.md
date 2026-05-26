@@ -1,4 +1,5 @@
 ---
+name: checklist
 description: >
   Context-aware author checklist verification. Runs Q1-Q7 (Django) and/or RC1-RC7 (React)
   based on phase type. Grep-based PASS/FAIL/N-A per question. Produces CHECKLIST.md.

@@ -1,4 +1,5 @@
 ---
+name: audit-uat
 description: >
   Cross-phase audit of all outstanding UAT and verification items. Scans every phase's UAT.md for
   PENDING/FAIL items, cross-references STATE.md, produces .release-planning/AUDIT-UAT.md with a

@@ -1,4 +1,5 @@
 ---
+name: plan
 description: >
   Context-aware phase planner. Reads ROADMAP.md + CONTEXT.md to detect if phase is backend (Django),
   frontend (React), or fullstack — then routes to the appropriate planner pipeline.
