@@ -22,9 +22,9 @@ NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `s
 - `gsd-phase-researcher` → `release-phase-researcher`
 - `gsd-pattern-mapper` → `release-pattern-mapper`
 - `gsd-plan-checker` → `release-plan-checker`
-- `gsd-ui-researcher` → `release-ui-researcher`
-- `gsd-ui-checker` → `release-ui-checker`
-- `gsd-ui-auditor` → `release-ui-auditor`
+- `gsd-ui-researcher` → `react-ui-researcher`
+- `gsd-ui-checker` → `react-ui-checker`
+- `gsd-ui-auditor` → `react-ui-auditor`
 - `gsd-code-fixer` → `release-code-fixer`
 - `gsd-security-auditor` → `release-security-auditor`
 - `gsd-doc-writer` → `release-doc-writer`

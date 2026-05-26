@@ -3,7 +3,7 @@ description: >
   Retroactive (post-implementation) security audit. Reads the phase PLAN.md threat model and
   the author-time 9-category checklist, then greps shipped source/diff for evidence that
   every declared threat is actually mitigated. Routes .py files to release-django-security-retro
-  and .tsx/.ts files to release-react-security-retro. Produces SECURITY.md scorecard.
+  and .tsx/.ts files to react-security-retro. Produces SECURITY.md scorecard.
   Use when: phase shipped, before merge to main, periodic post-merge verification, audit recovery.
   Distinct from /release:security (author-time, runs during planning/execution).
 allowed_tools: Agent, Read, Write, Bash, Grep, Glob
@@ -24,7 +24,7 @@ in the shipped code. Distinct from `/release:security` which is author-time guid
 | Tone | Recommends mitigations | Verifies mitigations exist |
 | Output | Inline guidance / SECURITY.md (open issues) | SECURITY.md scorecard (PASS/BLOCK/FLAG) |
 | Modifies code | No (advisory) | No (read-only audit) |
-| Agents | release-security-auditor / release-security-auditor | release-django-security-retro / release-react-security-retro |
+| Agents | release-security-auditor / release-security-auditor | release-django-security-retro / react-security-retro |
 
 ## Usage
 
@@ -122,7 +122,7 @@ Scorecard table format (see `templates/SECURITY.md`):
 ## Routing
 
 - `.py` in scope → spawn `release-django-security-retro` agent.
-- `.tsx`/`.ts` in scope → spawn `release-react-security-retro` agent.
+- `.tsx`/`.ts` in scope → spawn `react-security-retro` agent.
 - Merge agent outputs into single SECURITY.md with per-stack sections + cross-cutting block.
 
 ## Constraints
@@ -146,7 +146,7 @@ Scorecard table format (see `templates/SECURITY.md`):
   T-01 (cross_tenant): MITIGATED — backend/apps/financeiro/views.py:42 (filter empresa=...)
   T-04 (mass_assignment): MISSING — fields = '__all__' at backend/apps/financeiro/serializers.py:18
 
-→ Frontend retro audit (release-react-security-retro)...
+→ Frontend retro audit (react-security-retro)...
   T-08 (token_storage): MITIGATED — no localStorage.setItem token found
   T-03 (csrf): PARTIAL — X-CSRFToken sent on JSON but absent on multipart at src/api/upload.ts:24
 

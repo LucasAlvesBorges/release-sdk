@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-05-25
+
+### Changed — Agent taxonomy: stack-pure prefix
+
+Three-tier naming makes stack-specificity explicit at the agent name:
+
+- `release-*` — merged agents that accept `stack: django|react|fullstack` param
+- `django-*` — Django-pure logic agents
+- `react-*` — React-pure logic agents (new)
+
+Renamed 4 React-only agents from `release-*` → `react-*`:
+
+- `release-ui-researcher` → `react-ui-researcher`
+- `release-ui-checker` → `react-ui-checker`
+- `release-ui-auditor` → `react-ui-auditor`
+- `release-react-security-retro` → `react-security-retro`
+
+All `subagent_type` refs in skill files updated. `git mv` preserves history.
+
+### Removed — 2 orphan django-* agents
+
+- `django-plan-checker` — superseded by `release-plan-checker` (v0.7.0). Zero live spawn refs.
+- `django-roadmapper` — zero live spawn refs.
+
+Kept (live spawn refs): `django-discuss-orchestrator`, `django-checklist-verifier`.
+
 ## [0.9.0] — 2026-05-25
 
 ### BREAKING — Plugin rename + skill prefix drop

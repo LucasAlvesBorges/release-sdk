@@ -115,7 +115,7 @@ grep -E '"zustand|"@tanstack/react-query|"jotai|"redux"' package.json 2>/dev/nul
 
 Populate a detected-stack table. Mark each row `EXTRACTED` / `INFERRED` / `MISSING`.
 
-### Step 3 — Route to `release-ui-researcher` agent
+### Step 3 — Route to `react-ui-researcher` agent
 
 Spawn the agent with these inputs:
 
@@ -143,7 +143,7 @@ locks:
   LOCK-12: "{API contract value}"
 ```
 
-The agent (`release-ui-researcher`) will:
+The agent (`react-ui-researcher`) will:
 1. Read all required reading.
 2. Probe component inventory, routes, states currently in repo.
 3. Use `AskUserQuestion` for ONLY unanswered dimensions (skip anything locked in CONTEXT.md D-11..D-20 or LOCK-07..LOCK-12).
@@ -218,7 +218,7 @@ UI-DEC-XX are immutable after UI-SPEC.md is written. Changes require re-running
   • Forms:   react-hook-form+zod [EXTRACTED — package.json]
   • Tests:   vitest + RTL + MSW  [EXTRACTED — LOCK-11]
 
-→ Spawning release-ui-researcher...
+→ Spawning react-ui-researcher...
   Reading SPEC.md, CONTEXT.md (D-11..D-15 already locked frontend decisions)
   Probing src/features/, src/components/ui/, src/routes/
 

@@ -1,5 +1,5 @@
 ---
-name: release-ui-checker
+name: react-ui-checker
 description: Validates {NN}-UI-SPEC.md design contracts against 6 quality dimensions (accessibility, responsive, loading/error states, i18n, type contracts, design system) BEFORE implementation. Adversarial — assumes the spec is incomplete until each UI-DEC-XX entry proves coverage of every dimension. Produces {NN}-UI-CHECK.md with BLOCK/FLAG/PASS verdict so /release:ui-phase can refuse to advance an under-specified contract. Leaf worker — spawns no children.
 tools: Read, Write, Bash, Glob, Grep
 color: "#F97316"
@@ -12,7 +12,7 @@ color: "#F97316"
 </inputs>
 
 <role>
-A {NN}-UI-SPEC.md design contract has just been produced by `release-ui-researcher`. Before the
+A {NN}-UI-SPEC.md design contract has just been produced by `react-ui-researcher`. Before the
 TDD planner consumes it, verify each `UI-DEC-XX` entry declares enough information for a TDD
 executor to ship production-grade UI. Specifically: every UI-DEC must cover the 6 quality
 dimensions (or explicitly mark them N/A with justification).
@@ -213,7 +213,7 @@ checked_at: {ISO-8601 timestamp}
 phase: {NN}
 slug: {phase-slug}
 ui_spec_ref: {NN}-UI-SPEC.md
-checker: release-ui-checker
+checker: react-ui-checker
 verdict: PASS | FLAG | BLOCK
 dec_count: {N}
 block_count: {B}
@@ -263,7 +263,7 @@ Each cell: status + evidence quote (or absent-evidence reason).
 - BLOCK → `/release:ui-phase {NN} --revise` (must address every BLOCK before proceeding)
 
 ---
-_Checked by release-ui-checker (release-sdk) — leaf worker_
+_Checked by react-ui-checker (release-sdk) — leaf worker_
 ```
 
 </ui_check_template>

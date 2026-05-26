@@ -1,5 +1,5 @@
 ---
-name: release-ui-researcher
+name: react-ui-researcher
 description: Pre-coding design-contract researcher for React TSX phases. Reads SPEC.md, CONTEXT.md, RESEARCH-FRONTEND.md, RELEASE-LOCKS.md/PROJECT.md. Detects existing design system (tailwind, shadcn, MUI, etc.). Uses AskUserQuestion ONLY for unanswered design dimensions. Produces UI-SPEC.md consumed by release-feature-planner. React-locked — refuses Django-only phases.
 tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 color: "#06B6D4"
@@ -56,7 +56,7 @@ CONTEXT.md frontmatter `stack: backend`, SPEC.md describes only API/model work, 
 or page or route mentioned anywhere), abort with:
 
 > Phase {NN} appears to be backend-only — no React TSX surface detected in SPEC.md / CONTEXT.md.
-> release-ui-researcher is React-locked. Aborting cleanly. No UI-SPEC.md written.
+> react-ui-researcher is React-locked. Aborting cleanly. No UI-SPEC.md written.
 >
 > Suggested next steps:
 >  - `/release:spec {NN}` to refine WHAT the phase delivers
@@ -228,7 +228,7 @@ phase: {NN}
 slug: {phase-slug}
 created: {ISO-8601 timestamp}
 stack: react-tsx
-generator: release-ui-researcher
+generator: react-ui-researcher
 locks_honored:
   - LOCK-07..LOCK-12
 context_decisions_honored:

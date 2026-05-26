@@ -8,7 +8,7 @@ Context-aware `/release:*` commands route automatically to the right agents base
 
 **Entry point:** `/release:auto <plain-language intent>` — 32-rule router that dispatches to the right `/release:*` skill, prints the chosen route + reason before invoking, falls back to `AskUserQuestion` on low confidence.
 
-**Current version: v0.7.0** — 32 release-* skills + 38 release-* agents. See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
+**Current version: v0.9.1** — short `/release:*` invocation, 39 skills, 38 agents (taxonomy: `release-*` merged stack-dispatched, `django-*` Django-pure, `react-*` React-pure). See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 
 ---
 
@@ -114,7 +114,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 |---|---|
 | `release-feature-researcher` | Phase pre-plan research |
 | `release-ai-researcher` | AI/LLM framework research for `/release:ai-phase` |
-| `release-ui-researcher` | UI-SPEC.md design contract author |
+| `react-ui-researcher` | UI-SPEC.md design contract author |
 | `release-project-researcher` | Ecosystem research before roadmap (competitors, reference arch, pitfalls, regulatory) |
 | `release-domain-researcher` | Pre-eval domain expertise for AI phases |
 | `release-research-synthesizer` | Consolidates parallel researcher outputs into SUMMARY.md |
@@ -139,8 +139,8 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 #### UI + AI
 | Agent | Role |
 |---|---|
-| `release-ui-checker` | UI-SPEC pre-validation (PASS/FLAG/BLOCK) on 6 quality dims |
-| `release-ui-auditor` | Retroactive scored 6-pillar visual audit |
+| `react-ui-checker` | UI-SPEC pre-validation (PASS/FLAG/BLOCK) on 6 quality dims |
+| `react-ui-auditor` | Retroactive scored 6-pillar visual audit |
 | `release-framework-selector` | Interactive decision matrix for AI/LLM framework selection |
 | `release-eval-planner` | Designs AI eval strategy (dims, rubrics, dataset, guardrails) |
 | `release-eval-auditor` | Retroactive AI eval coverage audit |
@@ -150,7 +150,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 |---|---|
 | `release-security-auditor` | Stack-aware 9-category author-time security audit |
 | `release-django-security-retro` | Retroactive Django security scorecard |
-| `release-react-security-retro` | Retroactive React security scorecard |
+| `react-security-retro` | Retroactive React security scorecard |
 
 #### Docs + import
 | Agent | Role |
@@ -161,13 +161,11 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `release-doc-synthesizer` | Consolidates classified docs into INGEST-CONFLICTS.md |
 | `release-doc-verifier` | Verifies factual claims in docs against live codebase |
 
-#### Legacy (kept for compatibility)
+#### Django-specific (pure Django logic)
 | Agent | Role |
 |---|---|
-| `django-discuss-orchestrator` | Legacy 10-dim questioner (superseded by stack-aware `release-feature-planner` + `release-assumptions-analyzer`) |
-| `django-roadmapper` | Legacy roadmapper |
-| `django-plan-checker` | Legacy plan checker (superseded by `release-plan-checker`) |
-| `django-checklist-verifier` | Legacy Q1-Q7 verifier |
+| `django-discuss-orchestrator` | 10-dim backend questionnaire (models, multi-tenancy, Celery, F(), select_for_update, etc) — spawned by `/release:discuss` |
+| `django-checklist-verifier` | Q1-Q7 Django verifier — spawned by `/release:checklist` |
 
 ### Author Checklists
 
@@ -414,8 +412,8 @@ cd ~/my-project
         ├── {NN}-CONVERGENCE-LOG.md         # /release:plan-review-convergence iterations
         ├── {NN}-PATTERNS.md                # pattern-mapper output
         ├── {NN}-UI-SPEC.md                 # UI design contract (frontend phases)
-        ├── {NN}-UI-CHECK.md                # release-ui-checker pre-impl verdict
-        ├── {NN}-UI-REVIEW.md               # release-ui-auditor scored audit
+        ├── {NN}-UI-CHECK.md                # react-ui-checker pre-impl verdict
+        ├── {NN}-UI-REVIEW.md               # react-ui-auditor scored audit
         ├── {NN}-AI-SPEC.md                 # AI design contract (AI phases)
         ├── {NN}-AI-EVAL.md                 # release-eval-planner companion (if AI-SPEC locked)
         ├── {NN}-EVAL-REVIEW.md             # release-eval-auditor coverage report

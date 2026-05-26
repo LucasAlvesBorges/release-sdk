@@ -31,7 +31,7 @@ validation debt without orchestrating each auditor by hand.
 /release:audit-fix --max-iters 3             # cap loop iterations (default: 3)
 /release:audit-fix --severity HIGH           # only AUTO_FIXABLE findings at HIGH+ severity
 /release:audit-fix --dry-run                 # classify & report, do not dispatch fixer
-/release:audit-fix --no-ui                   # skip release-ui-auditor even if frontend in scope
+/release:audit-fix --no-ui                   # skip react-ui-auditor even if frontend in scope
 ```
 
 ## Pre-checks (hard requirements)
@@ -54,7 +54,7 @@ findings reports only.
 | `release-security-auditor` | 9-category security matrix (stack-dispatched) | CRITICAL / HIGH / MEDIUM / LOW |
 | `release-test-auditor` | coverage gaps, flaky tests, weak asserts | HIGH / MEDIUM / LOW |
 | `release-nyquist-auditor` | validation surface coverage (Q1-Q7 / RC1-RC7) | HIGH / MEDIUM / LOW |
-| `release-ui-auditor` | 6-pillar visual audit (skipped if no frontend in scope or `--no-ui`) | HIGH / MEDIUM / LOW |
+| `react-ui-auditor` | 6-pillar visual audit (skipped if no frontend in scope or `--no-ui`) | HIGH / MEDIUM / LOW |
 
 Stack dispatch (django / react / fullstack) is resolved from `.release-planning/PROJECT.md`
 and per-phase `{NN}-PLAN.md` frontmatter, same as every other release-* skill.
@@ -112,7 +112,7 @@ while iter < max_iters:
     release-security-auditor,    # stack-aware
     release-test-auditor,
     release-nyquist-auditor,
-    release-ui-auditor,          # only if frontend in scope and not --no-ui
+    react-ui-auditor,          # only if frontend in scope and not --no-ui
   ])
 
   # 2. Classify
@@ -235,7 +235,7 @@ number and lets agents resolve stack from `PROJECT.md` / phase frontmatter.
   release-security-auditor    → 3 findings (stack-dispatched)
   release-test-auditor        → 2 findings
   release-nyquist-auditor     → 2 findings
-  release-ui-auditor          → 1 finding
+  react-ui-auditor          → 1 finding
   Total: 12 findings
 
 → Classified: 7 AUTO_FIXABLE, 4 NEEDS_HUMAN, 1 SKIPPED (LOW)

@@ -1,5 +1,5 @@
 ---
-name: release-ui-auditor
+name: react-ui-auditor
 description: Retroactive 6-pillar scored visual audit of implemented React code for a phase. Reads {NN}-UI-SPEC.md (the contract) and the shipped .tsx/.ts source, then grep-scores accessibility, responsive, loading/error, i18n, type contracts, and design-system adherence on a 0-100 scale with file:line evidence. Produces {NN}-UI-REVIEW.md scorecard with per-dimension best/worst examples and a remediation table. Spawned by /release:ui-review. Leaf worker — spawns no children.
 tools: Read, Write, Bash, Glob, Grep
 color: "#D97706"
@@ -212,7 +212,7 @@ audited_at: {ISO-8601 timestamp}
 phase: {NN}
 slug: {phase-slug}
 ui_spec_ref: {NN}-UI-SPEC.md
-auditor: release-ui-auditor
+auditor: react-ui-auditor
 mode: initial | re-audit
 files_audited: {N}
 score_total: {0-100}
@@ -280,7 +280,7 @@ Pillars in order: Accessibility, Responsive, Loading/Error, i18n, Type contracts
 - SKIPPED → phase shipped no UI; nothing to do
 
 ---
-_Audited by release-ui-auditor (release-sdk) — leaf worker_
+_Audited by react-ui-auditor (release-sdk) — leaf worker_
 ```
 
 </ui_review_template>

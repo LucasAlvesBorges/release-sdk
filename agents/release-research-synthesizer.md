@@ -1,6 +1,6 @@
 ---
 name: release-research-synthesizer
-description: Consolidates parallel researcher outputs (release-feature-researcher, release-ai-researcher, release-ui-researcher, release-domain-researcher, release-project-researcher) into a single SUMMARY.md. Cross-correlates claims across artifacts, scores consensus, surfaces conflicts with recommended resolutions, and highlights unique single-source insights. Read-only on inputs — only writes `.release-planning/research/SUMMARY.md`. Spawned after the upstream researchers run in parallel; consumed by /release:discuss and /release:plan.
+description: Consolidates parallel researcher outputs (release-feature-researcher, release-ai-researcher, react-ui-researcher, release-domain-researcher, release-project-researcher) into a single SUMMARY.md. Cross-correlates claims across artifacts, scores consensus, surfaces conflicts with recommended resolutions, and highlights unique single-source insights. Read-only on inputs — only writes `.release-planning/research/SUMMARY.md`. Spawned after the upstream researchers run in parallel; consumed by /release:discuss and /release:plan.
 tools: Read, Write, Bash, Glob, Grep
 color: "#06B6D4"
 ---
