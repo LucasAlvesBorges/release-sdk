@@ -68,11 +68,16 @@ For each threat T-XX declared in PLAN.md `threat_model:`, look up its category a
 - **Test grep:** expired token → 401; logout → refresh → 401.
 
 ### Category 6: Input Validation / Injection
-- **Mitigation grep:**
-  - **MISSING signal:** `.raw(.*f"`, `.raw(.*%`, `.extra(where=`, `cursor.execute.*%`.
+- **Mitigation grep — raw-SQL sink list (widened to full Cat A11 surface; any non-constant feeding these is a MISSING signal):**
+  - `.raw(` with a non-literal: `.raw(.*f"`, `.raw(.*%`, `.raw(.*\.format(`, `.raw(.*+`.
+  - `.extra(` ALL kwargs (not just `where=`): `.extra(where=`, `.extra(select=`, `.extra(tables=`, `.extra(order_by=`, `.extra(params=` — note `select=`/`tables=`/`order_by=` are unquoted/quoteless injection positions.
+  - `cursor.execute(` with f-string / `+` / `.format()` (NOT just `%`): `cursor.execute(.*f"`, `cursor.execute.*%`, `cursor.execute(.*\.format(`, `cursor.execute(.*+`.
+  - `RawSQL(` with a non-literal (`RawSQL(.*f"`, `RawSQL(.*%`), including when nested inside `.annotate(`, `.filter(`, `.order_by(`.
+  - `?ordering` / `order_by` / `?sort` reaching `.order_by()` / `.extra(order_by=` WITHOUT a column allowlist (`OrderingFilter` with explicit `ordering_fields=[...]` not `'__all__'`, or an `ALLOWED_ORDERING_FIELDS` gate before the ORM call).
   - serializer fields use typed/validated fields, not free `CharField` for IDs.
   - file upload: extension allowlist + MIME sniff (`python-magic` / `magic.from_buffer`).
 - **Test grep:** injection payload (`'; DROP TABLE`) → 400 or sanitized.
+- **NOTE — deep coverage is owned by `release-advanced-threat-auditor` (Cat A11).** Exploitation-grade verification (UNION, boolean-blind, time-blind via `pg_sleep`/`SLEEP`/`WAITFOR`, stacked, error-based, LIMIT/OFFSET, second-order) and the HOLLOW-TEST rule (a `test_*injection*`/`test_*sqli*` whose only assertion is an HTTP status is a false PASS — mitigation must be proven by data-layer impact: sentinel row survives, row-count baseline, wall-time < 1s) are enforced there. This category only greps for the raw-SQL sink blind spot; do not duplicate A11's exploitation matrix.
 
 ### Category 7: Auth State Transitions
 - **Mitigation grep:** password-reset token single-use (deleted/used flag), login `AnonRateThrottle`, email-change re-auth.

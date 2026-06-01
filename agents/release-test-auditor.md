@@ -86,6 +86,21 @@ git commit -m "test({scope}): add {type} test skeleton for {feature}"
 | `@shared_task` / `@app.task` | `test_X_task` (happy + retry + idempotency) |
 | `@receiver(...)` signal handler | `test_X_signal` (fire + no-fire conditions) |
 | Custom `BasePermission` | `test_X_permission` (allow + deny) |
+| `.raw()` / `cursor.execute()` / `RawSQL()` / `.extra()` / `?ordering` (Cat A11) | `test_sqli_stacked_sentinel_survives`, `test_sqli_time_blind_no_delay`, `test_sqli_orderby_allowlist` (data-layer assertions — NOT HTTP status) — owner: `release-advanced-threat-auditor` |
+| Image / media upload (`ImageField` / `FileField` / Pillow / archive extract) (Cat A12) | `test_decompression_bomb_rejected_before_load`, `test_svg_upload_served_as_attachment`, `test_zip_slip_path_traversal_blocked` — owner: `release-advanced-threat-auditor` |
+| Outbound fetch on user-controlled URL (`requests`/`httpx`/`urlopen`) (Cat A13.1) | `test_ssrf_blocks_link_local_169_254` — owner: `release-advanced-threat-auditor` |
+| `subprocess` / `os.system` / shell-out on user input (Cat A12b) | `test_command_injection` — owner: `release-advanced-threat-auditor` |
+| AWS/boto3 + IaC (`terraform/*.tf`, `serverless.yml`, `cdk/`, policy JSON) (Cat A13) | `test_imds_v2_enforced` (pytest) + `check_*` **static gates** (tfsec/checkov/conftest/CI grep — NOT pytest) — owner: `release-advanced-threat-auditor` |
+
+> **Advanced categories (A11/A12/A13) — ownership + evidence model.** The last five matrix rows
+> belong to `release-advanced-threat-auditor` (runs ALWAYS, in parallel, on every `/release:security`).
+> This auditor only needs to KNOW these test types are required so it can flag their absence as a gap.
+> Two non-negotiable rules carry over from ADVANCED-SECURITY-GAP.md:
+> - **A11/A12/A13 pytest tests assert DATA-LAYER / behavioral impact** (sentinel survives, row-count baseline,
+>   wall-time < 1s, ZERO outbound egress, served `Content-Disposition: attachment`) — NEVER an HTTP status alone.
+> - **AWS sub-cats A13.2/.4/.6/.7/.9/.10 (and parts of .1/.8) are NOT pytest** — they are `check_*` **static gates**
+>   over `terraform/*.tf`, `serverless.yml`, `cdk/`, policy JSON, `settings.py`, `.env` (tfsec/checkov/conftest/CI grep).
+>   A `check_*` static gate that FAILS the build is the evidence; do not expect a pytest for these.
 
 ### Trigger probes
 ```bash
@@ -96,6 +111,12 @@ grep -ln "@shared_task\|@app.task\|delay_on_commit" backend/apps/{app}/
 grep -ln "@receiver(\|signal.connect" backend/apps/{app}/
 grep -ln "permissions.BasePermission" backend/apps/{app}/
 grep -ln "router.register\|path(" backend/apps/{app}/urls.py
+# advanced surfaces (Cat A11/A12/A13 — owner: release-advanced-threat-auditor)
+grep -ln "\.raw(\|cursor.execute(\|RawSQL(\|\.extra(\|OrderingFilter\|?ordering" backend/apps/{app}/   # A11 raw-SQL / ORDER BY
+grep -ln "ImageField\|FileField\|PIL\|Image.open\|zipfile\|tarfile\|extractall" backend/apps/{app}/    # A12 image/archive upload
+grep -ln "requests.get\|httpx\|urlopen\|urllib.request" backend/apps/{app}/                            # A13.1 SSRF (outbound fetch)
+grep -ln "subprocess\.\|os.system\|os.popen\|shell=True" backend/apps/{app}/                           # A12b command injection
+grep -ln "boto3\|import boto" backend/apps/{app}/; ls terraform/*.tf serverless.yml cdk/ 2>/dev/null   # A13 AWS (pytest + check_* static gates)
 ```
 
 ### Coverage check probes
@@ -110,6 +131,13 @@ grep -l "pytest.mark.limit_memory" backend/apps/{app}/tests/*.py
 for cat in cross_tenant idor privilege_escalation mass_assignment jwt input_validation auth_transitions csrf cookie; do
   grep -l "test_${cat}\|test_.*${cat}" backend/apps/{app}/tests/test_*security*.py
 done
+# advanced categories (A11/A12/A13 — owner: release-advanced-threat-auditor)
+grep -l "test_sqli_stacked_sentinel_survives\|test_sqli_time_blind_no_delay\|test_sqli_orderby_allowlist" backend/apps/{app}/tests/test_*.py   # A11
+grep -l "test_decompression_bomb_rejected_before_load\|test_svg_upload_served_as_attachment\|test_zip_slip_path_traversal_blocked" backend/apps/{app}/tests/test_*.py   # A12
+grep -l "test_ssrf_blocks_link_local_169_254\|test_command_injection\|test_imds_v2_enforced" backend/apps/{app}/tests/test_*.py   # A13.1 / A12b / A13.1
+grep -rl "check_imds_v2_required\|check_s3_bucket_blocks_public_access\|check_no_wildcard_iam_action" . --include="*.py" --include="*.yml" --include="*.tf"   # A13 static gates (NOT pytest)
+# HOLLOW-TEST detector (Cat A11): an injection test whose ONLY assertion is an HTTP status is a FINDING
+grep -A3 "def test_.*injection\|def test_.*sqli" backend/apps/{app}/tests/test_*.py | grep -B1 "assert.*status_code in" && echo "HOLLOW injection test found — flag as finding, mitigation UNVERIFIED"
 ```
 
 ### Skeleton templates (Django)
@@ -218,9 +246,45 @@ class Test{Feature}Security:
         r = expired_jwt_client.get(reverse('{vs}-list'))
         assert r.status_code == 401
 
-    def test_injection_payload_rejected(self, auth_client_a):
-        r = auth_client_a.post(reverse('{vs}-list'), {'name':"'; DROP TABLE users; --"}, format='json')
-        assert r.status_code in (201, 400)
+    # ⚠️ HOLLOW-TEST RULE (Cat A11): an injection test whose ONLY assertion is an HTTP
+    # status (`assert r.status_code in (201, 400)`) is HOLLOW — a 201 means the payload was
+    # STORED as a literal, so a parameterized app and a catastrophically-injectable one are
+    # indistinguishable. Such a test is itself a FINDING: flag it, do NOT emit it. Mitigation
+    # is proven ONLY by DATA-LAYER impact assertions (sentinel survives, row-count baseline,
+    # wall-time, no DB-error leak). Owner of full Cat A11 exploitation matrix:
+    # release-advanced-threat-auditor.
+
+    def test_sqli_stacked_sentinel_survives(self, auth_client_a):
+        """Cat A11 stacked: seed a sentinel, fire a stacked DROP/DELETE, assert it survives."""
+        from .factories import SentinelFactory  # seeds an `sqli_sentinel` row
+        sentinel = SentinelFactory()
+        baseline = Sentinel.objects.count()
+        r = auth_client_a.post(
+            reverse('{vs}-list'),
+            {'name': "'; DROP TABLE sqli_sentinel; --"}, format='json',
+        )
+        # Status is NOT the evidence. Data-layer is:
+        assert Sentinel.objects.count() == baseline, "Sentinel row count changed — stacked injection executed"
+        assert Sentinel.objects.filter(pk=sentinel.pk).exists(), "Sentinel row gone — table dropped/emptied"
+
+    def test_sqli_time_blind_no_delay(self, auth_client_a):
+        """Cat A11 time-blind: a pg_sleep(5) payload must NOT delay the response."""
+        import time
+        start = time.perf_counter()
+        auth_client_a.get(reverse('{vs}-list'), {'ordering': "(SELECT 1 FROM pg_sleep(5))"})
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, f"Time-blind injection: response took {elapsed:.2f}s (pg_sleep executed)"
+
+    def test_sqli_orderby_allowlist(self, auth_client_a):
+        """Cat A11 ORDER BY: ?ordering must be allowlisted — injected expr ignored, queryset not widened."""
+        seed = {Model}Factory(empresa=auth_client_a.empresa)
+        baseline = {Model}.objects.filter(empresa=auth_client_a.empresa).count()
+        r = auth_client_a.get(reverse('{vs}-list'), {'ordering': "(SELECT CASE WHEN (1=1) THEN id ELSE name END)"})
+        assert r.status_code in (200, 400)  # status alone is NOT the evidence — the next two lines are:
+        if r.status_code == 200:
+            assert len(r.json().get('results', r.json())) == baseline, "Injected ORDER BY widened/narrowed the queryset"
+        r2 = auth_client_a.get(reverse('{vs}-list'), {'ordering': "password"})
+        assert r2.status_code in (200, 400), "Non-allowlisted ordering field must be 400 or silently ignored"
 
     def test_auth_state_transitions(self, auth_client_a):
         pass  # implement per feature
@@ -472,6 +536,8 @@ _Audited by release-test-auditor (release-sdk) — stack: {stack}_
 - [ ] Every implementation trigger probed (stack-specific list)
 - [ ] Every required test type/dimension checked
 - [ ] Django: 9 security categories audited individually
+- [ ] Django: advanced surfaces (A11 raw-SQL/ORDER BY, A12 image/archive upload, A13.1 SSRF, A12b command-injection, A13 AWS) probed; required A11/A12/A13 test types flagged if missing — owner `release-advanced-threat-auditor`
+- [ ] Django: any injection/sqli test asserting ONLY an HTTP status flagged as HOLLOW (finding, mitigation UNVERIFIED) — never emitted as coverage
 - [ ] React: 5 dimensions assessed per component
 - [ ] Gaps listed with skeleton code
 - [ ] TEST-AUDIT.md written with stack field

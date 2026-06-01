@@ -61,8 +61,10 @@ A Django feature has been submitted for Author Checklist verification. For each 
   - `.update(field=F('field') + delta)` for increment/decrement
   - OR `with transaction.atomic(): obj = Model.objects.select_for_update().get(...)`
 - **FAIL:** `obj.saldo = obj.saldo + delta; obj.save()` — lost update prone.
+- **FAIL (check-then-mutate, → A7):** a check-then-act on a fetched row OUTSIDE `select_for_update()`/`transaction.atomic()` — `if obj.is_valid/available/exists ...` followed by `.save()`/`.create()`/`.redeem()`. Flag as a pointer to Cat A7 (do NOT open a new question).
 - **MUST have race test:** `tests/test_*_race.py` with `threading.Barrier(2)`. If money/stock/counter without race test → FAIL.
 - **N/A:** "No numeric mutation in this feature."
+- **Scope note (→ A7):** Q5 covers ONLY the lost-update-on-numeric flavor of race. The broader concurrency surface — TOCTOU on non-numeric resources (coupon/voucher/seat/quota check-then-act), idempotency-key on replayed POSTs, `get_or_create`/unique-constraint races, distributed-lock absence, `select_for_update()` called outside `transaction.atomic()` (silent no-op), and throttle-bypass-via-concurrency — is audited as **Cat A7** by `release-advanced-threat-auditor`. A Q5 PASS on a numeric mutation does NOT imply the non-numeric check-then-act paths are safe.
 
 ### Q6: Celery dispatch uses .delay_on_commit()
 - **PASS grep:**

@@ -102,13 +102,16 @@ DO NOT modify implementation. Return path.
 
 **Cat 5: JWT Lifecycle**
 - Threat: tokens never expire, no rotation, no blacklist on logout
-- Mitigation grep: `BLACKLIST_AFTER_ROTATION = True`, `ROTATE_REFRESH_TOKENS = True`, sane lifetimes, logout blacklists refresh
-- Test grep: `test_*jwt_*`, expired → 401; logout → next refresh → 401
+- Mitigation grep: `BLACKLIST_AFTER_ROTATION = True`, `ROTATE_REFRESH_TOKENS = True`, sane lifetimes, logout blacklists refresh; every `jwt.decode(` passes a fixed `algorithms=` (NO `verify_signature=False`, NO `alg:none`); `SIMPLE_JWT['ALGORITHM']` in a pinned allowlist; `AUDIENCE`+`ISSUER` set; authz reads `request.user.is_staff` (NOT a token claim like `token['role']`); logout revokes the ACCESS token `jti` (not only refresh)
+- Test grep: `test_*jwt_*`, expired → 401; logout → next refresh → 401; `test_access_token_rejected_after_logout` (the "logout → refresh → 401" test alone is INSUFFICIENT — a stolen access token still valid until natural expiry is the leak)
+- Note: deeper JWT forgery (alg confusion RS256→HS256, `alg:none`, `kid`/`jku`/`x5u` SSRF, session fixation / no `cycle_key`, identity-from-request-body) is audited as **A8** by `release-advanced-threat-auditor`.
 
 **Cat 6: Input Validation / Injection**
 - Threat: SQL injection, command injection, path traversal, stored XSS
-- Mitigation grep: NO `.raw(...)` with f-string, NO `.extra(where=[...])` with user input, serializer fields have `validators=[...]` or type-narrowed
-- Test grep: `test_*injection*`, payload `'; DROP TABLE` → 400 or sanitized
+- **HOLLOW-TEST rule:** the old expectation `payload '; DROP TABLE' → 400 or sanitized` is HOLLOW — a 201 stored payload PASSES it, accepting a stored malicious value as a false PASS. A test whose ONLY assertion is an HTTP status code is itself a finding. Mitigation must be proven by a DATA-LAYER assertion: a seeded sentinel row survives, a row-count baseline is unchanged, or response timing stays < 1s — NEVER a clean status code.
+- Mitigation grep (flag ALL injectable sinks fed a non-constant, not just `.raw(.*f"`/`.extra(where=`): `.raw(` with f-string/`%`/`+`/`.format(`; `.extra(select=`/`tables=`/`order_by=`/`params=)`; `cursor.execute(` with f-string/`%`/`+`/`.format(`; `RawSQL(` (incl. inside `.annotate()`/`.filter()`/`.order_by()`); `?ordering`/`order_by` reaching `.order_by()` without an explicit allowlist. POSITIVE evidence: `cursor.execute("...%s...", [params])` placeholder+params (NOT f-string); ORDER BY resolved via `OrderingFilter` with explicit `ordering_fields=[...]` (NOT `'__all__'`). Serializer fields have `validators=[...]` or type-narrowed.
+- Test grep: `test_*injection*`/`test_*sqli*` — but the assertion MUST be data-layer (sentinel survives / row-count baseline / timing), not status-only. Any `test_*injection*` whose sole assertion is an HTTP status → HOLLOW → mitigation UNVERIFIED.
+- Note: exploitation-grade SQLi (UNION / boolean-blind / time-blind / stacked / error-based / ORDER-BY oracle / LIMIT-OFFSET / second-order) is audited as **A11** by `release-advanced-threat-auditor`.
 
 **Cat 7: Auth State Transitions**
 - Threat: race/replay during login/logout/password-reset
@@ -117,20 +120,28 @@ DO NOT modify implementation. Return path.
 
 **Cat 8: CSRF**
 - Threat: cross-site request forces authenticated action
-- Mitigation grep: SessionAuthentication endpoints have CSRF protection, NO `@csrf_exempt` on session-auth endpoints (JWT-only can opt out with documented reason)
+- Mitigation grep: SessionAuthentication endpoints have CSRF protection, NO `@csrf_exempt` on session-auth endpoints (JWT-only can opt out with documented reason); JWT-in-cookie auth has double-submit (`X-CSRFToken` header round-trip) OR `SameSite` cookie; NO state-changing logic behind a GET handler (CSRF protection is bypassed on GET — flag any mutation/side-effect in a `GET`/`list`/`retrieve`/`SAFE_METHODS` path)
 - Test grep: `test_*csrf*`, request without CSRF → 403
+- Note: full transport/CORS hardening (CORS reflection+credentials, `CSRF_TRUSTED_ORIGINS`) is **A10** in `release-advanced-threat-auditor`.
 
 **Cat 9: Cookie / Token Security**
-- Threat: token theft via XSS, MITM, cross-origin
-- Mitigation grep: JWT in `httpOnly` + `Secure` + `SameSite` cookie (NOT localStorage), `SECURE_SSL_REDIRECT = True`, `SESSION_COOKIE_SECURE = True`, CORS allowlist explicit (NOT `CORS_ALLOW_ALL_ORIGINS=True`)
-- Test grep: `test_*cookie_security*`, Set-Cookie has HttpOnly+Secure+SameSite
+- Threat: token theft via XSS, MITM, cross-origin; clickjacking; SSL-strip; host-header poisoning of reset links
+- Mitigation grep: JWT in `httpOnly` + `Secure` + `SameSite` cookie (NOT localStorage), `SECURE_SSL_REDIRECT = True`, `SESSION_COOKIE_SECURE = True`; CORS allowlist explicit (NOT `CORS_ALLOW_ALL_ORIGINS=True`); NO `CORS_ALLOW_CREDENTIALS=True` co-located with origin reflection / `CORS_ALLOWED_ORIGIN_REGEX` / an unanchored regex (must be `^…$` with escaped dots); clickjacking covered (`X_FRAME_OPTIONS in (DENY,SAMEORIGIN)` OR CSP `frame-ancestors`); `SECURE_HSTS_SECONDS` set (>= 31536000); cookie SameSite VALUE check — `SESSION_COOKIE_SAMESITE in (Lax,Strict)` (the mere SUBSTRING `'SameSite'` being present is NOT enough — `SameSite=None` passes a substring check but is a leak); reset/confirmation links built from a settings-pinned base URL (NOT `build_absolute_uri`/`request.get_host()` from a spoofable Host header)
+- Test grep: `test_*cookie_security*`, Set-Cookie has HttpOnly+Secure+SameSite (VALUE Lax/Strict, not None)
+- Note: full transport hardening (CORS regex anchoring, `SECURE_REFERRER_POLICY`, `SECURE_PROXY_SSL_HEADER`, host-header poisoning, tokens-in-query-string) is **A10** in `release-advanced-threat-auditor`.
 
 ### BLOCKER triggers (auto-OPEN)
 - `@csrf_exempt` on session-auth endpoint without documented reason
+- state-changing logic behind a GET / SAFE_METHODS handler
 - `fields = '__all__'`
-- `.raw(...)` or `.extra(where=[...])` with user input
+- ANY injectable raw sink fed a non-constant: `.raw(`/`cursor.execute(`/`RawSQL(` with f-string/`%`/`+`/`.format()`; `.extra(where=`/`select=`/`tables=`/`order_by=)` with no `params=[...]`+`%s`; `?ordering`/`order_by` reaching `.order_by()` without an allowlist
+- a `test_*injection*`/`test_*sqli*` whose SOLE assertion is an HTTP status code (HOLLOW test = false PASS = finding)
+- `jwt.decode(` without a fixed `algorithms=`, OR `verify_signature=False`, OR an authorization decision read directly from a token claim
 - Model not inheriting `TenantModel` (without explicit opt-out marker)
 - `CORS_ALLOW_ALL_ORIGINS = True`
+- `CORS_ALLOW_CREDENTIALS = True` co-located with origin reflection / `CORS_ALLOWED_ORIGIN_REGEX` / an unanchored regex
+- `SESSION_COOKIE_SAMESITE = 'None'` (substring `'SameSite'` present is NOT sufficient mitigation)
+- reset/confirmation link built from `build_absolute_uri`/`request.get_host()` (spoofable Host)
 
 ### Implementation scope
 `backend/apps/{feature}/` source files + `backend/apps/{feature}/tests/`

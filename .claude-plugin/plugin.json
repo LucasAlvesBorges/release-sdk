@@ -1,7 +1,7 @@
 {
   "name": "release",
-  "description": "Full-stack acceleration kit (Django + React TSX) — context-aware routing, adversarial code review, 9-category security audit, TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
-  "version": "0.12.0",
+  "description": "Full-stack acceleration kit (Django + React TSX) — context-aware routing, adversarial code review, 9-category + always-on advanced-threat security audit (SSRF/deserialization/exploit-grade SQLi/race-TOCTOU/image-DoS/AWS-IaC), TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
+  "version": "0.13.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"

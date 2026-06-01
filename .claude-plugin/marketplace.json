@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "release-sdk",
-  "description": "Full-stack acceleration kit for Claude Code — Django + React TSX with context-aware routing, adversarial code review, 9-category security audit, TDD-first execution, RC1-RC7 + Q1-Q7 author checklists.",
+  "description": "Full-stack acceleration kit for Claude Code — Django + React TSX with context-aware routing, adversarial code review, 9-category + always-on advanced-threat security audit (SSRF/deserialization/exploit-grade SQLi/race-TOCTOU/image-DoS/AWS-IaC), TDD-first execution, RC1-RC7 + Q1-Q7 author checklists.",
   "owner": {
     "name": "Lucas Alves Borges",
     "url": "https://github.com/LucasAlvesBorges"
@@ -9,9 +9,9 @@
   "plugins": [
     {
       "name": "release",
-      "version": "0.12.0",
+      "version": "0.13.0",
       "source": "./",
-      "description": "Full-stack acceleration kit (Django + React TSX) — context-aware /release:* routing, SPEC/UI-SPEC/AI-SPEC design contracts, conversational UAT, retroactive security audit, parallel workstreams, prompt-injection scanner, 9-category security audit, TDD-first execution.",
+      "description": "Full-stack acceleration kit (Django + React TSX) — context-aware /release:* routing, SPEC/UI-SPEC/AI-SPEC design contracts, conversational UAT, retroactive security audit, parallel workstreams, prompt-injection scanner, 9-category + always-on advanced-threat security audit (SSRF/deserialization/exploit-grade SQLi/race-TOCTOU/image-DoS/AWS-IaC), TDD-first execution.",
       "author": {
         "name": "Lucas Alves Borges"
       },

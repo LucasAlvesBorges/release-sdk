@@ -91,6 +91,7 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 7 | "LLM", "GPT", "prompt", "embedding", "Claude", "Anthropic", "OpenAI", "RAG" | — | `/release:ai-phase` |
 | 8 | "security", "vulnerab", "audit", "OWASP", "auth bypass", "threat" | `active_stage in {executing, verified, shipped}` | `/release:secure-phase` |
 | 9 | "security", "vulnerab" — without a shipped/verified phase | — | `/release:security` |
+| 9a | advanced threat surface: "race condition", "TOCTOU", "SSRF", "deserialization", "pickle", "command injection", "SSTI", "XXE", "JWT forgery", "alg confusion", "SQL injection", "image bomb", "decompression bomb", "pixel flood", "ImageTragick", "zip slip", "AWS", "S3", "IAM", "IMDS", "169.254", "presigned URL", "cloud security", "subdomain takeover" | — | `/release:security` — advanced threat surface → full security audit (incl. release-advanced-threat-auditor A1-A13 / RA1-RA5) |
 | 10 | "review", "code review", "diff review" | `active_stage in {executing, verified}` | `/release:review` |
 | 11 | "test gap", "missing tests", "UAT failed", "add tests" | `active_phase != null` | `/release:verify` |
 | 12 | "verify", "UAT", "did it work", "validar" | `active_phase != null` | `/release:verify-work` |
