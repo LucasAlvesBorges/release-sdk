@@ -101,18 +101,31 @@ If groups list has length >1 → spawn N executors parallel (one worktree per gr
 PHASE_DIR=$(dirname "$PLAN_PATH")
 PHASE_NUM=$(basename "$PHASE_DIR" | cut -d- -f1)
 PHASE_SLUG=$(basename "$PHASE_DIR" | cut -d- -f2-)
-BRANCH="feat/${PHASE_NUM}-${PHASE_SLUG}"
-ROOT=$(git rev-parse --show-toplevel)
-WT_BASE="$ROOT/../release-worktrees"
+BRANCH="${BRANCH:-feat/${PHASE_NUM}-${PHASE_SLUG}}"
 
-# Branch must exist; if not, create it from current HEAD
-if ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-  git diff --quiet || { echo "ABORT: dirty tree"; exit 1; }
-  git checkout -b "$BRANCH"
+# Inputs handed down by /release:execute spawn config (v0.13.1 concurrency-safe):
+#   CWD                = session-scoped phase worktree (ALL git ops run here)
+#   SESSION_ID         = unique per execute invocation (namespaces wave worktrees + branches)
+#   BRANCH_ALREADY_SET = true → phase worktree already on $BRANCH; do NOT re-checkout
+if [ -n "$CWD" ] && [ "$BRANCH_ALREADY_SET" = "true" ]; then
+  # Camada 1: run inside the phase worktree — the shared main checkout is never mutated.
+  PHASE_WT="$CWD"
+  WT_BASE="$(dirname "$PHASE_WT")"          # .../release-worktrees/$SESSION_ID
+  G() { git -C "$PHASE_WT" "$@"; }          # all git goes through the worktree
+else
+  # legacy / --no-branch: operate in the current checkout (single-session responsibility).
+  PHASE_WT="$(git rev-parse --show-toplevel)"
+  SESSION_ID="${SESSION_ID:-legacy-$$}"
+  WT_BASE="$PHASE_WT/../release-worktrees/$SESSION_ID"
+  G() { git "$@"; }
+  if ! G show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    G diff --quiet || { echo "ABORT: dirty tree"; exit 1; }
+    G checkout -b "$BRANCH"
+  fi
+  G checkout "$BRANCH"
 fi
-
-git checkout "$BRANCH"
 mkdir -p "$WT_BASE"
+git worktree prune                          # drop dead registrations before adding new ones
 ```
 
 </step>
@@ -206,8 +219,9 @@ slice_plan_for_task() {
 
 ```bash
 for TASK_ID in "${WAVE_TASKS[@]}"; do
-  WT_PATH="$WT_BASE/${PHASE_NUM}-${PHASE_SLUG}-w${WAVE_N}-${TASK_ID}"
-  git worktree add -b "wave/${PHASE_NUM}-${TASK_ID}" "$WT_PATH" "$BRANCH"
+  WT_PATH="$WT_BASE/w${WAVE_N}-${TASK_ID}"
+  WAVE_BRANCH="wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}"   # session+wave scoped → no cross-session collision
+  G worktree add -b "$WAVE_BRANCH" "$WT_PATH" "$BRANCH"
 
   # Write slice into worktree-local path
   SLICE_PATH="$WT_PATH/.release-planning/phases/${PHASE_NUM}-${PHASE_SLUG}/PLAN-SLICE-${TASK_ID}.md"
@@ -237,34 +251,36 @@ The executor agents must respect `task_filter`, `cwd`, `skip_sweep`, `is_slice`.
 ### Merge wave back to phase branch
 
 ```bash
-git checkout "$BRANCH"
-
+# Phase worktree is already ON $BRANCH (no checkout needed). Cherry-pick happens HERE, never in main.
 for TASK_ID in "${WAVE_TASKS[@]}"; do
-  WAVE_BRANCH="wave/${PHASE_NUM}-${TASK_ID}"
+  WAVE_BRANCH="wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}"
   # Cherry-pick all commits from wave branch ahead of phase branch
-  COMMITS=$(git log --format=%H "${BRANCH}..${WAVE_BRANCH}")
+  COMMITS=$(G log --format=%H "${BRANCH}..${WAVE_BRANCH}")
   for SHA in $(echo "$COMMITS" | tac); do
-    git cherry-pick "$SHA" || {
-      git cherry-pick --abort
+    G cherry-pick "$SHA" || {
+      G cherry-pick --abort
       echo "CHERRY-PICK CONFLICT in ${WAVE_BRANCH} ${SHA}"
-      echo "FALLBACK: re-execute wave ${WAVE_N} serially"
-      # serial fallback: nuke worktrees, run executors one at a time in main tree
+      echo "FALLBACK: re-execute wave ${WAVE_N} serially in the phase worktree"
+      # serial fallback: nuke wave worktrees, run executors one at a time in $PHASE_WT
       exit 2
     }
   done
 done
 
-# Cleanup worktrees + wave branches
+# Cleanup wave worktrees + wave branches (phase worktree itself stays — owned by /release:execute)
 for TASK_ID in "${WAVE_TASKS[@]}"; do
-  WT_PATH="$WT_BASE/${PHASE_NUM}-${PHASE_SLUG}-w${WAVE_N}-${TASK_ID}"
-  git worktree remove --force "$WT_PATH"
-  git branch -D "wave/${PHASE_NUM}-${TASK_ID}"
+  WT_PATH="$WT_BASE/w${WAVE_N}-${TASK_ID}"
+  G worktree remove --force "$WT_PATH"
+  G branch -D "wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}"
 done
 ```
 
 ### Collision-bound wave path (serial fallback)
 
-Execute tasks one at a time on `$BRANCH` directly using the single-task executor. No worktree. Same `task_filter` mechanism.
+Execute tasks one at a time on `$BRANCH` **inside the session-scoped phase worktree** (`cwd=$PHASE_WT`)
+using the single-task executor. No per-task worktree. Same `task_filter` mechanism. NEVER run these in
+the shared main checkout — that is the cross-session corruption path (another session's in-flight files
+get swept into the commit, producing `UU` + stray untracked test files with no `MERGE_HEAD`).
 
 ### Verify wave (intermediate)
 
@@ -315,8 +331,8 @@ duration_seconds: {N}
 - T01: test(...) sha=abc1234
 
 ## Wave 1 (parallel, 2 tasks, worktree-isolated)
-- T02: feat(...) sha=def5678  [worktree: 01-veiculo-w1-T02]
-- T03: feat(...) sha=ghi9012  [worktree: 01-veiculo-w1-T03]
+- T02: feat(...) sha=def5678  [worktree: w1-T02 @ session $SESSION_ID]
+- T03: feat(...) sha=ghi9012  [worktree: w1-T03 @ session $SESSION_ID]
 
 ## Wave 2 (serial, file collision detected: serializers.py)
 - T04: test(...) sha=jkl3456
@@ -367,10 +383,12 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 - NEVER spawn parallel executors when wave touches Django `models.py` AND any of `admin.py`/`views.py`/`serializers.py`/`urls.py`/`filters.py` — `manage.py check` requires full graph coherence; force `coalesce_into_wave_commit`
 - DETECT pre-commit hook policy: if `.pre-commit-config.yaml` references `manage.py check` OR `django-system-check`, treat any cross-file-touching wave as collision-bound regardless of file-set disjointness
 - DECLARE `coalesce_into_wave_commit: true` in WAVE-SUMMARY.md whenever pre-commit forces single-commit-per-wave so audit trail is honest
-- NEVER run wave executor on dirty tree (must be on clean phase branch)
+- NEVER run git checkout/cherry-pick/serial-fallback in the shared main checkout when `cwd`+`session_id` were handed down — all of it MUST go through `$PHASE_WT` (v0.13.1 concurrency safety). This is what lets N sessions run simultaneously without HEAD/index races.
+- NEVER reuse a non-session-scoped wave branch name — wave branches MUST be `wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}` so two sessions (or two waves) never collide on `git worktree add -b`.
+- The phase worktree is freshly created per execute → clean by construction (the old "must be on clean phase branch" guard is satisfied automatically; no dirty-tree abort in the worktree path).
 - ALWAYS verify after each wave before starting next (catch regressions early)
 - ALWAYS write WAVE-SUMMARY.md even on partial failure (audit trail)
-- If `git worktree` not supported → run entire phase serially, log warning
+- If `git worktree` not supported → fall back to legacy `--no-branch` single-session mode in the main checkout and log a loud warning that concurrent sessions are unsafe in this mode.
 - Migration files (`migrations/00XX_*.py`) — DRF migration numbers collide across parallel branches → if wave has 2+ tasks that generate migrations, force serial execution
 - Lock files (`package-lock.json`, `poetry.lock`) — same: force serial
 

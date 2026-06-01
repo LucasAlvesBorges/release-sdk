@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] — 2026-06-01
+
+### BREAKING — Concurrency-safe execution (session-isolated worktrees + per-phase lock)
+
+Fixes cross-session corruption when running `/release:execute` in multiple simultaneous sessions on
+the same repo. Symptom was `UU` unmerged paths + stray untracked test files in the main checkout, with
+no `MERGE_HEAD` — produced by the serial fallback writing TDD output directly in the shared working tree
+while another session was also writing there.
+
+Root cause: both `skills/execute` and `release-wave-executor` mutated the **shared main checkout**
+(`git checkout`, cherry-pick, serial fallback) with **non-session-scoped** worktree/branch names
+(`wave/{NN}-{TASK}`, `../release-worktrees/{NN}-{slug}-w{N}-{TASK}`). Two sessions = one `.git/HEAD`,
+one index, one worktree namespace → HEAD ping-pong, index races, `git worktree add` collisions.
+
+- **Camada 1 — session-scoped phase worktree.** Each `/release:execute` now runs entirely inside
+  `../release-worktrees/$SESSION_ID/phase`. The main checkout is never mutated. `ensure_branch`,
+  cherry-pick merge, and the collision-bound serial fallback all run there via `git -C "$PHASE_WT"`.
+- **Camada 2 — per-phase lock.** `../release-worktrees/.locks/{NN}-{slug}.lock` (shared sibling, visible
+  to all sessions). A second session on the same phase gets a clean refusal instead of a git error.
+  Stale locks (holder worktree gone) auto-reclaim.
+- **Camada 3 — hygiene.** `git worktree prune` before every add; wave branches are now
+  `wave/$SESSION_ID/w{N}-{TASK}` (session+wave scoped, collision-proof); explicit teardown removes the
+  phase worktree + releases the lock on completion/abort.
+- `--no-branch` unchanged: legacy single-session path in the main checkout (concurrency unsafe by design).
+- `git worktree` unsupported → falls back to `--no-branch` with a loud warning.
+
+Files: `skills/execute/SKILL.md`, `agents/release-wave-executor.md`.
+
 ## [0.12.0] — 2026-05-26
 
 ### BREAKING — Waves-by-default execution + PLAN slice token economy

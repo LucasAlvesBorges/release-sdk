@@ -35,34 +35,83 @@ serial path removed. Single-worktree falls out naturally for waves with 1 task /
 2. If both `{NN}-PLAN-BACKEND.md` and `{NN}-PLAN-FRONTEND.md` exist → fullstack (require `--backend` or `--frontend` flag).
 3. `--backend` / `--frontend` flags override auto-detect.
 
-## Branch-per-phase (default ON)
+## Branch-per-phase (default ON) — session-isolated (v0.13.1)
 
-Before T01 runs, executor isolates work on a dedicated branch:
+**v0.13.1 BREAKING (concurrency-safe):** execução NUNCA muta o checkout principal. Cada
+`/release:execute` roda numa **worktree de fase própria, com escopo de sessão**, protegida por um
+**lock por-fase**. Isso permite N sessões simultâneas no mesmo repo sem colidir HEAD/índice/worktree.
+
+Before T01 runs, the executor (a) acquires a per-phase lock, (b) creates a session-scoped phase
+worktree, then spawns `release-wave-executor` with `cwd` pointing at that worktree:
 
 ```bash
+ROOT=$(git rev-parse --show-toplevel)
 BRANCH="feat/{NN}-{slug}"
+WT_ROOT="$ROOT/../release-worktrees"
+LOCK="$WT_ROOT/.locks/{NN}-{slug}.lock"          # shared sibling — visible to ALL sessions
+SESSION_ID="$(date +%s)-$$-$RANDOM"               # unique per execute invocation
+mkdir -p "$WT_ROOT/.locks"
+git worktree prune                                # drop dead registrations first
 
-# Resume case: branch exists → checkout
+# --- per-phase lock (Camada 2): prevents two sessions on the SAME phase branch ---
+if ! ( set -o noclobber; printf '%s %s\n' "$SESSION_ID" "$(date +%s)" > "$LOCK" ) 2>/dev/null; then
+  HOLDER="$WT_ROOT/$(cut -d' ' -f1 "$LOCK" 2>/dev/null)/phase"
+  if git worktree list --porcelain | grep -qF "worktree $HOLDER"; then
+    echo "ABORT: phase {NN}-{slug} is being executed by another session."
+    echo "       Run a different phase, or remove $LOCK if you are sure that session is dead."
+    exit 1
+  fi
+  printf '%s %s\n' "$SESSION_ID" "$(date +%s)" > "$LOCK"   # holder worktree gone → reclaim stale lock
+fi
+trap 'rm -f "$LOCK"; git worktree remove --force "$WT_ROOT/$SESSION_ID/phase" 2>/dev/null' EXIT
+
+# --- session-scoped phase worktree (Camada 1): main checkout is NEVER touched ---
+PHASE_WT="$WT_ROOT/$SESSION_ID/phase"
+mkdir -p "$(dirname "$PHASE_WT")"
 if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-  git checkout "$BRANCH"
+  git worktree add "$PHASE_WT" "$BRANCH"            # resume: attach existing branch, isolated
 else
-  # New phase: branch from current HEAD (must be clean)
-  git diff --quiet || { echo "Working tree dirty — commit or stash"; exit 1; }
-  git checkout -b "$BRANCH"
+  git worktree add -b "$BRANCH" "$PHASE_WT" HEAD    # new phase: branch from main's HEAD (read-only on main)
 fi
 
-# Record start SHA for rollback / diff
-git rev-parse HEAD > .release-planning/phases/{NN}-{slug}/.exec-start-sha
+# Record start SHA (inside the worktree) for rollback / diff
+git -C "$PHASE_WT" rev-parse HEAD > "$PHASE_WT/.release-planning/phases/{NN}-{slug}/.exec-start-sha"
+```
+
+Then spawn the wave-executor handing down the isolation context:
+
+```yaml
+agent: release-wave-executor
+config:
+  cwd: "$PHASE_WT"            # ALL git ops run here — never the shared main checkout
+  session_id: "$SESSION_ID"   # namespaces wave worktrees + wave branches across sessions
+  branch: "feat/{NN}-{slug}"
+  branch_already_set: true    # phase worktree already on the branch → skip its ensure_branch checkout
 ```
 
 **Rules:**
-- New phase + clean tree → `git checkout -b feat/{NN}-{slug}` from current HEAD
-- New phase + dirty tree → ABORT (instruct user to commit/stash)
-- `--resume` and branch exists → `git checkout feat/{NN}-{slug}` + wave-executor skips tasks already committed (greps `T{NN}` in `git log`)
-- `--no-branch` → skip branch creation, commit to current branch (legacy behavior)
-- Fullstack: same branch holds both `--backend` and `--frontend` commits (no split)
-- Wave-executor creates short-lived `wave/{NN}-{TXX}` branches per worktree, deleted after cherry-pick back to phase branch
+- New phase → `git worktree add -b feat/{NN}-{slug} $PHASE_WT HEAD` (branch point = main's HEAD commit; uncommitted main edits stay in main, NOT carried in — commit/stash them first if intended).
+- `--resume` and branch exists → `git worktree add $PHASE_WT feat/{NN}-{slug}` (attach in isolation) + wave-executor skips tasks already committed (greps `T{NN}` in `git log`).
+- Same phase already running in another session → **lock refuses** with a clean message (no silent corruption). Stale lock (holder worktree gone) auto-reclaims.
+- `--no-branch` → skip lock + worktree entirely, commit to current branch in the main checkout (legacy, single-session responsibility on the user).
+- Fullstack: same branch holds both `--backend` and `--frontend` commits (no split).
+- Wave-executor creates short-lived `wave/{SESSION_ID}/w{N}-{TXX}` branches per worktree, deleted after cherry-pick back to phase branch.
+- On completion the `trap` releases the lock and removes the phase worktree; the `feat/{NN}-{slug}` branch survives as a normal ref.
 
+**Teardown (run on completion AND on any abort — the `trap` above documents intent, but since
+steps run as discrete shell calls you MUST run this explicitly as the final step):**
+
+```bash
+git worktree remove --force "$WT_ROOT/$SESSION_ID/phase" 2>/dev/null   # commits already on $BRANCH
+git worktree prune
+rm -f "$LOCK"                                                          # release the per-phase lock
+```
+
+Leave the phase worktree in place ONLY when execution failed mid-wave and you want it for debugging —
+then print its path and still release the lock (a held lock on a dead session blocks future runs).
+
+`feat/{NN}-{slug}` is a shared ref after execute — `verify`/push/PR reach it without re-checkout:
+`git push -u origin feat/{NN}-{slug}` works from the main checkout regardless of its current branch.
 PR is opened from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
 
 ## Workflow by stack
