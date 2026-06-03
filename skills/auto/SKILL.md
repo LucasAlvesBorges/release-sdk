@@ -29,7 +29,6 @@ NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `s
 - `gsd-security-auditor` → `release-security-auditor`
 - `gsd-doc-writer` → `release-doc-writer`
 - `gsd-roadmapper` → `release-roadmapper`
-- `gsd-debug-session-manager` → `release-debug-session-manager`
 - (general rule) `gsd-<name>` → `release-<name>`
 
 Substituting `gsd-*` bypasses release-sdk hooks/audit/stack-dispatch and corrupts plugin isolation. If the matching `release-*` agent is missing, abort and surface the gap — do **not** fall back.
@@ -95,7 +94,7 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 10 | "review", "code review", "diff review" | `active_stage in {executing, verified}` | `/release:review` |
 | 11 | "test gap", "missing tests", "UAT failed", "add tests" | `active_phase != null` | `/release:verify` |
 | 12 | "verify", "UAT", "did it work", "validar" | `active_phase != null` | `/release:verify-work` |
-| 13 | "parallel", "workstream", "branch off" | — | `/release:workstreams` |
+| 13 | "parallel", "session", "paralelo", "domínio", "worktree", "branch off", "sessões simultâneas" | — | `/release:session` |
 | 14 | "checklist", "RC1", "RC7", "Q1", "Q7" | — | `/release:checklist` |
 | 15 | "execute", "run plan", "roda fase", "termina" | `active_stage == planned` | `/release:execute` |
 | 16 | "plan", "break into tasks", "task list", "RC1-RC7" | `active_stage == discussed` | `/release:plan` |

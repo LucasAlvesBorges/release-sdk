@@ -44,7 +44,14 @@ serial path removed. Single-worktree falls out naturally for waves with 1 task /
 Before T01 runs, the executor (a) acquires a per-phase lock, (b) creates a session-scoped phase
 worktree, then spawns `release-wave-executor` with `cwd` pointing at that worktree:
 
+**Inside a `/release:session` worktree (Model B, v0.15.0):** if `.release-planning/.session` exists,
+treat this run as `--no-branch` — commit in place on the current `session/<label>` branch and SKIP the
+lock + nested phase-worktree block below (the session already isolates this checkout; its `finish`
+merges these commits back to base). Spawn `release-wave-executor` with `no_branch: true`, `cwd: .`.
+The block below applies only OUTSIDE a session.
+
 ```bash
+[ -f .release-planning/.session ] && NO_BRANCH=1   # Model B: session worktree → commit in place, skip block
 ROOT=$(git rev-parse --show-toplevel)
 BRANCH="feat/{NN}-{slug}"
 WT_ROOT="$ROOT/../release-worktrees"

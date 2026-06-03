@@ -7,7 +7,12 @@ description: >
   Use when two or more features must progress in parallel in the same milestone without colliding.
 ---
 
-# /release:workstreams — Parallel Feature Isolation
+> ⚠️ **DEPRECATED (v0.15.0).** The sustained per-domain `ws-<name>` model is superseded by
+> **`/release:session`** — ephemeral worktrees on `session/<label>` branches off one base, with
+> serialized conflict-safe merge-back. Use `/release:session start <label>` for parallel domains.
+> This skill is kept only for repos still mid-migration and will be removed in a future release.
+
+# /release:workstreams — Parallel Feature Isolation (deprecated → /release:session)
 
 Top-level isolation for features running side-by-side. While `release-wave-executor`
 parallelises *within* a phase, workstreams parallelise *across* phases and features.

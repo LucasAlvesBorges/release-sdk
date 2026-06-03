@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] — 2026-06-03
+
+### BREAKING — Worktree-native parallel sessions (Model B); `workstreams` deprecated; 7 dead agents removed
+
+New execution base: every unit of parallel work is a **session** — an ephemeral git worktree on a
+`session/<label>` branch cut from one **base branch** — merged back with a serialized, conflict-safe
+merge. Replaces the sustained per-domain `workstreams` model. Lets N Claude sessions run independent
+domains (financeiro / operacional / RH …) at once and fold into one trunk.
+
+#### Added
+- **`/release:session`** — `start` / `finish` / `list` / `abort` / `base`. `start` cuts a worktree+branch
+  off base; `finish` does a **serialized, conflict-safe** merge-back: per-base lock, `merge --no-ff`, and
+  on conflict `merge --abort` so base stays byte-identical (NEVER auto-resolved) with the session
+  preserved for rebase+retry. Merges inside base's own checkout (a branch lives in one worktree).
+- **`bin/test-session-merge.sh`** — real-git contract test (12 assertions): disjoint sessions merge
+  clean; conflicting session STOPS with base untouched + no half-merge; per-base lock serializes fan-in.
+- Honest **conflict-surface table** (Django shared wiring: `INSTALLED_APPS` / root `urls.py` /
+  `requirements` / `ROADMAP` phase-number ranges) with mitigations — disjoint app code + per-app
+  migrations rarely collide; the shared wiring is the small, known surface.
+
+#### Changed
+- **`/release:execute`** detects `.release-planning/.session` and commits in place on the session
+  branch (`no_branch`), skipping the nested phase-worktree + lock (the session already isolates it).
+- **STATE is local + git-ignored** (`STATE.md`, `.session`, `active-workstream`) — parallel sessions
+  never collide on a shared mutable cursor; committed truth is the per-phase artifacts under `phases/`.
+- **`/release:auto`** rule 13 routes parallel / session / worktree intents to `/release:session`.
+
+#### Deprecated
+- **`/release:workstreams`** (sustained `ws-<name>` domain model) → use `/release:session`. Kept for
+  in-flight migrations; removed in a future release.
+
+#### Removed — dead code (7 agents; 44 → 37)
+Orphans no release skill ever spawned + the unwired multi-cycle debug manager: `release-advisor-researcher`,
+`release-research-synthesizer`, `release-project-researcher`, `release-domain-researcher`,
+`release-eval-planner`, `release-doc-synthesizer`, `release-debug-session-manager`.
+
+
 ## [0.13.1] — 2026-06-01
 
 ### BREAKING — Concurrency-safe execution (session-isolated worktrees + per-phase lock)
