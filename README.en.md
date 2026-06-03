@@ -104,7 +104,6 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 |---|---|
 | `release-spec-clarifier` | SPEC.md ambiguity scoring before discuss-phase |
 | `release-assumptions-analyzer` | Deep codebase analysis surfacing hidden assumptions + ripple analysis for discuss |
-| `release-advisor-researcher` | Single gray-area D-XX decision research (5-dim comparison + falsifiable recommendation) |
 | `release-feature-planner` | PLAN.md generation per stack |
 | `release-plan-checker` | Pre-execute goal-backward + LOCK trace verifier (stack-aware gates) |
 | `release-pattern-mapper` | Maps new files to closest existing analogs |
@@ -115,9 +114,6 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `release-feature-researcher` | Phase pre-plan research |
 | `release-ai-researcher` | AI/LLM framework research for `/release:ai-phase` |
 | `react-ui-researcher` | UI-SPEC.md design contract author |
-| `release-project-researcher` | Ecosystem research before roadmap (competitors, reference arch, pitfalls, regulatory) |
-| `release-domain-researcher` | Pre-eval domain expertise for AI phases |
-| `release-research-synthesizer` | Consolidates parallel researcher outputs into SUMMARY.md |
 | `release-codebase-mapper` | Parallel 4-focus codebase analysis |
 | `release-intel-updater` | Cached intel files at `.release-planning/intel/` |
 
@@ -134,7 +130,6 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `release-test-auditor` | Test coverage matrix per stack |
 | `release-nyquist-auditor` | ≥2-tests-per-requirement audit |
 | `release-debugger` | 10 bug-shape catalog per stack |
-| `release-debug-session-manager` | Multi-cycle `/release:debug` loop manager in isolated context |
 
 #### UI + AI
 | Agent | Role |
@@ -142,7 +137,6 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `react-ui-checker` | UI-SPEC pre-validation (PASS/FLAG/BLOCK) on 6 quality dims |
 | `react-ui-auditor` | Retroactive scored 6-pillar visual audit |
 | `release-framework-selector` | Interactive decision matrix for AI/LLM framework selection |
-| `release-eval-planner` | Designs AI eval strategy (dims, rubrics, dataset, guardrails) |
 | `release-eval-auditor` | Retroactive AI eval coverage audit |
 
 #### Security
@@ -158,7 +152,6 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `release-import-orchestrator` | One-shot GSD `.planning/` → release-sdk `.release-planning/` bridge |
 | `release-doc-writer` | Writes/updates README, CONTRIBUTING, ARCHITECTURE, ONBOARDING grounded in artifacts |
 | `release-doc-classifier` | Classifies a planning doc as ADR/PRD/SPEC/DOC/UNKNOWN |
-| `release-doc-synthesizer` | Consolidates classified docs into INGEST-CONFLICTS.md |
 | `release-doc-verifier` | Verifies factual claims in docs against live codebase |
 
 #### Django-specific (pure Django logic)
@@ -392,7 +385,6 @@ cd ~/my-project
 │   └── TEST-MAP.md
 ├── research/                               # ecosystem + project-level research
 │   ├── PROJECT-ECOSYSTEM.md
-│   └── SUMMARY.md                          # release-research-synthesizer output
 ├── debug/{session_id}/                     # /release:debug persistent sessions
 ├── forensics/                              # /release:forensics post-mortems
 ├── AUDIT-UAT.md                            # /release:audit-uat output
@@ -403,8 +395,6 @@ cd ~/my-project
         ├── {NN}-CONTEXT.md                 # discuss output (D-XX backend + frontend)
         ├── {NN}-ASSUMPTIONS.md             # release-assumptions-analyzer output
         ├── {NN}-RESEARCH.md                # researcher output (single-stack)
-        ├── {NN}-DOMAIN-RESEARCH.md         # release-domain-researcher (for AI phases)
-        ├── {NN}-ADVISOR-{D-XX}.md          # release-advisor-researcher (gray-area D-XX)
         ├── {NN}-PLAN.md                    # planner output (single-stack)
         ├── {NN}-PLAN-BACKEND.md            # (fullstack: Django side)
         ├── {NN}-PLAN-FRONTEND.md           # (fullstack: React side)
@@ -415,7 +405,6 @@ cd ~/my-project
         ├── {NN}-UI-CHECK.md                # react-ui-checker pre-impl verdict
         ├── {NN}-UI-REVIEW.md               # react-ui-auditor scored audit
         ├── {NN}-AI-SPEC.md                 # AI design contract (AI phases)
-        ├── {NN}-AI-EVAL.md                 # release-eval-planner companion (if AI-SPEC locked)
         ├── {NN}-EVAL-REVIEW.md             # release-eval-auditor coverage report
         ├── {NN}-FRAMEWORK-DECISION.md      # release-framework-selector scored matrix
         ├── {NN}-SUMMARY.md                 # execute output

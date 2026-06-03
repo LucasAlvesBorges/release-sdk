@@ -156,7 +156,6 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 |---|---|
 | `release-spec-clarifier` | Score de ambiguidade do SPEC.md antes do discuss |
 | `release-assumptions-analyzer` | Análise profunda do codebase pré-plan, surface hidden assumptions + ripple analysis |
-| `release-advisor-researcher` | Pesquisa decisão gray-area D-XX (comparação 5-dim + recomendação falsificável) |
 | `release-feature-planner` | Geração de PLAN.md por stack |
 | `release-plan-checker` | Pre-execute goal-backward + LOCK trace (gates stack-aware) |
 | `release-pattern-mapper` | Mapeia arquivos novos para análogos existentes mais próximos |
@@ -167,9 +166,6 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `release-feature-researcher` | Pesquisa pre-plan da fase |
 | `release-ai-researcher` | Pesquisa de framework AI/LLM pra `/release:ai-phase` |
 | `react-ui-researcher` | Autor do contrato de design UI-SPEC.md |
-| `release-project-researcher` | Pesquisa de ecossistema antes do roadmap (competidores, ref arch, pitfalls, regulatório) |
-| `release-domain-researcher` | Pesquisa de expertise de domínio pré-eval pra fases AI |
-| `release-research-synthesizer` | Consolida outputs paralelos de researchers em SUMMARY.md |
 | `release-codebase-mapper` | Análise paralela 4-focus do codebase |
 | `release-intel-updater` | Arquivos de intel cached em `.release-planning/intel/` |
 
@@ -186,7 +182,6 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `release-test-auditor` | Matriz de cobertura de testes por stack |
 | `release-nyquist-auditor` | Audit ≥2-testes-por-requirement |
 | `release-debugger` | Catálogo de 10 bug-shapes por stack |
-| `release-debug-session-manager` | Loop multi-ciclo do `/release:debug` em contexto isolado |
 
 ### UI + AI
 | Agent | Papel |
@@ -194,7 +189,6 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `react-ui-checker` | UI-SPEC pre-validation (PASS/FLAG/BLOCK) em 6 dimensões de qualidade |
 | `react-ui-auditor` | Audit visual retroativo scored 6-pilares |
 | `release-framework-selector` | Matriz interativa de decisão pra seleção de framework AI/LLM |
-| `release-eval-planner` | Designa estratégia de eval AI (dims, rubrics, dataset, guardrails) |
 | `release-eval-auditor` | Audit retroativo de cobertura de eval AI |
 
 ### Security
@@ -210,7 +204,6 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `release-import-orchestrator` | Ponte one-shot GSD `.planning/` → release-sdk `.release-planning/` |
 | `release-doc-writer` | Escreve/atualiza README, CONTRIBUTING, ARCHITECTURE, ONBOARDING grounded nos artefatos |
 | `release-doc-classifier` | Classifica doc de planning como ADR/PRD/SPEC/DOC/UNKNOWN |
-| `release-doc-synthesizer` | Consolida docs classificados em INGEST-CONFLICTS.md |
 | `release-doc-verifier` | Verifica claims factuais em docs contra o codebase vivo |
 
 ### Django-specific (lógica pura Django)
@@ -431,8 +424,6 @@ Se você não quer decorar 32 comandos, use o roteador:
         ├── {NN}-CONTEXT.md                 # output do discuss (D-XX backend + frontend)
         ├── {NN}-ASSUMPTIONS.md             # output de release-assumptions-analyzer
         ├── {NN}-RESEARCH.md                # output do researcher (single-stack)
-        ├── {NN}-DOMAIN-RESEARCH.md         # release-domain-researcher (pra fases AI)
-        ├── {NN}-ADVISOR-{D-XX}.md          # release-advisor-researcher (D-XX gray-area)
         ├── {NN}-PLAN/                      # v0.11.0+ wave-split DIR
         │   ├── manifest.md                  # must_haves + threat_model 9-cat + waves table
         │   ├── W1-red-tests.md              # ~200-600 linhas, 3-5 tasks (hard cap 600)
@@ -449,7 +440,6 @@ Se você não quer decorar 32 comandos, use o roteador:
         ├── {NN}-UI-CHECK.md                # react-ui-checker veredito pre-impl
         ├── {NN}-UI-REVIEW.md               # react-ui-auditor audit scored
         ├── {NN}-AI-SPEC.md                 # contrato design AI (fases AI)
-        ├── {NN}-AI-EVAL.md                 # release-eval-planner companion (se AI-SPEC travado)
         ├── {NN}-EVAL-REVIEW.md             # relatório cobertura release-eval-auditor
         ├── {NN}-FRAMEWORK-DECISION.md      # matriz scored release-framework-selector
         ├── {NN}-SUMMARY.md                 # output do execute
