@@ -2,7 +2,7 @@
 name: ship
 description: >
   Create a PR for the active phase after verification passes. Runs a final review pass
-  (via `release-code-reviewer`), drafts a PR title + body grounded in the phase's
+  (via `code-reviewer`), drafts a PR title + body grounded in the phase's
   `{NN}-SPEC.md` / `{NN}-PLAN.md` / `{NN}-UAT.md`, then opens the PR via `gh`. Updates
   `.release-planning/STATE.md` cursor to `shipped` on success. Does NOT auto-merge.
   Use when: phase is at `active_stage: verified` and you're ready to publish.
@@ -42,11 +42,11 @@ Final review → PR draft → `gh pr create` → cursor moves to `shipped`. No m
 
 ### Step 1 — Pre-ship review (skippable with `--skip-review`)
 
-Spawn `release:release-code-reviewer` against the phase diff:
+Spawn `release:code-reviewer` against the phase diff:
 
 ```
 Agent({
-  subagent_type: "release:release-code-reviewer",
+  subagent_type: "release:code-reviewer",
   description: "Pre-ship review of phase {NN}",
   prompt: "Review diff for phase {NN}-{slug}. Scope: `git diff main...HEAD`. Focus: blockers only — bugs, security, broken contracts. Skip nits.",
   metadata: { stack, phase_path: ".release-planning/phases/{NN}-{slug}/" }
@@ -130,7 +130,7 @@ Print PR URL to user.
 → Worktree clean ✓
 → Branch: feat/03-invoice-pdf-export (not main) ✓
 → gh auth ✓
-→ Pre-ship review: release:release-code-reviewer…
+→ Pre-ship review: release:code-reviewer…
   [no blockers]
 → Drafting PR title + body from SPEC + PLAN + UAT
 → Pushing branch + opening PR…

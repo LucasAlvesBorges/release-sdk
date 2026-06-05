@@ -33,7 +33,7 @@ Spawns `release:django-checklist-verifier` for:
 
 ## React Author Checklist (RC1-RC7)
 
-Spawns `release:release-test-auditor` + grep-based checks:
+Spawns `release:test-auditor` + grep-based checks:
 - RC1: `React.memo`, `useMemo`, `useCallback` where needed
 - RC2: `isLoading`/`isError` guards in data-fetching components
 - RC3: No `any` types; Zod schemas for API responses

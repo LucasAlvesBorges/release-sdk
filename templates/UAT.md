@@ -1,7 +1,7 @@
 <!--
 # UAT.md — Phase {NN}: {phase-slug}
 #
-# Produced (and updated in place) by release-uat-conductor, spawned via /release:verify-work.
+# Produced (and updated in place) by uat-conductor, spawned via /release:verify-work.
 # Seeded from PLAN.md must_haves.truths + SPEC.md acceptance criteria + ROADMAP success_criteria.
 #
 # This file is the HUMAN gate for the phase — distinct from the machine gate written to
@@ -32,7 +32,7 @@ verdict: PENDING                           # PENDING | READY_TO_SHIP | GAPS_FOUN
 
 ## How to use this file
 
-1. Run `/release:verify-work {NN}` — release-uat-conductor walks you through each item.
+1. Run `/release:verify-work {NN}` — uat-conductor walks you through each item.
 2. For each item, the conductor surfaces concrete verification steps (curl for backend,
    browser walk for frontend, end-to-end for fullstack) and asks PASS / FAIL / BLOCKED / SKIP.
 3. Your answers + free-text notes are written back here with timestamps.
@@ -83,4 +83,4 @@ Do NOT hand-edit the items table. Re-run with `--resume` (skip PASS) or `--reset
 - Do not mark FAIL items as PASS to "unblock the ship" — use the gap loop instead.
 
 ---
-_Driven by release-uat-conductor (release-sdk). Distinct from {NN}-VERIFICATION.md (machine gate)._
+_Driven by uat-conductor (release-sdk). Distinct from {NN}-VERIFICATION.md (machine gate)._

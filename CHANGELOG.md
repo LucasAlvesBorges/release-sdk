@@ -40,11 +40,15 @@ base resolved from the session marker (never a `session/*` branch). `bin/test-se
 **48 real-git assertions** (from 12), including finish-from-inside, throwaway path, drift, planning
 modify/delete, and lock reclaim — all regression-guarded (each fix proven to fail the suite when reverted).
 
-**Agent spawns are now plugin-namespaced.** Claude Code resolves plugin agents as `release:<name>`, so
-bare `subagent_type: "release-tdd-executor"` no longer resolved (`Agent type … not found`). Rewrote all
-**320** spawn references across 62 skill/agent files to the `release:<name>` form (e.g.
-`release:release-tdd-executor`). Frontmatter `name:` fields, file paths (`agents/….md`), and `release-*`
-globs are left untouched.
+**Agent spawns are now plugin-namespaced + the redundant `release-` prefix dropped.** Claude Code
+resolves plugin agents as `release:<name>`, so bare `subagent_type: "release-tdd-executor"` no longer
+resolved (`Agent type … not found`). To avoid the ugly `release:release-…` doubling, the 31 merged
+agents were renamed to drop their `release-` filename prefix (`agents/release-tdd-executor.md` →
+`agents/tdd-executor.md`, `name: tdd-executor`); the 7 stack-prefixed agents (`django-*`, `react-*`) keep
+their names. All spawns now use the clean form **`release:tdd-executor`**, `release:wave-executor`,
+`release:react-ui-auditor`, `release:django-checklist-verifier`, … — every spawn reference across skills,
+agents, and the READMEs rewritten accordingly. Frontmatter `name:` fields stay bare (Claude Code adds the
+`release:` prefix); `release-*` globs and the `gsd-* → release-*` migration notes are left untouched.
 
 ## [0.15.0] — 2026-06-03
 

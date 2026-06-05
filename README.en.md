@@ -8,7 +8,7 @@ Context-aware `/release:*` commands route automatically to the right agents base
 
 **Entry point:** `/release:auto <plain-language intent>` — 32-rule router that dispatches to the right `/release:*` skill, prints the chosen route + reason before invoking, falls back to `AskUserQuestion` on low confidence.
 
-**Current version: v0.9.1** — short `/release:*` invocation, 39 skills, 38 agents (taxonomy: `release-*` merged stack-dispatched, `django-*` Django-pure, `react-*` React-pure). See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
+**Current version: v0.16.0** — short `/release:*` invocation, 41 skills, 37 agents (taxonomy: unprefixed name = merged stack-dispatched, `django-*` Django-pure, `react-*` React-pure; spawned via `release:<name>` — e.g. `release:tdd-executor`). See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 
 ---
 
@@ -30,8 +30,8 @@ No silent assumptions. No "v1 / placeholder / will be wired later". No untraceab
 - **v0.16.0** — `/release:session` hardening: 6 real multi-session bugs (cwd-drift crash in `finish`, conflicts mutating the base checkout, planning leaking into PRs, no drift handling, `base-branch` not persisting under gitignore, poor visibility) + a 6-lens adversarial review (27 findings — incl. TOCTOU closed via lock-first/atomic sync-merge, slash-safe lockfile, dead-PID lock reclaim, refused-merge detection). New `sync`/`doctor`/`cleanup` subcommands; `bin/test-session-merge.sh` 12 → 48 regression-guarded assertions. **Agent spawns now plugin-namespaced** `release:<name>` (Claude Code requires the plugin prefix; bare `subagent_type` failed) — 320 spawns rewritten across 62 files.
 - **v0.15.0** — BREAKING: worktree-native sessions (Model B). Each parallel domain (financeiro/operacional/RH…) is a worktree on a `session/<label>` branch cut from a base, merged back with a serialized conflict-safe merge (base never left dirty; conflicts STOP, never auto-resolve). `/release:session start|sync|finish|list|doctor|cleanup|abort|base`. Replaces `workstreams` (deprecated). 7 dead agents removed (44→37).
 - **v0.13.x** — Always-on advanced-threat auditor (A1-A13 Django / RA1-RA5 React: SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, exploit-grade SQLi, race/TOCTOU, image-DoS, AWS-IaC). Concurrency-safe execution: session-isolated phase worktrees + per-phase lock (fixes UU corruption in multi-session execute).
-- **v0.12.0** — BREAKING: waves-by-default in `/release:execute` (no `--waves` flag). `release-wave-executor` fans out N `release-tdd-executor` in worktree-isolated parallel branches per disjoint task group; PLAN sliced per task; verify-per-wave.
-- **v0.7.0** — 31 new files (20 agents + 11 skills) closing the gap audit vs upstream GSD. `/release:auto` routing extended from 21 to 32 rules. Highlights: `/release:autonomous` (walk-away multi-phase), `/release:audit-fix` (autonomous audit-to-fix loop), `/release:validate-phase` (Nyquist coverage), `/release:ui-review` (6-pillar visual audit), `/release:eval-review` (AI eval coverage), `/release:docs-update` (verified docs regen), `/release:forensics` (post-mortems), `release-plan-checker` (pre-execute goal-backward verifier), `release-assumptions-analyzer` (deep codebase analysis for discuss), `release-debug-session-manager` (multi-cycle debug in isolated context), `release-framework-selector` (AI framework decision matrix), and the full `release-doc-*` family.
+- **v0.12.0** — BREAKING: waves-by-default in `/release:execute` (no `--waves` flag). `wave-executor` fans out N `tdd-executor` in worktree-isolated parallel branches per disjoint task group; PLAN sliced per task; verify-per-wave.
+- **v0.7.0** — 31 new files (20 agents + 11 skills) closing the gap audit vs upstream GSD. `/release:auto` routing extended from 21 to 32 rules. Highlights: `/release:autonomous` (walk-away multi-phase), `/release:audit-fix` (autonomous audit-to-fix loop), `/release:validate-phase` (Nyquist coverage), `/release:ui-review` (6-pillar visual audit), `/release:eval-review` (AI eval coverage), `/release:docs-update` (verified docs regen), `/release:forensics` (post-mortems), `plan-checker` (pre-execute goal-backward verifier), `assumptions-analyzer` (deep codebase analysis for discuss), `release-debug-session-manager` (multi-cycle debug in isolated context), `framework-selector` (AI framework decision matrix), and the full `release-doc-*` family.
 - **v0.6.1** — `/release:init` and `/release:import` now inject a delimited `<!-- release-sdk:start --> ... <!-- release-sdk:end -->` block into repo-root `CLAUDE.md` so every future Claude Code session knows release-sdk is installed and where artifacts live. Idempotent.
 - **v0.6.0** — `/release:auto` (freeform-intent router) + native `/release:debug`, `/release:fast`, `/release:quick`, `/release:ship` so routing stays inside the `/release:*` namespace.
 - **v0.5.0** — BREAKING: planning directory renamed `.planning/` → `.release-planning/` to coexist with upstream GSD (which also uses `.planning/`). `/release:import` is the bridge: reads GSD `.planning/` (untouched) and writes release-sdk artifacts to a parallel `.release-planning/` tree.
@@ -84,79 +84,79 @@ Override with `--backend`, `--frontend`, or `--fullstack` flags.
 
 ## What's inside
 
-### Agents — Stack-dispatched (`release-*`)
+### Agents — Stack-dispatched (merged, unprefixed names)
 
-Each `release-*` agent accepts `stack: django | react | fullstack` input and dispatches to `<django-stack>` / `<react-stack>` / `<fullstack-stack>` blocks. Single agent definition, all stack-specific expertise preserved.
+Each merged agent accepts `stack: django | react | fullstack` input and dispatches to `<django-stack>` / `<react-stack>` / `<fullstack-stack>` blocks. Single agent definition, all stack-specific expertise preserved. Spawned as `release:<name>` (e.g. `release:feature-planner`).
 
 | Agent | Role |
 |---|---|
-| `release-feature-researcher` | Probes codebase before planning — Django (apps, FK graph, migrations, patterns) OR React (components, Zustand stores, TanStack Query keys, router) |
-| `release-pattern-mapper` | Maps each new file to closest existing analog — Django models/views/serializers OR React components/hooks/stores |
-| `release-feature-planner` | Writes PLAN.md: TDD ordering + Q1-Q7 (Django) OR RC1-RC7 (React) + 9 security categories |
-| `release-tdd-executor` | RED → GREEN → REFACTOR → SECURITY, atomic Conventional Commits. Stack-aware verification (pytest+migrations OR vitest+tsc) |
-| `release-phase-verifier` | Goal-backward: D-XX implemented? Checklist evidence present? Stack-specific LOCK enforced (`.delay(` for Django, `localStorage.*token` for React)? |
-| `release-code-reviewer` | Django (N+1, mass assignment, RLS bypass, `.delay()`) OR React (RC1-RC7, stale closures, missing `isLoading`, `any` types, auth tokens) |
-| `release-code-fixer` | Applies REVIEW.md fixes atomically, per-finding commits, stack-specific verification after each Edit |
-| `release-security-auditor` | 9-category audit per stack — Django (cross-tenant, IDOR, mass-assign, JWT, CSRF) OR React (XSS, auth storage, CSRF, IDOR, secrets) |
-| `release-test-auditor` | Coverage matrix — Django (smoke/race/memray/security/celery/signal/permission) OR React (5 dimensions: unit/RTL/MSW/security/a11y) |
-| `release-debugger` | 10 bug shape catalog per stack — Django (N+1, migration drift, RLS thread-var, Celery, F() lost-update) OR React (stale closure, infinite rerender, stale TanStack Query, MSW mismatch, hydration) |
+| `feature-researcher` | Probes codebase before planning — Django (apps, FK graph, migrations, patterns) OR React (components, Zustand stores, TanStack Query keys, router) |
+| `pattern-mapper` | Maps each new file to closest existing analog — Django models/views/serializers OR React components/hooks/stores |
+| `feature-planner` | Writes PLAN.md: TDD ordering + Q1-Q7 (Django) OR RC1-RC7 (React) + 9 security categories |
+| `tdd-executor` | RED → GREEN → REFACTOR → SECURITY, atomic Conventional Commits. Stack-aware verification (pytest+migrations OR vitest+tsc) |
+| `phase-verifier` | Goal-backward: D-XX implemented? Checklist evidence present? Stack-specific LOCK enforced (`.delay(` for Django, `localStorage.*token` for React)? |
+| `code-reviewer` | Django (N+1, mass assignment, RLS bypass, `.delay()`) OR React (RC1-RC7, stale closures, missing `isLoading`, `any` types, auth tokens) |
+| `code-fixer` | Applies REVIEW.md fixes atomically, per-finding commits, stack-specific verification after each Edit |
+| `security-auditor` | 9-category audit per stack — Django (cross-tenant, IDOR, mass-assign, JWT, CSRF) OR React (XSS, auth storage, CSRF, IDOR, secrets) |
+| `test-auditor` | Coverage matrix — Django (smoke/race/memray/security/celery/signal/permission) OR React (5 dimensions: unit/RTL/MSW/security/a11y) |
+| `debugger` | 10 bug shape catalog per stack — Django (N+1, migration drift, RLS thread-var, Celery, F() lost-update) OR React (stale closure, infinite rerender, stale TanStack Query, MSW mismatch, hydration) |
 
 ### Agents — Singletons (release-sdk native)
 
 #### Plan + discuss
 | Agent | Role |
 |---|---|
-| `release-spec-clarifier` | SPEC.md ambiguity scoring before discuss-phase |
-| `release-assumptions-analyzer` | Deep codebase analysis surfacing hidden assumptions + ripple analysis for discuss |
-| `release-feature-planner` | PLAN.md generation per stack |
-| `release-plan-checker` | Pre-execute goal-backward + LOCK trace verifier (stack-aware gates) |
-| `release-pattern-mapper` | Maps new files to closest existing analogs |
+| `spec-clarifier` | SPEC.md ambiguity scoring before discuss-phase |
+| `assumptions-analyzer` | Deep codebase analysis surfacing hidden assumptions + ripple analysis for discuss |
+| `feature-planner` | PLAN.md generation per stack |
+| `plan-checker` | Pre-execute goal-backward + LOCK trace verifier (stack-aware gates) |
+| `pattern-mapper` | Maps new files to closest existing analogs |
 
 #### Research
 | Agent | Role |
 |---|---|
-| `release-feature-researcher` | Phase pre-plan research |
-| `release-ai-researcher` | AI/LLM framework research for `/release:ai-phase` |
+| `feature-researcher` | Phase pre-plan research |
+| `ai-researcher` | AI/LLM framework research for `/release:ai-phase` |
 | `react-ui-researcher` | UI-SPEC.md design contract author |
-| `release-codebase-mapper` | Parallel 4-focus codebase analysis |
-| `release-intel-updater` | Cached intel files at `.release-planning/intel/` |
+| `codebase-mapper` | Parallel 4-focus codebase analysis |
+| `intel-updater` | Cached intel files at `.release-planning/intel/` |
 
 #### Execute + verify
 | Agent | Role |
 |---|---|
-| `release-tdd-executor` | TDD RED→GREEN→REFACTOR→SECURITY (stack-aware) |
-| `release-wave-executor` | Parallel wave execution via git worktrees |
-| `release-code-reviewer` | Stack-aware adversarial code review |
-| `release-code-fixer` | Applies REVIEW.md findings as atomic commits |
-| `release-phase-verifier` | Goal-backward post-execute verification |
-| `release-uat-conductor` | Conversational UAT verification |
-| `release-integration-checker` | Cross-phase E2E + data-contract probe (DRF↔Zod for fullstack) |
-| `release-test-auditor` | Test coverage matrix per stack |
-| `release-nyquist-auditor` | ≥2-tests-per-requirement audit |
-| `release-debugger` | 10 bug-shape catalog per stack |
+| `tdd-executor` | TDD RED→GREEN→REFACTOR→SECURITY (stack-aware) |
+| `wave-executor` | Parallel wave execution via git worktrees |
+| `code-reviewer` | Stack-aware adversarial code review |
+| `code-fixer` | Applies REVIEW.md findings as atomic commits |
+| `phase-verifier` | Goal-backward post-execute verification |
+| `uat-conductor` | Conversational UAT verification |
+| `integration-checker` | Cross-phase E2E + data-contract probe (DRF↔Zod for fullstack) |
+| `test-auditor` | Test coverage matrix per stack |
+| `nyquist-auditor` | ≥2-tests-per-requirement audit |
+| `debugger` | 10 bug-shape catalog per stack |
 
 #### UI + AI
 | Agent | Role |
 |---|---|
 | `react-ui-checker` | UI-SPEC pre-validation (PASS/FLAG/BLOCK) on 6 quality dims |
 | `react-ui-auditor` | Retroactive scored 6-pillar visual audit |
-| `release-framework-selector` | Interactive decision matrix for AI/LLM framework selection |
-| `release-eval-auditor` | Retroactive AI eval coverage audit |
+| `framework-selector` | Interactive decision matrix for AI/LLM framework selection |
+| `eval-auditor` | Retroactive AI eval coverage audit |
 
 #### Security
 | Agent | Role |
 |---|---|
-| `release-security-auditor` | Stack-aware 9-category author-time security audit |
-| `release-django-security-retro` | Retroactive Django security scorecard |
+| `security-auditor` | Stack-aware 9-category author-time security audit |
+| `django-security-retro` | Retroactive Django security scorecard |
 | `react-security-retro` | Retroactive React security scorecard |
 
 #### Docs + import
 | Agent | Role |
 |---|---|
-| `release-import-orchestrator` | One-shot GSD `.planning/` → release-sdk `.release-planning/` bridge |
-| `release-doc-writer` | Writes/updates README, CONTRIBUTING, ARCHITECTURE, ONBOARDING grounded in artifacts |
-| `release-doc-classifier` | Classifies a planning doc as ADR/PRD/SPEC/DOC/UNKNOWN |
-| `release-doc-verifier` | Verifies factual claims in docs against live codebase |
+| `import-orchestrator` | One-shot GSD `.planning/` → release-sdk `.release-planning/` bridge |
+| `doc-writer` | Writes/updates README, CONTRIBUTING, ARCHITECTURE, ONBOARDING grounded in artifacts |
+| `doc-classifier` | Classifies a planning doc as ADR/PRD/SPEC/DOC/UNKNOWN |
+| `doc-verifier` | Verifies factual claims in docs against live codebase |
 
 #### Django-specific (pure Django logic)
 | Agent | Role |
@@ -205,7 +205,7 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 | `/release:validate-phase {NN}` | both | Nyquist coverage audit: every requirement must have ≥2 tests |
 | `/release:ui-review {NN}` | frontend | Retroactive 6-pillar visual audit (a11y, responsive, loading/error, i18n, type contracts, design system) |
 | `/release:eval-review {NN}` | both | Retroactive AI eval coverage audit (COVERED/PARTIAL/MISSING per dim) |
-| `/release:audit-fix` | both | Autonomous audit-to-fix loop (parallel auditors → release-code-fixer → re-audit) |
+| `/release:audit-fix` | both | Autonomous audit-to-fix loop (parallel auditors → code-fixer → re-audit) |
 | `/release:audit-uat` | both | Cross-phase outstanding-UAT sweep with priority hot-list |
 | `/release:plan-review-convergence {NN}` | both | Cross-AI peer-review loop (codex/gemini) until HIGH=0 AND MED≤2 |
 
@@ -381,7 +381,7 @@ cd ~/my-project
 │   ├── ARCHITECTURE.md
 │   ├── QUALITY.md
 │   └── CONCERNS.md
-├── intel/                                  # output of release-intel-updater (cached)
+├── intel/                                  # output of intel-updater (cached)
 │   ├── MODELS.md
 │   ├── ROUTES.md
 │   ├── COMPONENTS.md
@@ -398,20 +398,20 @@ cd ~/my-project
     └── {NN}-{slug}/
         ├── {NN}-SPEC.md                    # spec output (ambiguity score)
         ├── {NN}-CONTEXT.md                 # discuss output (D-XX backend + frontend)
-        ├── {NN}-ASSUMPTIONS.md             # release-assumptions-analyzer output
+        ├── {NN}-ASSUMPTIONS.md             # assumptions-analyzer output
         ├── {NN}-RESEARCH.md                # researcher output (single-stack)
         ├── {NN}-PLAN.md                    # planner output (single-stack)
         ├── {NN}-PLAN-BACKEND.md            # (fullstack: Django side)
         ├── {NN}-PLAN-FRONTEND.md           # (fullstack: React side)
-        ├── {NN}-PLAN-CHECK.md              # release-plan-checker pre-execute verdict
+        ├── {NN}-PLAN-CHECK.md              # plan-checker pre-execute verdict
         ├── {NN}-CONVERGENCE-LOG.md         # /release:plan-review-convergence iterations
         ├── {NN}-PATTERNS.md                # pattern-mapper output
         ├── {NN}-UI-SPEC.md                 # UI design contract (frontend phases)
         ├── {NN}-UI-CHECK.md                # react-ui-checker pre-impl verdict
         ├── {NN}-UI-REVIEW.md               # react-ui-auditor scored audit
         ├── {NN}-AI-SPEC.md                 # AI design contract (AI phases)
-        ├── {NN}-EVAL-REVIEW.md             # release-eval-auditor coverage report
-        ├── {NN}-FRAMEWORK-DECISION.md      # release-framework-selector scored matrix
+        ├── {NN}-EVAL-REVIEW.md             # eval-auditor coverage report
+        ├── {NN}-FRAMEWORK-DECISION.md      # framework-selector scored matrix
         ├── {NN}-SUMMARY.md                 # execute output
         ├── {NN}-CHECKLIST.md               # Q1-Q7 + RC1-RC7
         ├── {NN}-SECURITY.md                # security audit

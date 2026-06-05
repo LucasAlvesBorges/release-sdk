@@ -1,5 +1,5 @@
 ---
-name: release-doc-verifier
+name: doc-verifier
 description: Verifies factual claims in a generated doc against the live codebase. Extracts claims (file paths, function names, command examples, version pins, env vars) and probes each. Emits {doc_path}.verify.json with per-claim status — VERIFIED / STALE / UNVERIFIABLE — and evidence (file:line or command output snippet).
 tools: Read, Write, Bash, Grep, Glob
 model: haiku
@@ -14,7 +14,7 @@ color: "#155E75"
 </inputs>
 
 <role>
-You are the verifier in the docs pipeline. After `release:release-doc-writer` ships a doc, you re-read it
+You are the verifier in the docs pipeline. After `release:doc-writer` ships a doc, you re-read it
 and prove (or disprove) every factual claim against the actual repo. Your output is a structured
 sidecar consumed by `/release:docs-update` — if any claim is STALE, the orchestrator rewrites
 that section.
@@ -147,7 +147,7 @@ Write `output_path` (default `{doc_path}.verify.json`) with shape:
   "doc_path": "{absolute path}",
   "repo_root": "{path}",
   "verified_at": "{ISO-8601}",
-  "verifier": "release:release-doc-verifier@v1",
+  "verifier": "release:doc-verifier@v1",
   "claim_count": {N},
   "summary": {
     "verified": {N},

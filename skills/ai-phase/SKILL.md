@@ -3,7 +3,7 @@ name: ai-phase
 description: >
   AI/LLM phase design contract. Reads SPEC.md + PROJECT.md + RELEASE-LOCKS.md, asks only unanswered
   questions (LLM provider, hosting model, prompt structure, evaluation strategy, guardrails, monitoring),
-  then routes to release-ai-researcher. Defaults to Anthropic SDK (claude-sonnet-4-6) with prompt caching,
+  then routes to ai-researcher. Defaults to Anthropic SDK (claude-sonnet-4-6) with prompt caching,
   tool use, and streaming. Produces AI-SPEC.md design contract consumed by /release:plan --fullstack.
   Use when: phase embeds LLM/AI features in a Django+React app (chat, summarization, structured extraction,
   RAG, agents, vision, tool use).
@@ -28,8 +28,8 @@ before planning so prompt structure, eval strategy, and guardrails are decided u
 /release:ai-phase 01 --provider anthropic   # force provider (skips Q1)
 /release:ai-phase 01 --provider openai
 /release:ai-phase 01 --provider langchain
-/release:ai-phase 01 --no-researcher # write AI-SPEC.md draft only, skip release:release-ai-researcher
-/release:ai-phase 01 --reselect-framework  # force re-spawn of release:release-framework-selector even if framework already set
+/release:ai-phase 01 --no-researcher # write AI-SPEC.md draft only, skip release:ai-researcher
+/release:ai-phase 01 --reselect-framework  # force re-spawn of release:framework-selector even if framework already set
 ```
 
 > Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
@@ -110,9 +110,9 @@ Options offered:
 
 Skipped if `--provider` flag set.
 
-#### Q1.5 — Framework selection (release:release-framework-selector)
+#### Q1.5 — Framework selection (release:framework-selector)
 
-After Q1 (provider) is answered (or extracted from SPEC/flag), spawn `release:release-framework-selector` when:
+After Q1 (provider) is answered (or extracted from SPEC/flag), spawn `release:framework-selector` when:
 
 - AI-SPEC.md (existing draft or template) has NO `framework:` field set, OR
 - User passed `--reselect-framework`, OR
@@ -121,7 +121,7 @@ After Q1 (provider) is answered (or extracted from SPEC/flag), spawn `release:re
 Spawn invocation:
 ```
 Agent({
-  subagent_type: "release:release-framework-selector",
+  subagent_type: "release:framework-selector",
   use_case: "{SPEC.md goal verbatim}",
   phase: "{NN}-{slug}",
   latency_target_ms: <optional, parsed from SPEC.md if a latency target is mentioned>,
@@ -192,9 +192,9 @@ Path: `.release-planning/phases/{NN}-{slug}/AI-SPEC.md`.
 Use `templates/AI-SPEC.md` as the template. Fill every section. For `[ANSWERED]` items, cite the source file
 (e.g., `from SPEC.md §Constraints`). For user-answered items, record the decision verbatim.
 
-### Step 5 — Route to release:release-ai-researcher
+### Step 5 — Route to release:ai-researcher
 
-Unless `--no-researcher`, spawn the `release:release-ai-researcher` agent with `<config>` pointing at the new AI-SPEC.md.
+Unless `--no-researcher`, spawn the `release:ai-researcher` agent with `<config>` pointing at the new AI-SPEC.md.
 The researcher probes the Django + React codebase for existing AI integration points, evaluates framework fit
 against LOCKs, and appends a `## Researcher Findings` section to AI-SPEC.md.
 
@@ -238,12 +238,12 @@ Next: /release:plan {NN} --fullstack
 ```
 .release-planning/phases/{NN}-{slug}/
   AI-SPEC.md                   # design contract (this skill's output)
-  {NN}-FRAMEWORK-DECISION.md   # scored framework recommendation (release:release-framework-selector, v0.7.0)
+  {NN}-FRAMEWORK-DECISION.md   # scored framework recommendation (release:framework-selector, v0.7.0)
 ```
 
 ## Notes / Constraints
 
-- v0.7.0 wires `release:release-framework-selector` between Q1 (provider) and Q2 (hosting). Spawned when `framework:` field is missing in AI-SPEC.md, or `--reselect-framework` is passed. With explicit `--provider` flag, the selector still runs as a sanity check but the user's explicit provider wins (with a divergence warning). Produces `{NN}-FRAMEWORK-DECISION.md` whose `selected:` field prefills Q1's answer.
+- v0.7.0 wires `release:framework-selector` between Q1 (provider) and Q2 (hosting). Spawned when `framework:` field is missing in AI-SPEC.md, or `--reselect-framework` is passed. With explicit `--provider` flag, the selector still runs as a sanity check but the user's explicit provider wins (with a divergence warning). Produces `{NN}-FRAMEWORK-DECISION.md` whose `selected:` field prefills Q1's answer.
 
 ## Example
 
@@ -268,7 +268,7 @@ Next: /release:plan {NN} --fullstack
 → AskUserQuestion: observability tool?
 
 → Writing AI-SPEC.md...
-→ Spawning release:release-ai-researcher → appending findings
+→ Spawning release:ai-researcher → appending findings
 → Committing
 
 → Next: /release:plan 04 --fullstack

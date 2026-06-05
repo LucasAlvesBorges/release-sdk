@@ -1,6 +1,6 @@
 ---
-name: release-test-discover
-description: Discovers test inventory for a phase. Counts tests per file via pytest --collect-only (Django) or vitest list (React). Outputs JSON `{file_path: test_count}` consumed by release-tdd-executor for parallel bucket split. Read-only — never executes tests, never modifies code.
+name: test-discover
+description: Discovers test inventory for a phase. Counts tests per file via pytest --collect-only (Django) or vitest list (React). Outputs JSON `{file_path: test_count}` consumed by tdd-executor for parallel bucket split. Read-only — never executes tests, never modifies code.
 tools: Read, Bash, Glob, Grep, Write
 model: haiku
 color: "#A78BFA"
@@ -19,7 +19,7 @@ color: "#A78BFA"
 <role>
 Cheap, mechanical test inventory. NO interpretation, NO judgement. Run discovery command, parse output, emit JSON map. Done.
 
-Spawned by `release:release-tdd-executor` before parallel test sweep.
+Spawned by `release:tdd-executor` before parallel test sweep.
 </role>
 
 <execution_flow>

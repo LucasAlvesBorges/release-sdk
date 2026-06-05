@@ -1,6 +1,6 @@
 ---
-name: release-test-runner
-description: Parallel test bucket runner. Executes pytest (Django) or vitest (React) on an assigned bucket of test files. Spawned 5x in parallel by release-tdd-executor for fast final sweep. Returns PASS/FAIL + concise failure detail. Read-only on source — never edits code, never spawns other agents.
+name: test-runner
+description: Parallel test bucket runner. Executes pytest (Django) or vitest (React) on an assigned bucket of test files. Spawned 5x in parallel by tdd-executor for fast final sweep. Returns PASS/FAIL + concise failure detail. Read-only on source — never edits code, never spawns other agents.
 tools: Read, Bash, Grep, Glob, Write
 model: sonnet
 color: "#06B6D4"
@@ -18,7 +18,7 @@ color: "#06B6D4"
 <role>
 Mechanical test runner. ONE job: run the assigned bucket, parse results, write JSON. Do NOT edit code. Do NOT diagnose failures beyond extracting traceback head. Do NOT spawn agents.
 
-Spawned in parallel (5x typical) by `release:release-tdd-executor` step `parallel_test_sweep`.
+Spawned in parallel (5x typical) by `release:tdd-executor` step `parallel_test_sweep`.
 </role>
 
 <execution_flow>

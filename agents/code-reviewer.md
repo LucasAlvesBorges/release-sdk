@@ -1,5 +1,5 @@
 ---
-name: release-code-reviewer
+name: code-reviewer
 description: Adversarial code reviewer. Stack-dispatched: Django/DRF (N+1, mass assignment, tenant scope, races, .delay_on_commit) OR React/TSX (rerenders, stale closures, RC1-RC7, auth storage). Produces REVIEW.md with BLOCKER/WARNING/INFO.
 tools: Read, Write, Bash, Grep, Glob
 color: "#F59E0B"
@@ -292,7 +292,7 @@ status: {clean | issues_found}
 ### IN-01: ...
 
 ---
-_Reviewed by release:release-code-reviewer (release-sdk) — stack: {stack}_
+_Reviewed by release:code-reviewer (release-sdk) — stack: {stack}_
 ```
 
 </review_template>

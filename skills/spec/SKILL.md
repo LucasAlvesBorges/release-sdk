@@ -59,7 +59,7 @@ Same logic as `/release:plan` and `/release:discuss`:
 
 1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists, else `.release-planning/PROJECT.md`.
 2. Load ROADMAP phase entry, REQUIREMENTS.md, and (if present) prior SPEC/CONTEXT artifacts.
-3. Spawn `release:release-spec-clarifier` agent with detected stack + LOCK context.
+3. Spawn `release:spec-clarifier` agent with detected stack + LOCK context.
 4. Agent runs stack-aware WHAT-questions via `AskUserQuestion`.
 5. Agent writes `{phase_dir}/{NN}-SPEC.md` from `templates/SPEC.md`.
 6. Skill verifies output, prints ambiguity verdict, recommends next step.
@@ -162,7 +162,7 @@ ready_for_discuss: true | false
 → Detected stack: FULLSTACK (manage.py + package.json with react)
 → Reading .release-planning/RELEASE-LOCKS.md for LOCK context
 
-→ Spawning release:release-spec-clarifier...
+→ Spawning release:spec-clarifier...
 
 → Backend WHAT questions:
   Q1: Which export formats? [CSV / XLSX / PDF / all]      → CSV + XLSX

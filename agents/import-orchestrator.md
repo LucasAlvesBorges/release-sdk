@@ -1,5 +1,5 @@
 ---
-name: release-import-orchestrator
+name: import-orchestrator
 description: One-shot mass importer for GSD-formatted projects. Reads GSD `.planning/` (project-level + every phase) and writes release-sdk artifacts to a parallel `.release-planning/` tree. Extracts LOCK-01..LOCK-12 with `.planning/file:line` citations into `.release-planning/RELEASE-LOCKS.md`, and ports each GSD phase (SPEC/CONTEXT/PLAN/VERIFICATION) into release-sdk-native `{NN}-*.md` files under `.release-planning/phases/{NN}-{slug}/`. Seeds UI-SPEC / AI-SPEC / SECURITY stubs when the phase has the matching surface. Does NOT modify any file under `.planning/`. Spawned by /release:import.
 tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 color: "#0EA5E9"

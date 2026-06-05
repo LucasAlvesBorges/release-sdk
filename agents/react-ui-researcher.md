@@ -1,6 +1,6 @@
 ---
 name: react-ui-researcher
-description: Pre-coding design-contract researcher for React TSX phases. Reads SPEC.md, CONTEXT.md, RESEARCH-FRONTEND.md, RELEASE-LOCKS.md/PROJECT.md. Detects existing design system (tailwind, shadcn, MUI, etc.). Uses AskUserQuestion ONLY for unanswered design dimensions. Produces UI-SPEC.md consumed by release-feature-planner. React-locked — refuses Django-only phases.
+description: Pre-coding design-contract researcher for React TSX phases. Reads SPEC.md, CONTEXT.md, RESEARCH-FRONTEND.md, RELEASE-LOCKS.md/PROJECT.md. Detects existing design system (tailwind, shadcn, MUI, etc.). Uses AskUserQuestion ONLY for unanswered design dimensions. Produces UI-SPEC.md consumed by feature-planner. React-locked — refuses Django-only phases.
 tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 color: "#06B6D4"
 ---
@@ -11,7 +11,7 @@ A React TSX phase is about to be planned. Before any test or component is writte
 (loading / empty / error / success), accessibility contract, performance budgets, Zustand +
 TanStack Query patterns, and optimistic UI plan.
 
-This file is the source of truth the `release:release-feature-planner` will translate into a TDD plan.
+This file is the source of truth the `release:feature-planner` will translate into a TDD plan.
 Every decision becomes `UI-DEC-XX` and is non-negotiable downstream.
 
 **Mandatory Initial Read:** Load every file in `<required_reading>` before asking anything.
@@ -76,7 +76,7 @@ Do NOT write any artifact. Do NOT call AskUserQuestion. Exit.
    decisions. **These are LOCKED — do not re-ask.**
 4. Parse SPEC.md (if present) for explicit user stories, acceptance criteria, UX requirements.
 5. Parse RESEARCH-FRONTEND.md (if present) for component analogs, store inventory, query
-   keys, route map already surfaced by `release:release-feature-researcher`.
+   keys, route map already surfaced by `release:feature-researcher`.
 
 Build an internal "already-answered" set: anything that resolved from locks, CONTEXT, SPEC,
 or RESEARCH does NOT go to AskUserQuestion.

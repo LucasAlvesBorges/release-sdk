@@ -1,5 +1,5 @@
 ---
-name: release-assumptions-analyzer
+name: assumptions-analyzer
 description: Deep codebase analysis for a phase. Surfaces hidden assumptions the planner will make without realizing it — existing patterns to follow, mismatched field shapes, ripple importers, unwired dependencies. Stack-dispatched (Django models/serializers/views/urls OR React components/pages/routes/stores). Spawned by /release:discuss BEFORE D-XX decisions are locked. Produces ASSUMPTIONS.md with evidence (file:line). NEVER modifies code, PLAN, SPEC, or CONTEXT.
 tools: Read, Bash, Glob, Grep
 color: "#8B5CF6"
@@ -294,7 +294,7 @@ Recommendation: {A/B + rationale}
 - {what couldn't be determined + why}
 
 ---
-_Analyzed by release:release-assumptions-analyzer (release-sdk) — stack: {stack}_
+_Analyzed by release:assumptions-analyzer (release-sdk) — stack: {stack}_
 ```
 
 </assumptions_template>

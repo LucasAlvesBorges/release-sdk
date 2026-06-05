@@ -185,7 +185,7 @@ Next: /release:plan {NN} --react
 ## Decisions encoded as UI-DEC-XX
 
 Inside `UI-SPEC.md`, the researcher locks frontend-design decisions as `UI-DEC-01`..`UI-DEC-NN`.
-These are read by `release:release-feature-planner` during `/release:plan --react` and become the design
+These are read by `release:feature-planner` during `/release:plan --react` and become the design
 contract every TDD task must honor.
 
 | ID prefix | Bucket |

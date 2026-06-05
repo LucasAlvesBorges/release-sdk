@@ -2,8 +2,8 @@
 name: security
 description: >
   Context-aware 9-category security audit PLUS an always-on advanced-threat audit. Routes .py
-  files to release-security-auditor and .tsx/.ts files to release-security-auditor, and ALWAYS
-  spawns release-advanced-threat-auditor in parallel (A1-A13 Django + RA1-RA5 React: race/TOCTOU,
+  files to security-auditor and .tsx/.ts files to security-auditor, and ALWAYS
+  spawns advanced-threat-auditor in parallel (A1-A13 Django + RA1-RA5 React: race/TOCTOU,
   SSRF, deserialization, command injection, SSTI, XXE, JWT forgery, exploitation-grade SQLi,
   image/media DoS+RCE, AWS cloud-infra incl. IaC static checks). Produces one unified SECURITY.md.
   Use when: feature complete, pre-merge, or periodic security review.
@@ -25,10 +25,10 @@ Routes to the correct security auditor based on file type. Unified SECURITY.md o
 ## Routing logic
 
 1. Resolve scope: phase directory, explicit paths, or git diff.
-2. Split `.py` → `release:release-security-auditor`, `.tsx/.ts` → `release:release-security-auditor`.
-3. **ALWAYS** spawn `release:release-advanced-threat-auditor` over the SAME resolved scope, regardless of
+2. Split `.py` → `release:security-auditor`, `.tsx/.ts` → `release:security-auditor`.
+3. **ALWAYS** spawn `release:advanced-threat-auditor` over the SAME resolved scope, regardless of
    detected surface (it is never conditional on a trigger surface being present). It runs in
-   PARALLEL with the 9-category `release:release-security-auditor` pass.
+   PARALLEL with the 9-category `release:security-auditor` pass.
 4. Run all auditors in parallel; their findings merge into ONE SECURITY.md (the advanced auditor
    APPENDS its `## Advanced Threat Audit` section to the same per-phase SECURITY.md — no separate file).
 5. Merge into SECURITY.md with per-stack category tables.
@@ -74,7 +74,7 @@ When both stacks present:
     | Check | Status |
   ## Open Issues (BLOCKER)
     ...remediation steps...
-  ## Advanced Threat Audit            ← appended by release:release-advanced-threat-auditor (always-on)
+  ## Advanced Threat Audit            ← appended by release:advanced-threat-auditor (always-on)
     ### Django Advanced (A1-A13)
       | Cat | Threat | Status | Evidence |
       A1 SSRF · A2 Deserialization · A3 Command Injection · A4 SSTI/Path-Traversal ·
@@ -107,12 +107,12 @@ Evidence model in the Advanced Threat Audit section is split:
 → Django files: 3 (.py)
 → React files: 4 (.tsx/.ts)
 
-→ Backend audit (release:release-security-auditor)...
+→ Backend audit (release:security-auditor)...
   Cat 1 (Cross-Tenant): CLOSED — TenantModel used, empresa filter in get_queryset
   Cat 4 (Mass Assignment): OPEN — InvoiceSerializer uses fields = '__all__'
   ...
 
-→ Frontend audit (release:release-security-auditor)...
+→ Frontend audit (release:security-auditor)...
   Cat 2 (Auth Token): CLOSED — no localStorage usage found
   Cat 3 (CSRF): PARTIAL — X-CSRFToken header set, but missing in multipart form requests
   ...
@@ -121,7 +121,7 @@ Evidence model in the Advanced Threat Audit section is split:
   Auth model: CONSISTENT ✓ (httpOnly cookie Django ↔ credentials:include React)
   CSRF: PARTIAL — see Cat 3 above
 
-→ Advanced threat audit (release:release-advanced-threat-auditor, always-on)...
+→ Advanced threat audit (release:advanced-threat-auditor, always-on)...
   Cat A1 (SSRF): OPEN — requests.get(user_url) at services/preview.py:34 with no link-local denylist
   Cat A7 (TOCTOU): OPEN — coupon.is_valid()→coupon.redeem() outside select_for_update/atomic; no race test
   Cat A11 (SQLi): OPEN — ?ordering reaches .order_by() with no allowlist; only test asserts status (HOLLOW)
@@ -142,4 +142,4 @@ Evidence model in the Advanced Threat Audit section is split:
 
 This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
 
-In addition to the stack-dispatched `release:release-security-auditor`, this skill ALWAYS spawns `release:release-advanced-threat-auditor` over the same scope (it is unconditional — never gated on a detected trigger surface) and runs it in parallel. It applies the matching stack's advanced catalog (Django A1-A13 / React RA1-RA5) and appends its `## Advanced Threat Audit` section to the same SECURITY.md.
+In addition to the stack-dispatched `release:security-auditor`, this skill ALWAYS spawns `release:advanced-threat-auditor` over the same scope (it is unconditional — never gated on a detected trigger surface) and runs it in parallel. It applies the matching stack's advanced catalog (Django A1-A13 / React RA1-RA5) and appends its `## Advanced Threat Audit` section to the same SECURITY.md.

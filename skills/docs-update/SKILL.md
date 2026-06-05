@@ -3,7 +3,7 @@ name: docs-update
 description: >
   Generate or update project documentation (README, CONTRIBUTING, ARCHITECTURE, ONBOARDING)
   grounded in .release-planning/ artifacts and verified against the live codebase. Spawns
-  release-doc-writer + release-doc-verifier in parallel per in-scope doc; STALE claims trigger
+  doc-writer + doc-verifier in parallel per in-scope doc; STALE claims trigger
   rewrites; commits as `docs: regenerate ... verified`.
   Use when: docs are out of date, onboarding a new contributor, or post-milestone cleanup.
 ---
@@ -76,17 +76,17 @@ spawn — the writer uses it to pick the right probes.
 ```
 phase 1: writer wave (parallel)
   for each doc in scope:
-    spawn release:release-doc-writer (doc_assignment built per type/mode/scope)
+    spawn release:doc-writer (doc_assignment built per type/mode/scope)
 
 phase 2: verifier wave (parallel)
   for each doc just written:
-    spawn release:release-doc-verifier (doc_path = target_path)
+    spawn release:doc-verifier (doc_path = target_path)
 
 phase 3: heal pass (sequential, only for docs whose verifier reported STALE)
   for each stale doc:
-    spawn release:release-doc-writer with mode=update, doc_assignment.must_cover augmented with
+    spawn release:doc-writer with mode=update, doc_assignment.must_cover augmented with
       the STALE claims and the verifier's evidence
-    re-run release:release-doc-verifier
+    re-run release:doc-verifier
     if still STALE after one heal pass → flag for human review, do NOT loop infinitely
 
 phase 4: commit (unless --no-commit)
@@ -102,7 +102,7 @@ tree with its `.verify.json` sidecar — the user resolves manually.
 ```
 phase 1: verifier wave (parallel)
   for each doc in scope (must already exist):
-    spawn release:release-doc-verifier
+    spawn release:doc-verifier
 
 phase 2: report
   print one-line summary per doc + verdict
@@ -113,7 +113,7 @@ phase 2: report
 
 ## doc_assignment construction
 
-For each in-scope doc, build a `doc_assignment` block (passed verbatim to release:release-doc-writer):
+For each in-scope doc, build a `doc_assignment` block (passed verbatim to release:doc-writer):
 
 ```yaml
 doc_assignment:
@@ -186,7 +186,7 @@ The writer then drops/replaces only the stale sections — the rest of the doc i
 docs: regenerate {comma-separated doc types} verified against codebase
 
 Refreshed via /release:docs-update.
-Claims verified per release:release-doc-verifier sidecars (see {doc}.verify.json).
+Claims verified per release:doc-verifier sidecars (see {doc}.verify.json).
 Stack: {django | react | fullstack}
 ```
 
@@ -224,8 +224,8 @@ committed: docs: regenerate README, CONTRIBUTING, ARCHITECTURE verified against 
 ## Routing
 
 This skill orchestrates two release-* sub-agents:
-- `release:release-doc-writer` — one spawn per in-scope doc per pass (initial + heal).
-- `release:release-doc-verifier` — one spawn per in-scope doc per pass.
+- `release:doc-writer` — one spawn per in-scope doc per pass (initial + heal).
+- `release:doc-verifier` — one spawn per in-scope doc per pass.
 
 Both are stack-agnostic in the orchestrator — the stack value is passed through from
 `.release-planning/PROJECT.md` into each spawn. Sub-agents handle stack-specific probes
@@ -239,14 +239,14 @@ internally.
 → Stack: fullstack (django + react-tsx)
 → Pre-checks: .release-planning/PROJECT.md present ✓
 → Phase 1 (writer wave, parallel):
-   release:release-doc-writer → README (mode=update, target=/repo/README.md)
-   release:release-doc-writer → ARCHITECTURE (mode=create, target=/repo/ARCHITECTURE.md)
+   release:doc-writer → README (mode=update, target=/repo/README.md)
+   release:doc-writer → ARCHITECTURE (mode=create, target=/repo/ARCHITECTURE.md)
 → Phase 2 (verifier wave, parallel):
-   release:release-doc-verifier → README.verify.json (PASS — V:36 S:0 U:1)
-   release:release-doc-verifier → ARCHITECTURE.verify.json (STALE — V:48 S:2 U:3)
+   release:doc-verifier → README.verify.json (PASS — V:36 S:0 U:1)
+   release:doc-verifier → ARCHITECTURE.verify.json (STALE — V:48 S:2 U:3)
 → Phase 3 (heal pass):
-   release:release-doc-writer → ARCHITECTURE (mode=update, must_cover augmented with STALE C-014, C-027)
-   release:release-doc-verifier → ARCHITECTURE.verify.json (PASS — V:51 S:0 U:3)
+   release:doc-writer → ARCHITECTURE (mode=update, must_cover augmented with STALE C-014, C-027)
+   release:doc-verifier → ARCHITECTURE.verify.json (PASS — V:51 S:0 U:3)
 → Phase 4: commit
    docs: regenerate README, ARCHITECTURE verified against codebase
 

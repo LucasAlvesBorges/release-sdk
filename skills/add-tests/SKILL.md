@@ -3,7 +3,7 @@ name: add-tests
 description: >
   Generate tests for a completed phase based on UAT criteria and implementation, or regression
   tests for a specific file after a fix. Stack-aware (django=pytest/factory-boy, react=vitest/RTL/MSW).
-  Spawns release-tdd-executor in test-only mode. Tests that fail against current implementation
+  Spawns tdd-executor in test-only mode. Tests that fail against current implementation
   surface as bugs in {NN}-TEST-GAP.md — never auto-fixed.
   Use when: phase UAT items lack regression coverage, or a debug session resolved a bug and you
   want a test that prevents regression.
@@ -12,7 +12,7 @@ description: >
 # /release:add-tests — Stack-Aware Test Backfill
 
 Additive test generation against an existing implementation. Never modifies impl, never deletes
-existing tests, never introduces new test dependencies. Routes a `release:release-tdd-executor` in
+existing tests, never introduces new test dependencies. Routes a `release:tdd-executor` in
 TEST-ONLY mode that writes tests against what already exists.
 
 ## Relationship to /release:execute
@@ -126,7 +126,7 @@ guidance.
 
 ## Executor spawn (TEST-ONLY MODE)
 
-Spawn `release:release-tdd-executor` with explicit test-only configuration:
+Spawn `release:tdd-executor` with explicit test-only configuration:
 
 ```yaml
 stack: django | react

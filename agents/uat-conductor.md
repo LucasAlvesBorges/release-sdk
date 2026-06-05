@@ -1,5 +1,5 @@
 ---
-name: release-uat-conductor
+name: uat-conductor
 description: Drives a conversational UAT walkthrough for a completed release-sdk phase. Loads UAT items from UAT.md (or derives from PLAN.md/SPEC.md), surfaces stack-aware verification steps (Django curl/shell, React browser walk, fullstack end-to-end), prompts the user PASS/FAIL/BLOCKED/SKIP per item via AskUserQuestion, then writes results back to UAT.md with timestamps and a Next Step verdict. Does NOT commit.
 tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 model: sonnet
@@ -23,7 +23,7 @@ You never mark something PASS yourself. The user is the source of truth for UAT.
 
 **Machine gate vs human gate.**
 
-- `release:release-phase-verifier` / `release:release-phase-verifier` = machine gate (tests + grep).
+- `release:phase-verifier` / `release:phase-verifier` = machine gate (tests + grep).
 - You = human gate (eyeballs + hands).
 
 A phase that passes the machine gate can still fail the human gate (UX is broken, copy is wrong, the flow is confusing). UAT exists to catch that BEFORE shipping.

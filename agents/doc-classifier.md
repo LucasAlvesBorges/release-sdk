@@ -1,5 +1,5 @@
 ---
-name: release-doc-classifier
+name: doc-classifier
 description: Classifies a single planning doc as ADR / PRD / SPEC / DOC / UNKNOWN via header + content heuristics. Emits {path}.classification.json with type, confidence, title, scope_summary, cross_refs. Spawned in parallel by /release:ingest-docs and /release:docs-update for batch classification.
 tools: Read, Write, Grep, Glob
 model: haiku
@@ -153,7 +153,7 @@ Write `output_path` (default `{target_path}.classification.json`) with exact sha
     "context_hint": "{value or null}"
   },
   "classified_at": "{ISO-8601 timestamp}",
-  "classifier": "release:release-doc-classifier@v1"
+  "classifier": "release:doc-classifier@v1"
 }
 ```
 

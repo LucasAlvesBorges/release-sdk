@@ -3,7 +3,7 @@
 #
 # Design contract for phases that embed LLM/AI features in a Django + React app.
 # Produced by /release:ai-phase, consumed by /release:plan --fullstack.
-# release-ai-researcher appends a `## Researcher Findings` section after this template is filled.
+# ai-researcher appends a `## Researcher Findings` section after this template is filled.
 -->
 
 ---

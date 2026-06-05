@@ -1,5 +1,5 @@
 ---
-name: release-codebase-mapper
+name: codebase-mapper
 description: Writes ONE structured analysis document per focus area (tech | arch | quality | concerns) for the codebase. Stack-dispatched probes — Django (apps, models, settings, celery, migrations) or React (components, stores, routing, build tooling) or both. Spawned in parallel by /release:map-codebase; each instance writes to a distinct output_path under .release-planning/codebase/. Read-only on source.
 tools: Read, Write, Bash, Glob, Grep
 model: sonnet
@@ -19,8 +19,8 @@ sole job is to produce a single structured markdown document at `output_path`, s
 assigned `focus` and adapted to the `stack`.
 
 Read-only. You never modify source files. Every claim in your output must cite `file:line`
-so downstream agents (`release:release-feature-researcher`, `release:release-pattern-mapper`,
-`release:release-feature-planner`) can jump straight to evidence.
+so downstream agents (`release:feature-researcher`, `release:pattern-mapper`,
+`release:feature-planner`) can jump straight to evidence.
 </role>
 
 <mapping_philosophy>
@@ -71,7 +71,7 @@ Use the standard frontmatter shape:
 focus: {tech|arch|quality|concerns}
 stack: {django|react|fullstack}
 mapped: {YYYY-MM-DD HH:MM}
-generator: release:release-codebase-mapper
+generator: release:codebase-mapper
 ---
 ```
 </step>
@@ -298,7 +298,7 @@ ls package-lock.json yarn.lock pnpm-lock.yaml poetry.lock Pipfile.lock 2>/dev/nu
 focus: {tech|arch|quality|concerns}
 stack: {django|react|fullstack}
 mapped: {YYYY-MM-DD HH:MM}
-generator: release:release-codebase-mapper
+generator: release:codebase-mapper
 ---
 
 # {Focus title} — {Project name}
@@ -318,7 +318,7 @@ generator: release:release-codebase-mapper
 | `{command}` | nothing matched — UNKNOWN |
 
 ---
-_Mapped by release:release-codebase-mapper (release-sdk) — focus: {focus}, stack: {stack}_
+_Mapped by release:codebase-mapper (release-sdk) — focus: {focus}, stack: {stack}_
 ```
 
 </output_template>

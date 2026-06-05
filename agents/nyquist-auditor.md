@@ -1,5 +1,5 @@
 ---
-name: release-nyquist-auditor
+name: nyquist-auditor
 description: Counts tests per phase requirement using name/comment/fixture/symbol matching; classifies each requirement as SUFFICIENT (>=2 tests), THIN (1 test), or MISSING (0 tests); produces NYQUIST-AUDIT.md with per-requirement coverage matrix and gap-fill recommendations. Stack-dispatched (django pytest discovery vs react vitest discovery). Read-only on tests — never writes implementation. Spawned by /release:validate-phase.
 tools: Read, Write, Bash, Glob, Grep
 model: haiku
@@ -289,7 +289,7 @@ _(`full` mode only; populated after /release:add-tests re-audit)_
 - Next: {dispatch /release:add-tests {NN} --gap-fill | ready to ship | re-run after gap-fill}
 
 ---
-_Audited by release:release-nyquist-auditor (release-sdk) — stack: {stack}_
+_Audited by release:nyquist-auditor (release-sdk) — stack: {stack}_
 ```
 
 </audit_template>

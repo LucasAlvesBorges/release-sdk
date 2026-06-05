@@ -3,7 +3,7 @@ name: secure-phase
 description: >
   Retroactive (post-implementation) security audit. Reads the phase PLAN.md threat model and
   the author-time 9-category checklist, then greps shipped source/diff for evidence that
-  every declared threat is actually mitigated. Routes .py files to release-django-security-retro
+  every declared threat is actually mitigated. Routes .py files to django-security-retro
   and .tsx/.ts files to react-security-retro. Produces SECURITY.md scorecard.
   Use when: phase shipped, before merge to main, periodic post-merge verification, audit recovery.
   Distinct from /release:security (author-time, runs during planning/execution).
@@ -24,7 +24,7 @@ in the shipped code. Distinct from `/release:security` which is author-time guid
 | Tone | Recommends mitigations | Verifies mitigations exist |
 | Output | Inline guidance / SECURITY.md (open issues) | SECURITY.md scorecard (PASS/BLOCK/FLAG) |
 | Modifies code | No (advisory) | No (read-only audit) |
-| Agents | release:release-security-auditor / release:release-security-auditor | release:release-django-security-retro / release:react-security-retro |
+| Agents | release:security-auditor / release:security-auditor | release:django-security-retro / release:react-security-retro |
 
 ## Usage
 
@@ -121,7 +121,7 @@ Scorecard table format (see `templates/SECURITY.md`):
 
 ## Routing
 
-- `.py` in scope → spawn `release:release-django-security-retro` agent.
+- `.py` in scope → spawn `release:django-security-retro` agent.
 - `.tsx`/`.ts` in scope → spawn `release:react-security-retro` agent.
 - Merge agent outputs into single SECURITY.md with per-stack sections + cross-cutting block.
 
@@ -142,7 +142,7 @@ Scorecard table format (see `templates/SECURITY.md`):
 → Threat model: 9 declared threats (T-01 .. T-09)
 → Scope: 7 files (3 .py, 4 .tsx) from a1b2c3..HEAD
 
-→ Backend retro audit (release:release-django-security-retro)...
+→ Backend retro audit (release:django-security-retro)...
   T-01 (cross_tenant): MITIGATED — backend/apps/financeiro/views.py:42 (filter empresa=...)
   T-04 (mass_assignment): MISSING — fields = '__all__' at backend/apps/financeiro/serializers.py:18
 

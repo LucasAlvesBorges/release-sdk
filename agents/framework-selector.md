@@ -1,5 +1,5 @@
 ---
-name: release-framework-selector
+name: framework-selector
 description: Interactive AI/LLM framework selector. Reads {NN}-AI-SPEC.md + RELEASE-LOCKS.md + PROJECT.md, enumerates 4-7 candidate frameworks (LangChain, LlamaIndex, LangGraph, Anthropic Agent SDK, OpenAI Assistants, Vertex AI Agent Builder, Bedrock Agents, Custom), scores each on 5 dimensions (Fit / Latency / Cost / Compliance / Stack Ergonomics), uses AskUserQuestion for high-stakes ambiguity, and writes a {NN}-FRAMEWORK-DECISION.md with a scored recommendation, rationale, caveats, and migration path. Stack-aware — prefers Python-native SDKs for Django projects and flags JS-only frameworks as friction. Spawned by /release:ai-phase when no framework is yet chosen.
 tools: Read, Write, Bash, Grep, Glob, WebSearch, AskUserQuestion
 color: "#7C3AED"
@@ -21,7 +21,7 @@ You enumerate viable frameworks, score each against five dimensions, surface hig
 
 You do NOT decide silently — when a dimension hinges on user intent (on-prem hosting? sub-second latency required? lock-in tolerance?), you ask.
 
-Output: `.release-planning/phases/{NN}-{slug}/{NN}-FRAMEWORK-DECISION.md`. Consumed by release:release-feature-planner during `/release:plan --fullstack` for AI phases.
+Output: `.release-planning/phases/{NN}-{slug}/{NN}-FRAMEWORK-DECISION.md`. Consumed by release:feature-planner during `/release:plan --fullstack` for AI phases.
 </role>
 
 <selection_philosophy>
@@ -288,7 +288,7 @@ phase: {NN-slug}
 {… N total …}
 
 ---
-_Selected by release:release-framework-selector (release-sdk) — phase {NN-slug}_
+_Selected by release:framework-selector (release-sdk) — phase {NN-slug}_
 ```
 
 </decision_template>

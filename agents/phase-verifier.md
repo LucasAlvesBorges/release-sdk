@@ -1,5 +1,5 @@
 ---
-name: release-phase-verifier
+name: phase-verifier
 description: Goal-backward phase verification. Stack-dispatched: Django (truths L1+L2+L3, D-XX, LOCK compliance, pytest+migrations+Q6) or React (D-XX, RC1-RC7 evidence, vitest+tsc, RC6 localStorage grep). Adversarial — does NOT trust SUMMARY.md. Produces VERIFICATION.md.
 tools: Read, Write, Bash, Grep, Glob
 color: "#22C55E"
@@ -332,7 +332,7 @@ status: PASS | PASS_WITH_WARNINGS | GAPS_FOUND | CRITICAL
 - CRITICAL → escalate; block any phase advancement until resolved
 
 ---
-_Verified by release:release-phase-verifier (release-sdk) — stack: {stack}_
+_Verified by release:phase-verifier (release-sdk) — stack: {stack}_
 ```
 
 </verification_template>

@@ -61,7 +61,7 @@ Same precedence as other release-* skills:
 ## Execution
 
 ```
-1. Spawn release:release-nyquist-auditor with:
+1. Spawn release:nyquist-auditor with:
      stack: django | react | fullstack
      phase_number: NN
      phase_dir: .release-planning/phases/{NN}-{slug}/
@@ -79,13 +79,13 @@ Same precedence as other release-* skills:
      - For each THIN/MISSING row, build a gap descriptor (requirement id + recommended test).
      - Dispatch /release:add-tests {NN} --gap-fill via the Skill tool, passing the gap list as
        extra context so add-tests prioritises uncovered requirements first.
-     - When /release:add-tests returns, re-spawn release:release-nyquist-auditor to recompute coverage.
+     - When /release:add-tests returns, re-spawn release:nyquist-auditor to recompute coverage.
 6. Commit the NYQUIST-AUDIT.md artifact:
      test({stack}): nyquist gap-fill for phase {NN}
    Stack token resolves to `django`, `ui`, or `fullstack` depending on detection.
 ```
 
-The skill never modifies tests itself — all writes go through the `release:release-nyquist-auditor`
+The skill never modifies tests itself — all writes go through the `release:nyquist-auditor`
 agent (for the audit report) and `/release:add-tests` (for new tests). This keeps the test-write
 discipline (one path, surfaces failing tests as `TEST-GAP.md`) intact.
 
@@ -196,7 +196,7 @@ for phase in 01 02 03 04 05; do /release:validate-phase --audit-only $phase; don
 
 ## Stack dispatch
 
-This skill spawns the merged `release:release-nyquist-auditor` agent. Stack is inferred from
+This skill spawns the merged `release:nyquist-auditor` agent. Stack is inferred from
 `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack
 phases, per-phase stack is read from the phase frontmatter. The auditor applies matching
 stack-specific test-discovery rules (pytest globs for django; vitest + RTL globs for react).

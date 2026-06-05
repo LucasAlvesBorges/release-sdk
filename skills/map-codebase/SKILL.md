@@ -8,7 +8,7 @@ description: >
 
 # /release:map-codebase — Parallel Codebase Mapper
 
-Spawns parallel `release:release-codebase-mapper` agents — one per focus area — to produce structured
+Spawns parallel `release:codebase-mapper` agents — one per focus area — to produce structured
 analysis documents under `.release-planning/codebase/`. Stack-aware: detects django, react, or
 fullstack and adapts probes accordingly.
 
@@ -55,7 +55,7 @@ The skill resolves stack in this order:
 
 ## Execution
 
-For each requested focus (default: all 4), spawn one `release:release-codebase-mapper` agent in
+For each requested focus (default: all 4), spawn one `release:codebase-mapper` agent in
 parallel. Each agent writes to a distinct output path so the spawns never race:
 
 | Focus      | Output path                                       |
@@ -68,10 +68,10 @@ parallel. Each agent writes to a distinct output path so the spawns never race:
 Spawn pattern (parallel — issue all Task tool calls in one assistant turn):
 
 ```
-Task → release:release-codebase-mapper { focus: tech,     stack: <detected>, output_path: .release-planning/codebase/STACK.md }
-Task → release:release-codebase-mapper { focus: arch,     stack: <detected>, output_path: .release-planning/codebase/ARCHITECTURE.md }
-Task → release:release-codebase-mapper { focus: quality,  stack: <detected>, output_path: .release-planning/codebase/QUALITY.md }
-Task → release:release-codebase-mapper { focus: concerns, stack: <detected>, output_path: .release-planning/codebase/CONCERNS.md }
+Task → release:codebase-mapper { focus: tech,     stack: <detected>, output_path: .release-planning/codebase/STACK.md }
+Task → release:codebase-mapper { focus: arch,     stack: <detected>, output_path: .release-planning/codebase/ARCHITECTURE.md }
+Task → release:codebase-mapper { focus: quality,  stack: <detected>, output_path: .release-planning/codebase/QUALITY.md }
+Task → release:codebase-mapper { focus: concerns, stack: <detected>, output_path: .release-planning/codebase/CONCERNS.md }
 ```
 
 `--focus X` collapses the spawn set to a single agent.
@@ -105,10 +105,10 @@ If `--refresh` was not passed and every requested focus was cached, the skill pr
    stack: fullstack (from PROJECT.md)
 
 → Spawning 4 mappers in parallel...
-   [tech]     release:release-codebase-mapper → STACK.md
-   [arch]     release:release-codebase-mapper → ARCHITECTURE.md
-   [quality]  release:release-codebase-mapper → QUALITY.md
-   [concerns] release:release-codebase-mapper → CONCERNS.md
+   [tech]     release:codebase-mapper → STACK.md
+   [arch]     release:codebase-mapper → ARCHITECTURE.md
+   [quality]  release:codebase-mapper → QUALITY.md
+   [concerns] release:codebase-mapper → CONCERNS.md
 
 → All mappers returned (4/4 ok)
    STACK.md         — 5 languages, 12 frameworks, vitest+pytest
@@ -143,14 +143,14 @@ If `--refresh` was not passed and every requested focus was cached, the skill pr
 ```
 
 Each document is read-only relative to source — the mapper never edits code. Every claim in
-the documents cites `file:line` so downstream agents (`release:release-feature-researcher`,
-`release:release-pattern-mapper`, `release:release-feature-planner`) can jump to evidence.
+the documents cites `file:line` so downstream agents (`release:feature-researcher`,
+`release:pattern-mapper`, `release:feature-planner`) can jump to evidence.
 
 ---
 
 ## Stack dispatch
 
-This skill spawns the merged `release:release-codebase-mapper` agent. Stack is inferred from
+This skill spawns the merged `release:codebase-mapper` agent. Stack is inferred from
 `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`) and passed
 to every spawned mapper. Each agent applies stack-specific probes and writes a single
 document for its assigned focus.

@@ -1,8 +1,8 @@
 ---
 name: review
 description: >
-  Context-aware adversarial code review. Analyzes file paths to split .py files to release-code-reviewer
-  and .tsx/.ts files to release-code-reviewer. Produces a unified REVIEW.md with sections per stack.
+  Context-aware adversarial code review. Analyzes file paths to split .py files to code-reviewer
+  and .tsx/.ts files to code-reviewer. Produces a unified REVIEW.md with sections per stack.
   Use when: reviewing PR diff, auditing recently-modified files, pre-merge quality gate.
 ---
 
@@ -34,8 +34,8 @@ Routes files to the correct reviewer based on extension. Produces unified REVIEW
 0. Load LOCK constraints: read `.release-planning/RELEASE-LOCKS.md` if exists (GSD import), else `.release-planning/PROJECT.md`. Pass active LOCKs to each reviewer as forbidden-pattern context.
 1. Resolve files to review (from args, git diff, or changed since last commit).
 2. Split by extension:
-   - `.py` → `django_files` → spawn `release:release-code-reviewer`
-   - `.tsx`, `.ts`, `.jsx`, `.js` → `react_files` → spawn `release:release-code-reviewer`
+   - `.py` → `django_files` → spawn `release:code-reviewer`
+   - `.tsx`, `.ts`, `.jsx`, `.js` → `react_files` → spawn `release:code-reviewer`
    - Other → skip (lock files, migrations, .md)
 3. Run reviewers in parallel if both sets present.
 4. Merge findings into single REVIEW.md with `## Django Findings` and `## React Findings` sections.
@@ -73,8 +73,8 @@ REVIEW.md (or path specified by --review-path):
     src/features/Invoices/InvoiceList.tsx   → React
     src/hooks/useInvoices.ts                → React
 
-→ Spawning release:release-code-reviewer (2 files, depth=standard)...
-→ Spawning release:release-code-reviewer (2 files, depth=standard)... [parallel]
+→ Spawning release:code-reviewer (2 files, depth=standard)...
+→ Spawning release:code-reviewer (2 files, depth=standard)... [parallel]
 
 → Django findings: 1 BLOCKER (mass assignment in serializer), 2 WARNINGS
 → React findings: 0 BLOCKERS, 3 WARNINGS (missing memo, missing error state, key={index})

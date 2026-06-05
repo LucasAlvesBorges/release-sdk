@@ -2,7 +2,7 @@
 # SECURITY.md — Retroactive Security Scorecard
 #
 # Produced by /release:secure-phase AFTER a phase has shipped.
-# Written by release-django-security-retro and/or release-react-security-retro agents.
+# Written by django-security-retro and/or release-react-security-retro agents.
 # Distinct from author-time guidance produced by /release:security.
 #
 # Read-only audit: this file is the ONLY artifact the retro auditors are allowed to create.
@@ -16,7 +16,7 @@ audited_at: {YYYY-MM-DDTHH:MM:SSZ}
 stack: {django | react-tsx | fullstack}
 diff_range: {git_rev_a..git_rev_b}        # commits in scope for evidence search
 auditors:
-  - release-django-security-retro          # if stack includes django
+  - django-security-retro          # if stack includes django
   - release-react-security-retro           # if stack includes react-tsx
 verdict: {PASS | FLAG | BLOCK}
 totals:

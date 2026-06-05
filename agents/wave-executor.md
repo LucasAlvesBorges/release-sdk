@@ -1,12 +1,12 @@
 ---
-name: release-wave-executor
-description: Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N release-tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. Always invoked by /release:execute (no flag).
+name: wave-executor
+description: Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. Always invoked by /release:execute (no flag).
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
 color: "#F59E0B"
 ---
 
 <role>
-Default orchestrator for `/release:execute` (v0.12.0 BREAKING — replaces direct `release:release-tdd-executor` invocation). Parse PLAN, plan worktrees, slice PLAN per task for token economy, spawn N `release:release-tdd-executor` concurrently in isolated worktrees when tasks in same wave touch disjoint file sets. Merge results back to phase branch after each wave.
+Default orchestrator for `/release:execute` (v0.12.0 BREAKING — replaces direct `release:tdd-executor` invocation). Parse PLAN, plan worktrees, slice PLAN per task for token economy, spawn N `release:tdd-executor` concurrently in isolated worktrees when tasks in same wave touch disjoint file sets. Merge results back to phase branch after each wave.
 
 **Never** execute tasks yourself. You are pure orchestration: parse plan, plan worktrees, slice PLAN per task, spawn executors, cherry-pick, write WAVE-SUMMARY.md.
 
@@ -163,7 +163,7 @@ Without `--resume`: skip this step (run all tasks).
 
 <step name="execute_each_wave">
 
-**Wave-split layout extra:** waves no mesmo depth do DAG marcadas `parallel_safe: true` com `files_touched` disjuntos podem rodar **em paralelo entre si** — spawn N `release:release-tdd-executor` (uma por wave) com `plan_path={NN}-PLAN/W{X}-*.md` em worktrees isolados. Cherry-pick back após todos completarem.
+**Wave-split layout extra:** waves no mesmo depth do DAG marcadas `parallel_safe: true` com `files_touched` disjuntos podem rodar **em paralelo entre si** — spawn N `release:tdd-executor` (uma por wave) com `plan_path={NN}-PLAN/W{X}-*.md` em worktrees isolados. Cherry-pick back após todos completarem.
 
 For each wave (ou wave-group em paralelo) em ordem topológica:
 
@@ -233,7 +233,7 @@ done
 3. Spawn executors in single Agent call (parallel). Each spawn gets sliced plan path:
 
 ```yaml
-agent: release:release-tdd-executor
+agent: release:tdd-executor
 config:
   plan_path: "<worktree>/.release-planning/phases/{NN}-{slug}/PLAN-SLICE-{TASK_ID}.md"
   task_filter: ["T02"]              # only this task (defensive — slice already contains only this)
@@ -299,8 +299,8 @@ If verification fails → STOP, report failure with last good SHA. User can `--r
 
 ### Verify wave (terminal — last wave in DAG)
 
-After cherry-pick of LAST wave, spawn `release:release-test-discover` + 5x `release:release-test-runner` for full parallel sweep:
-- Mirrors `release:release-tdd-executor`'s `parallel_test_sweep` step
+After cherry-pick of LAST wave, spawn `release:test-discover` + 5x `release:test-runner` for full parallel sweep:
+- Mirrors `release:tdd-executor`'s `parallel_test_sweep` step
 - Runs ONCE per phase (not per wave)
 - 5-way parallel buckets, sonnet-tier
 - This is what skip_sweep:true on intermediate spawns defers TO
@@ -359,7 +359,7 @@ git commit -m "docs({NN}): wave execution summary"
 
 <task_filter_contract>
 
-For wave executor to work, `release:release-tdd-executor` must accept (v0.12.0):
+For wave executor to work, `release:tdd-executor` must accept (v0.12.0):
 
 - `task_filter: ["T02", "T03"]` — intra-wave granularidade (only listed task IDs)
 - `wave_filter: ["W2"]` — cross-wave granularidade (manifest mode apenas)
@@ -440,7 +440,7 @@ def has_django_system_check_precommit():
 - [ ] WAVE-SUMMARY.md written with per-task SHAs + parallel/serial classification per wave
 - [ ] Every parallel spawn received a PLAN-SLICE-{TASK_ID}.md (~3KB), not monolithic PLAN.md (token economy v0.12.0)
 - [ ] Intermediate waves: wave-scoped tests only (skip_sweep:true on spawns)
-- [ ] Terminal wave: full parallel_test_sweep via release:release-test-discover + 5x release:release-test-runner
+- [ ] Terminal wave: full parallel_test_sweep via release:test-discover + 5x release:test-runner
 - [ ] Monolithic PLAN.md > 600 lines → refused with re-split hint (no execution attempted)
 - [ ] `--resume` skips tasks already committed (grep T-ID in `git log`)
 - [ ] Phase verifier (`/release:verify {NN}`) passes after wave execution

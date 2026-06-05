@@ -22,7 +22,7 @@ dimension. Distinct from `/release:ui-phase` (author-time design-contract) and f
 | Input | SPEC + CONTEXT + LOCKs | Shipped React source + UI-SPEC | PLAN must_haves + source |
 | Output | `{NN}-UI-SPEC.md` (contract) | `{NN}-UI-REVIEW.md` (scored audit) | `{NN}-VERIFICATION.md` (truth verdict) |
 | Modifies code | No | No (read-only audit) | No |
-| Agents | release:react-ui-researcher | release:react-ui-auditor | release:release-phase-verifier |
+| Agents | release:react-ui-researcher | release:react-ui-auditor | release:phase-verifier |
 
 ## Usage
 

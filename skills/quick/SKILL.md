@@ -47,7 +47,7 @@ in the task description; else ask user via `AskUserQuestion`: django / react / f
 
 ```
 Agent({
-  subagent_type: "release:release-tdd-executor",
+  subagent_type: "release:tdd-executor",
   description: "Quick task: {first-30-chars-of-task}",
   prompt: "{full task description from user}",
   metadata: {
@@ -93,7 +93,7 @@ Print to user:
 - **Worktree clean required.** No mixing with phase work.
 - **No phase cursor move.** `/release:quick` is sideways work; it doesn't advance
   `active_phase` or `active_stage`.
-- **TDD-first via `release:release-tdd-executor`.** No "implement then test later" shortcut.
+- **TDD-first via `release:tdd-executor`.** No "implement then test later" shortcut.
 - **Atomic commits.** Each commit is independently revertable.
 - **No push.** User decides.
 - **No SPEC, no PLAN, no UI-SPEC.** If those artifacts are needed, the task is too big —
@@ -107,7 +107,7 @@ Print to user:
 → Worktree clean ✓
 → Scope: 4 files (model, migration, serializer, admin) — within envelope ✓
 → Stack: django (active phase 03 = django)
-→ Spawning release:release-tdd-executor (quick_mode)…
+→ Spawning release:tdd-executor (quick_mode)…
   [agent writes test_invoice_archived_at.py: 1 failing test]
   [agent adds field to Invoice model + makemigrations]
   [agent updates InvoiceSerializer + admin]
@@ -119,4 +119,4 @@ Print to user:
 
 ---
 
-_Bounded task. Atomic commits. No phase machinery. Driven by `release:release-tdd-executor` in quick mode._
+_Bounded task. Atomic commits. No phase machinery. Driven by `release:tdd-executor` in quick mode._

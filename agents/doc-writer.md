@@ -1,5 +1,5 @@
 ---
-name: release-doc-writer
+name: doc-writer
 description: Writes or updates project documentation (README, CONTRIBUTING, ARCHITECTURE, ONBOARDING, API docs). Spawned with a doc_assignment block specifying type/mode/context. Grounds every claim in .release-planning/ artifacts + intel + codebase — no invented facts. Diff-friendly on mode=update.
 tools: Read, Write, Bash, Grep, Glob
 color: "#0D9488"

@@ -160,7 +160,7 @@ Stubs (only seeded when `--no-stubs` is NOT set):
 
 1. Skill resolves flags (`--dry-run`, `--force`, `--phases`, `--no-stubs`).
 2. Skill runs pre-checks (GSD presence, idempotency, force confirmation, phase filter validation).
-3. Skill spawns `release:release-import-orchestrator` agent with:
+3. Skill spawns `release:import-orchestrator` agent with:
    - `dry_run: bool`
    - `force: bool`
    - `phases: string[]` (empty = all)
@@ -306,5 +306,5 @@ Next: /release:status
 
 ---
 
-_Driven by `release:release-import-orchestrator` (release-sdk). One-shot. Replaces the per-skill
+_Driven by `release:import-orchestrator` (release-sdk). One-shot. Replaces the per-skill
 `--gsd-context` flag scattered across release-init/spec/plan/review/ui-phase/ai-phase._

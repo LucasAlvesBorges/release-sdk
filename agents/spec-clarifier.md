@@ -1,5 +1,5 @@
 ---
-name: release-spec-clarifier
+name: spec-clarifier
 description: Clarifies WHAT a phase will deliver before /release:discuss. Detects stack (Django/React/fullstack), probes scope + exclusions + acceptance signal, scores ambiguity HIGH/MED/LOW, writes SPEC.md. Does NOT lock D-XX decisions (that's /release:discuss). Spawned by /release:spec.
 tools: Read, Write, Bash, Grep, Glob, AskUserQuestion
 color: "#F97316"

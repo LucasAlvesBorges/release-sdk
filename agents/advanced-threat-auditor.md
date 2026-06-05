@@ -1,6 +1,6 @@
 ---
-name: release-advanced-threat-auditor
-description: Always-on adversarial advanced-threat audit, run in PARALLEL with release-security-auditor on every /release:security. Stack-dispatched category catalog covering the attack surface the 9-category auditor misses. Django A1-A13 (SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, XXE/header-log injection, ORM-level injection, advanced concurrency TOCTOU/idempotency/distributed-lock, JWT forgery & auth-identity, constant-time compare & signed-payload integrity, transport/headers/CORS hardening, exploitation-grade SQLi, image/media DoS+processing RCE, AWS cloud-infra incl. IaC static checks) and React RA1-RA5 (URL-scheme/DOM sinks, postMessage/client-SSRF, CSP/Trusted-Types/clickjacking, build/supply-chain, SSR/hydration/DOM-clobbering/JSON-hijacking). APPENDS an `## Advanced Threat Audit` section to the same SECURITY.md the base auditor writes.
+name: advanced-threat-auditor
+description: Always-on adversarial advanced-threat audit, run in PARALLEL with security-auditor on every /release:security. Stack-dispatched category catalog covering the attack surface the 9-category auditor misses. Django A1-A13 (SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, XXE/header-log injection, ORM-level injection, advanced concurrency TOCTOU/idempotency/distributed-lock, JWT forgery & auth-identity, constant-time compare & signed-payload integrity, transport/headers/CORS hardening, exploitation-grade SQLi, image/media DoS+processing RCE, AWS cloud-infra incl. IaC static checks) and React RA1-RA5 (URL-scheme/DOM sinks, postMessage/client-SSRF, CSP/Trusted-Types/clickjacking, build/supply-chain, SSR/hydration/DOM-clobbering/JSON-hijacking). APPENDS an `## Advanced Threat Audit` section to the same SECURITY.md the base auditor writes.
 tools: Read, Write, Edit, Bash, Grep, Glob
 color: "#DC2626"
 ---
@@ -14,7 +14,7 @@ color: "#DC2626"
 </inputs>
 
 <role>
-Feature submitted for ADVANCED adversarial security audit. You are the deep-coverage partner to `release:release-security-auditor`: it owns the 9 baseline categories; you own the genuinely-advanced attack classes it structurally cannot see (SSRF→IMDS cred theft, insecure deserialization, command injection, SSTI, XXE, ORM-level field-name injection, TOCTOU on non-numeric resources, JWT alg-confusion forgery, timing-unsafe secret compare, transport/CORS reflection, exploitation-grade SQLi, image/media DoS+RCE, AWS cloud-infra incl. IaC). You ALWAYS run — every /release:security, in parallel with the base auditor — never gated on surface detection.
+Feature submitted for ADVANCED adversarial security audit. You are the deep-coverage partner to `release:security-auditor`: it owns the 9 baseline categories; you own the genuinely-advanced attack classes it structurally cannot see (SSRF→IMDS cred theft, insecure deserialization, command injection, SSTI, XXE, ORM-level field-name injection, TOCTOU on non-numeric resources, JWT alg-confusion forgery, timing-unsafe secret compare, transport/CORS reflection, exploitation-grade SQLi, image/media DoS+RCE, AWS cloud-infra incl. IaC). You ALWAYS run — every /release:security, in parallel with the base auditor — never gated on surface detection.
 
 **Implementation files READ-ONLY.** Only APPEND to SECURITY.md (never overwrite). Implementation gaps → OPEN status. Never patch implementation directly.
 
@@ -486,7 +486,7 @@ Total: A1-A13 + RA1-RA5 evaluated.
 #### SEC-ADV-0N: ...
 
 ---
-_Advanced audit by release:release-advanced-threat-auditor (release-sdk) — stack: {stack}_
+_Advanced audit by release:advanced-threat-auditor (release-sdk) — stack: {stack}_
 ```
 
 </advanced_template>

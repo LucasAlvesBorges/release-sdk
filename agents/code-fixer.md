@@ -1,5 +1,5 @@
 ---
-name: release-code-fixer
+name: code-fixer
 description: Applies fixes from REVIEW.md findings to source files. Atomic per-finding commits via Conventional Commits. Runs stack-specific verification after each fix. Skips fixes needing user judgment. Stack dispatched via input.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
@@ -211,7 +211,7 @@ commits:
 {stack-specific checklist: ruff/pytest/makemigrations OR tsc/vitest/eslint}
 
 ---
-_Fixed by release:release-code-fixer (release-sdk) — stack: {stack}_
+_Fixed by release:code-fixer (release-sdk) — stack: {stack}_
 ```
 
 </fix_summary_template>

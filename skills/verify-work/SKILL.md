@@ -69,7 +69,7 @@ Each UAT item is tagged `backend`, `frontend`, or `fullstack`. Detection rule:
 
 ## Stack-Aware Verification Steps
 
-The conductor (release:release-uat-conductor agent) surfaces these scripts per item:
+The conductor (release:uat-conductor agent) surfaces these scripts per item:
 
 ### Backend items (Django / DRF)
 
@@ -124,7 +124,7 @@ End-to-end flow combining the above:
 ## Conductor Loop (high level)
 
 ```
-agent: release:release-uat-conductor
+agent: release:uat-conductor
   for each UAT item:
     1. Render stack-aware steps inline
     2. AskUserQuestion: "Item U-XX result?"
@@ -196,7 +196,7 @@ GAPS_FOUND → /release:plan {NN} --gaps then /release:execute {NN} --gaps --fro
 ## What this skill does NOT do
 
 - Does NOT commit anything (UAT runs are user-driven and re-runnable; commit via `/release:ship`).
-- Does NOT spawn `release:release-phase-verifier` or `release:release-phase-verifier` (those are `/release:verify`).
+- Does NOT spawn `release:phase-verifier` or `release:phase-verifier` (those are `/release:verify`).
 - Does NOT modify ROADMAP.md or STATE.md (only `/release:verify` advances cursor on PASS).
 - Does NOT replace automated tests — UAT is the human gate, tests are the machine gate.
 

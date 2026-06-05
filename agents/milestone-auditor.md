@@ -1,5 +1,5 @@
 ---
-name: release-milestone-auditor
+name: milestone-auditor
 description: Milestone-level coverage auditor for release-sdk. Reads `.release-planning/PROJECT.md`, `ROADMAP.md`, `REQUIREMENTS.md`, and every `phases/{NN}-{slug}/{NN}-{SPEC,PLAN,VERIFY,UAT,SUMMARY}.md` (active root) or `milestones/{name}/phases/{NN}-{slug}/...` (archived root) in the resolved milestone window. Cross-checks REQ → phase → UAT → verify. Classifies each requirement COVERED (phase exists AND verify=PASS AND every UAT item closed AND no open gaps), PARTIAL (phase exists but UAT open or accepted-gap), or GAP (no phase covers OR phase exists with verify=FAIL). Outputs `MILESTONE-AUDIT-{name}.md` (or timestamped variant when mode=audit). Read-only: never moves files, never commits, never updates STATE.md. Spawned by `/release:complete-milestone` (mode=complete, hard gate) and `/release:audit-milestone` (mode=audit, advisory).
 tools: Read, Write, Bash, Glob, Grep
 color: "#10B981"
@@ -299,7 +299,7 @@ recommendation: {proceed-with-complete | fix-first | scope-out}
 ```
 
 ---
-_Audited by release:release-milestone-auditor (release-sdk) — mode: {complete|audit}_
+_Audited by release:milestone-auditor (release-sdk) — mode: {complete|audit}_
 ```
 
 </audit_template>
