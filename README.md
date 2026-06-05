@@ -25,8 +25,12 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 
 ---
 
-## Novidades (v0.5 → v0.11)
+## Novidades (v0.5 → v0.16)
 
+- **v0.16.0** — `/release:session` endurecido: 6 bugs de uso multi-sessão real (cwd-drift crash no `finish`, conflito mutando o checkout da base, planning vazando pra PR, sem drift handling, `base-branch` não persistindo sob gitignore, pouca visibilidade) + review adversarial de 6 lentes (27 achados — incl. TOCTOU resolvido com lock-first/sync-merge atômico, lockfile slash-safe, reclaim de lock morto, refused-merge). Novos subcomandos `sync`/`doctor`/`cleanup`; `bin/test-session-merge.sh` 12 → 48 asserts regression-guarded. **Agentes agora namespaceados** `release:<nome>` (Claude Code exige prefixo de plugin; `subagent_type` cru falhava) — 320 spawns reescritos em 62 arquivos.
+- **v0.15.0** — BREAKING: sessions worktree-native (Model B). Cada domínio paralelo (financeiro/operacional/RH…) é um worktree numa branch `session/<label>` cortada de uma base, mergeado de volta com merge serializado conflict-safe (base nunca fica suja; conflito PARA, nunca auto-resolve). `/release:session start|sync|finish|list|doctor|cleanup|abort|base`. Substitui `workstreams` (deprecated). 7 agents mortos removidos (44→37).
+- **v0.13.x** — Auditor de ameaças avançadas always-on (A1-A13 Django / RA1-RA5 React: SSRF/IMDS, desserialização insegura, command injection, SSTI/path-traversal, SQLi exploit-grade, race/TOCTOU, image-DoS, AWS-IaC). Execução concurrency-safe: worktree de fase isolado por sessão + lock por fase (fix corrupção UU em execute multi-sessão).
+- **v0.12.0** — BREAKING: waves-by-default no `/release:execute` (sem flag `--waves`). `release-wave-executor` faz fan-out de N `release-tdd-executor` em branches paralelas worktree-isoladas por grupo de task disjunto; PLAN fatiado por task; verify-per-wave.
 - **v0.11.1** — Token tracker dashboard fix. `Sessão atual` $0 + `POR SKILL` vazio resolvidos. Worker auto-detecta `session_id` do evento mais recente (< 30min) quando query param ausente. `extractSkill` reconhece 3 formatos: path `skills/<name>`, header `# /release:<name>`, tag `<command-name>` (built-ins). Dashboard exibe tag de sessão ativa com `(auto)` quando inferido.
 - **v0.11.0** — BREAKING: PLAN.md monolítico substituído por diretório `{NN}-PLAN/` (manifest.md + N wave files). Target 400 linhas / 3-5 tasks por wave; hard cap 600 linhas (BLOCKER no plan-checker). Fullstack vira `{NN}-PLAN-BACKEND/` + `{NN}-PLAN-FRONTEND/`. Plan-checker novas regras: empty wave, tasks no manifest, cross-wave dep cycle, file overlap entre `parallel_safe` waves. Back-compat: PLAN.md legacy ainda lido com finding MED. **Model dispatch:** agents mecânicos (plan-checker, pattern-mapper, codebase-mapper, intel-updater, nyquist-auditor, eval-auditor, security-retros, checklist-verifier) rodam Sonnet 4.6; doc-verifier + doc-classifier rodam Haiku 4.5; planejadores/executores/researchers permanecem Opus 4.7. Ganho estimado vs Phase 46: latência plan stage 1h37min → ~35-45min, tokens 700k → ~280k.
 - **v0.10.x** — `/release:tokens` dashboard daemon HTTP em :47777 + USD/BRL com FX live awesomeapi (cache 1h, fallback) + breakdown por sessão/dia/semana/all-time/modelo/projeto/skill + cache hit ratio. Hook PostToolUse `release-token-collector.js` parseia transcript JSONL pra `~/.claude/token-tracker/events.jsonl`. Fixes: SKILL.md frontmatter (`name:` field obrigatório em CC v2.1.142, `allowed-tools` com hífen não underscore), `django-prompt-guard.js` U+2028 LINE SEPARATOR em regex literal.
@@ -139,7 +143,8 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 |---|---|---|
 | `/release:map-codebase` | both | Análise paralela 4-focus do codebase (tech, arch, quality, concerns) → `.release-planning/codebase/*.md` |
 | `/release:docs-update` | both | Regenera README/CONTRIBUTING/ARCHITECTURE verificados contra o codebase |
-| `/release:workstreams [sub]` | both | Gerencia workstreams paralelas de feature |
+| `/release:session [sub]` | both | Sessões paralelas worktree-native: `start`/`sync`/`finish`/`list`/`doctor`/`cleanup`/`abort`/`base`. N domínios independentes → um trunk, merge-back serializado conflict-safe |
+| `/release:workstreams [sub]` | both | ⚠️ Deprecated (v0.15) — substituído por `/release:session` |
 
 ### Legacy single-stack (mantidos por compatibilidade)
 | Comando | Stack | Propósito |

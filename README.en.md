@@ -25,8 +25,12 @@ No silent assumptions. No "v1 / placeholder / will be wired later". No untraceab
 
 ---
 
-## What's new (v0.5 → v0.7)
+## What's new (v0.5 → v0.16, highlights)
 
+- **v0.16.0** — `/release:session` hardening: 6 real multi-session bugs (cwd-drift crash in `finish`, conflicts mutating the base checkout, planning leaking into PRs, no drift handling, `base-branch` not persisting under gitignore, poor visibility) + a 6-lens adversarial review (27 findings — incl. TOCTOU closed via lock-first/atomic sync-merge, slash-safe lockfile, dead-PID lock reclaim, refused-merge detection). New `sync`/`doctor`/`cleanup` subcommands; `bin/test-session-merge.sh` 12 → 48 regression-guarded assertions. **Agent spawns now plugin-namespaced** `release:<name>` (Claude Code requires the plugin prefix; bare `subagent_type` failed) — 320 spawns rewritten across 62 files.
+- **v0.15.0** — BREAKING: worktree-native sessions (Model B). Each parallel domain (financeiro/operacional/RH…) is a worktree on a `session/<label>` branch cut from a base, merged back with a serialized conflict-safe merge (base never left dirty; conflicts STOP, never auto-resolve). `/release:session start|sync|finish|list|doctor|cleanup|abort|base`. Replaces `workstreams` (deprecated). 7 dead agents removed (44→37).
+- **v0.13.x** — Always-on advanced-threat auditor (A1-A13 Django / RA1-RA5 React: SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, exploit-grade SQLi, race/TOCTOU, image-DoS, AWS-IaC). Concurrency-safe execution: session-isolated phase worktrees + per-phase lock (fixes UU corruption in multi-session execute).
+- **v0.12.0** — BREAKING: waves-by-default in `/release:execute` (no `--waves` flag). `release-wave-executor` fans out N `release-tdd-executor` in worktree-isolated parallel branches per disjoint task group; PLAN sliced per task; verify-per-wave.
 - **v0.7.0** — 31 new files (20 agents + 11 skills) closing the gap audit vs upstream GSD. `/release:auto` routing extended from 21 to 32 rules. Highlights: `/release:autonomous` (walk-away multi-phase), `/release:audit-fix` (autonomous audit-to-fix loop), `/release:validate-phase` (Nyquist coverage), `/release:ui-review` (6-pillar visual audit), `/release:eval-review` (AI eval coverage), `/release:docs-update` (verified docs regen), `/release:forensics` (post-mortems), `release-plan-checker` (pre-execute goal-backward verifier), `release-assumptions-analyzer` (deep codebase analysis for discuss), `release-debug-session-manager` (multi-cycle debug in isolated context), `release-framework-selector` (AI framework decision matrix), and the full `release-doc-*` family.
 - **v0.6.1** — `/release:init` and `/release:import` now inject a delimited `<!-- release-sdk:start --> ... <!-- release-sdk:end -->` block into repo-root `CLAUDE.md` so every future Claude Code session knows release-sdk is installed and where artifacts live. Idempotent.
 - **v0.6.0** — `/release:auto` (freeform-intent router) + native `/release:debug`, `/release:fast`, `/release:quick`, `/release:ship` so routing stays inside the `/release:*` namespace.
@@ -219,7 +223,8 @@ Each `release-*` agent accepts `stack: django | react | fullstack` input and dis
 |---|---|---|
 | `/release:map-codebase` | both | Parallel 4-focus codebase analysis (tech, arch, quality, concerns) → `.release-planning/codebase/*.md` |
 | `/release:docs-update` | both | Regenerate README/CONTRIBUTING/ARCHITECTURE verified against codebase |
-| `/release:workstreams [sub]` | both | Manage parallel feature workstreams |
+| `/release:session [sub]` | both | Worktree-native parallel sessions: `start`/`sync`/`finish`/`list`/`doctor`/`cleanup`/`abort`/`base`. N independent domains → one trunk, serialized conflict-safe merge-back |
+| `/release:workstreams [sub]` | both | ⚠️ Deprecated (v0.15) — superseded by `/release:session` |
 
 #### Legacy single-stack (kept for compatibility)
 | Command | Stack | Purpose |

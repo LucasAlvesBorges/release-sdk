@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] — 2026-06-05
+
+### Fixed — `/release:session` hardening (6 real multi-session incidents) + plugin-namespaced agent spawns
+
+**`/release:session` merge-back made correct under concurrency and real planning state.** Six grounded
+bugs from running 4 parallel domains into one trunk, plus a full adversarial review pass:
+
+- **cwd-drift crash (CRITICAL).** `finish` is run from *inside* the session worktree; removing that
+  worktree yanked the shell's cwd → `fatal: Unable to read current working directory`, and the branch
+  delete silently never ran (leftover branch). Now `cd "$MAIN_ROOT"` + `git -C "$MAIN_ROOT"` before any
+  removal; branch delete gated on a proven `merge-base --is-ancestor` (so it also works from a throwaway
+  merge checkout) with `-D`.
+- **Conflicts no longer mutate the base checkout.** `finish` now merges **base → session first** (the
+  author has the domain context); the session→base merge is then a conflict-free fast-forward.
+- **Planning never leaks into PRs.** `sync`/`finish` untrack `.release-planning/` (keeping only
+  `base-branch` via `git add -f`), so merges/PRs are code-only; planning modify/delete conflicts
+  auto-resolve by untracking. `finish` **hard-stops** instead of silently deleting planning that base
+  legitimately tracks.
+- **New `sync [label]`** subcommand (drift fix): pull base into a session, strip planning, STOP on code
+  conflict. `finish` runs it as its mandatory first step.
+- **`base` persistence.** `base <branch>` force-tracks `.release-planning/base-branch` and warns when
+  `.release-planning/` is dir-ignored (recommends the `.release-planning/*` + `!…/base-branch` form,
+  since a blanket dir-ignore makes the `!` negation impossible).
+- **Visibility + cleanup.** `list` now shows ahead/behind/dirty/PR; new `doctor` flags drift,
+  planning-tracked regression, and missing base-branch tracking; new `cleanup` removes worktree+branch
+  for any session already merged into base.
+
+Review-pass fixes folded in: **lock-first then sync+merge atomically** (closes a TOCTOU window where
+base could advance between a session's sync and its merge), **slash-safe lockfile** (`release/v2` →
+`merge-release_v2.lock`), **stale-lock reclaim** when the holder PID is dead, **refused-merge detection**
+(untracked-file collision no longer mistaken for "in sync"), base-branch conflict-marker handling, and
+base resolved from the session marker (never a `session/*` branch). `bin/test-session-merge.sh` grew to
+**48 real-git assertions** (from 12), including finish-from-inside, throwaway path, drift, planning
+modify/delete, and lock reclaim — all regression-guarded (each fix proven to fail the suite when reverted).
+
+**Agent spawns are now plugin-namespaced.** Claude Code resolves plugin agents as `release:<name>`, so
+bare `subagent_type: "release-tdd-executor"` no longer resolved (`Agent type … not found`). Rewrote all
+**320** spawn references across 62 skill/agent files to the `release:<name>` form (e.g.
+`release:release-tdd-executor`). Frontmatter `name:` fields, file paths (`agents/….md`), and `release-*`
+globs are left untouched.
+
 ## [0.15.0] — 2026-06-03
 
 ### BREAKING — Worktree-native parallel sessions (Model B); `workstreams` deprecated; 7 dead agents removed
