@@ -9,7 +9,7 @@ description: >
 
 # /release:audit-fix — Autonomous Audit-to-Fix Pipeline
 
-Spawns auditors in parallel, classifies their findings, dispatches `release-code-fixer` for
+Spawns auditors in parallel, classifies their findings, dispatches `release:release-code-fixer` for
 items safe to auto-fix, commits each fix atomically, then re-runs the auditors. Loops until
 findings hit zero or `--max-iters` is hit.
 
@@ -31,7 +31,7 @@ validation debt without orchestrating each auditor by hand.
 /release:audit-fix --max-iters 3             # cap loop iterations (default: 3)
 /release:audit-fix --severity HIGH           # only AUTO_FIXABLE findings at HIGH+ severity
 /release:audit-fix --dry-run                 # classify & report, do not dispatch fixer
-/release:audit-fix --no-ui                   # skip react-ui-auditor even if frontend in scope
+/release:audit-fix --no-ui                   # skip release:react-ui-auditor even if frontend in scope
 ```
 
 ## Pre-checks (hard requirements)
@@ -50,11 +50,11 @@ findings reports only.
 
 | Agent | Scope | Severity outputs |
 |---|---|---|
-| `release-code-reviewer` | code quality, dead code, naming, complexity | CRITICAL / HIGH / MEDIUM / LOW |
-| `release-security-auditor` | 9-category security matrix (stack-dispatched) | CRITICAL / HIGH / MEDIUM / LOW |
-| `release-test-auditor` | coverage gaps, flaky tests, weak asserts | HIGH / MEDIUM / LOW |
-| `release-nyquist-auditor` | validation surface coverage (Q1-Q7 / RC1-RC7) | HIGH / MEDIUM / LOW |
-| `react-ui-auditor` | 6-pillar visual audit (skipped if no frontend in scope or `--no-ui`) | HIGH / MEDIUM / LOW |
+| `release:release-code-reviewer` | code quality, dead code, naming, complexity | CRITICAL / HIGH / MEDIUM / LOW |
+| `release:release-security-auditor` | 9-category security matrix (stack-dispatched) | CRITICAL / HIGH / MEDIUM / LOW |
+| `release:release-test-auditor` | coverage gaps, flaky tests, weak asserts | HIGH / MEDIUM / LOW |
+| `release:release-nyquist-auditor` | validation surface coverage (Q1-Q7 / RC1-RC7) | HIGH / MEDIUM / LOW |
+| `release:react-ui-auditor` | 6-pillar visual audit (skipped if no frontend in scope or `--no-ui`) | HIGH / MEDIUM / LOW |
 
 Stack dispatch (django / react / fullstack) is resolved from `.release-planning/PROJECT.md`
 and per-phase `{NN}-PLAN.md` frontmatter, same as every other release-* skill.
@@ -65,7 +65,7 @@ Each finding gets exactly one of:
 
 | Class | Meaning | Action |
 |---|---|---|
-| `AUTO_FIXABLE` | Mechanical fix: lint, formatting, missing type hint, missing `read_only_fields`, missing `aria-label`, dead import, weak assert, missing `select_related`. | Dispatch `release-code-fixer`. |
+| `AUTO_FIXABLE` | Mechanical fix: lint, formatting, missing type hint, missing `read_only_fields`, missing `aria-label`, dead import, weak assert, missing `select_related`. | Dispatch `release:release-code-fixer`. |
 | `NEEDS_HUMAN` | Business-logic / arch / threat-model / UX decision. | Log only. User must triage. |
 | `SKIPPED` | Below `--severity` threshold OR filed by an auditor that's out of scope. | Log only. |
 
@@ -108,11 +108,11 @@ while iter < max_iters:
 
   # 1. Audit (parallel)
   findings = parallel_dispatch([
-    release-code-reviewer,
-    release-security-auditor,    # stack-aware
-    release-test-auditor,
-    release-nyquist-auditor,
-    react-ui-auditor,          # only if frontend in scope and not --no-ui
+    release:release-code-reviewer,
+    release:release-security-auditor,    # stack-aware
+    release:release-test-auditor,
+    release:release-nyquist-auditor,
+    release:react-ui-auditor,          # only if frontend in scope and not --no-ui
   ])
 
   # 2. Classify
@@ -132,7 +132,7 @@ while iter < max_iters:
 
   # 4. Fix
   for finding in auto:
-    spawn release-code-fixer(finding)
+    spawn release:release-code-fixer(finding)
     # fixer commits atomically: fix(NN): <category> — <one-line summary>
     # if fixer reports cannot_fix → reclassify as NEEDS_HUMAN, continue
 
@@ -205,20 +205,20 @@ last_verdict: CLEAN
 
 ## Constraints
 
-- This skill is read-only on source; ONLY the `release-code-fixer` agent writes code.
+- This skill is read-only on source; ONLY the `release:release-code-fixer` agent writes code.
 - Never `git push`, never `gh pr ...`. Audit-fix lands local commits only.
 - Never fixes a CRITICAL finding without explicit confirmation in the log of which rule
   matched the auto-fix allowlist.
 - `--max-iters` is a hard cap; default 3. Above 5 the skill warns "thrashing — investigate".
 - Two consecutive iterations with identical finding sets → exit with `verdict: NO_PROGRESS`
   (the fixer is regressing or the auditor is non-deterministic; human triage).
-- If `release-code-fixer` reports `cannot_fix`, reclassify as `NEEDS_HUMAN` and continue.
+- If `release:release-code-fixer` reports `cannot_fix`, reclassify as `NEEDS_HUMAN` and continue.
   Never retry the same fixer twice on the same finding within one run.
 - `.planning/` is untouched — this plugin owns `.release-planning/` only.
 
 ## Stack dispatch
 
-`release-security-auditor` and `release-code-fixer` dispatch by stack at agent level (django
+`release:release-security-auditor` and `release:release-code-fixer` dispatch by stack at agent level (django
 vs react retro variants). This skill does not duplicate that logic — it just passes the phase
 number and lets agents resolve stack from `PROJECT.md` / phase frontmatter.
 
@@ -231,15 +231,15 @@ number and lets agents resolve stack from `PROJECT.md` / phase frontmatter.
 → Stack: fullstack (django + react-tsx)
 
 → Iter 1: spawning 5 auditors in parallel...
-  release-code-reviewer       → 4 findings
-  release-security-auditor    → 3 findings (stack-dispatched)
-  release-test-auditor        → 2 findings
-  release-nyquist-auditor     → 2 findings
-  react-ui-auditor          → 1 finding
+  release:release-code-reviewer       → 4 findings
+  release:release-security-auditor    → 3 findings (stack-dispatched)
+  release:release-test-auditor        → 2 findings
+  release:release-nyquist-auditor     → 2 findings
+  release:react-ui-auditor          → 1 finding
   Total: 12 findings
 
 → Classified: 7 AUTO_FIXABLE, 4 NEEDS_HUMAN, 1 SKIPPED (LOW)
-→ Dispatching release-code-fixer ×7...
+→ Dispatching release:release-code-fixer ×7...
   fix(01): lint — ruff E501 views.py (commit a1b2c3)
   fix(01): n+1 — prefetch_related InvoiceList (commit d4e5f6)
   fix(01): aria — aria-label on icon button (commit g7h8i9)

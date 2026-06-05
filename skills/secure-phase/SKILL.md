@@ -24,7 +24,7 @@ in the shipped code. Distinct from `/release:security` which is author-time guid
 | Tone | Recommends mitigations | Verifies mitigations exist |
 | Output | Inline guidance / SECURITY.md (open issues) | SECURITY.md scorecard (PASS/BLOCK/FLAG) |
 | Modifies code | No (advisory) | No (read-only audit) |
-| Agents | release-security-auditor / release-security-auditor | release-django-security-retro / react-security-retro |
+| Agents | release:release-security-auditor / release:release-security-auditor | release:release-django-security-retro / release:react-security-retro |
 
 ## Usage
 
@@ -121,8 +121,8 @@ Scorecard table format (see `templates/SECURITY.md`):
 
 ## Routing
 
-- `.py` in scope → spawn `release-django-security-retro` agent.
-- `.tsx`/`.ts` in scope → spawn `react-security-retro` agent.
+- `.py` in scope → spawn `release:release-django-security-retro` agent.
+- `.tsx`/`.ts` in scope → spawn `release:react-security-retro` agent.
 - Merge agent outputs into single SECURITY.md with per-stack sections + cross-cutting block.
 
 ## Constraints
@@ -142,11 +142,11 @@ Scorecard table format (see `templates/SECURITY.md`):
 → Threat model: 9 declared threats (T-01 .. T-09)
 → Scope: 7 files (3 .py, 4 .tsx) from a1b2c3..HEAD
 
-→ Backend retro audit (release-django-security-retro)...
+→ Backend retro audit (release:release-django-security-retro)...
   T-01 (cross_tenant): MITIGATED — backend/apps/financeiro/views.py:42 (filter empresa=...)
   T-04 (mass_assignment): MISSING — fields = '__all__' at backend/apps/financeiro/serializers.py:18
 
-→ Frontend retro audit (react-security-retro)...
+→ Frontend retro audit (release:react-security-retro)...
   T-08 (token_storage): MITIGATED — no localStorage.setItem token found
   T-03 (csrf): PARTIAL — X-CSRFToken sent on JSON but absent on multipart at src/api/upload.ts:24
 

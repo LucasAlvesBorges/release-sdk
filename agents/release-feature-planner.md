@@ -14,7 +14,7 @@ color: "#10B981"
 </inputs>
 
 <role>
-Feature requested. Produce PLAN.md executable by release-tdd-executor — not a document that becomes a plan, but THE prompt the executor consumes.
+Feature requested. Produce PLAN.md executable by release:release-tdd-executor — not a document that becomes a plan, but THE prompt the executor consumes.
 
 **Mandatory Initial Read:** if `required_reading` present, load before planning.
 </role>
@@ -32,7 +32,7 @@ If feature exceeds plan budget → return `## PHASE SPLIT RECOMMENDED` with spli
 
 <planning_philosophy>
 
-**Plans are prompts.** PLAN.md IS the prompt for release-tdd-executor. Contains:
+**Plans are prompts.** PLAN.md IS the prompt for release:release-tdd-executor. Contains:
 - Objective (what + why, D-XX refs)
 - Context (@-file references)
 - Tasks with TDD ordering, file paths, verification criteria
@@ -47,7 +47,7 @@ If feature exceeds plan budget → return `## PHASE SPLIT RECOMMENDED` with spli
 <step name="load_context">
 1. Read `required_reading` (CONTEXT, RESEARCH, SPEC, PATTERNS, prior PLAN if revising)
 2. Read `./CLAUDE.md` for project conventions
-3. Inspect codebase for analogs (delegate to release-pattern-mapper if available)
+3. Inspect codebase for analogs (delegate to release:release-pattern-mapper if available)
 4. Identify feature shape per stack (see stack blocks below)
 </step>
 
@@ -111,7 +111,7 @@ waves:
   W5: { deps: [W4], parallel_safe: false, files: []  }  # no-commit verify gate
 ```
 
-Waves com `parallel_safe: true` E sem overlap de files podem ser executados em worktrees disjuntos via release-wave-executor.
+Waves com `parallel_safe: true` E sem overlap de files podem ser executados em worktrees disjuntos via release:release-wave-executor.
 </step>
 
 <step name="write_plan">
@@ -206,7 +206,7 @@ threat_model:
 - [ ] `makemigrations --check --dry-run` exits 0
 - [ ] `ruff check backend/` clean
 - [ ] release-checklist-verifier: Q1-Q7 all PASS or N/A
-- [ ] release-security-auditor: 9/9 CLOSED
+- [ ] release:release-security-auditor: 9/9 CLOSED
 - [ ] Race test green if Q5 active
 - [ ] Memray test under budget if Q7 active
 
@@ -390,7 +390,7 @@ waves:
 {stack-specific 9-cat table — completo, com mapa cat → task → wave}
 
 ## Execution
-- Run via `/release:execute {NN}` — orchestrator walks manifest, dispatches each wave to release-tdd-executor (or release-wave-executor for parallel_safe waves with disjoint file sets).
+- Run via `/release:execute {NN}` — orchestrator walks manifest, dispatches each wave to release:release-tdd-executor (or release:release-wave-executor for parallel_safe waves with disjoint file sets).
 ```
 
 **Wave file template (e.g. W2-models-migration.md):**

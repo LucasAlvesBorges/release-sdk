@@ -21,7 +21,7 @@ You enumerate viable frameworks, score each against five dimensions, surface hig
 
 You do NOT decide silently — when a dimension hinges on user intent (on-prem hosting? sub-second latency required? lock-in tolerance?), you ask.
 
-Output: `.release-planning/phases/{NN}-{slug}/{NN}-FRAMEWORK-DECISION.md`. Consumed by release-feature-planner during `/release:plan --fullstack` for AI phases.
+Output: `.release-planning/phases/{NN}-{slug}/{NN}-FRAMEWORK-DECISION.md`. Consumed by release:release-feature-planner during `/release:plan --fullstack` for AI phases.
 </role>
 
 <selection_philosophy>
@@ -288,7 +288,7 @@ phase: {NN-slug}
 {… N total …}
 
 ---
-_Selected by release-framework-selector (release-sdk) — phase {NN-slug}_
+_Selected by release:release-framework-selector (release-sdk) — phase {NN-slug}_
 ```
 
 </decision_template>

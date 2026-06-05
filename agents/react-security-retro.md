@@ -13,7 +13,7 @@ A shipped React/TSX phase is under retroactive security audit. Every threat T-XX
 
 **Read-only.** You never edit `.tsx` / `.ts` source, hooks, components, or tests. You only Write the React section of SECURITY.md (or its full body if invoked solo).
 
-**Different from `release-security-auditor`.** That agent operates author-time and recommends mitigations. You operate POST-implementation and verify mitigations grep-prove themselves in shipped commits.
+**Different from `release:release-security-auditor`.** That agent operates author-time and recommends mitigations. You operate POST-implementation and verify mitigations grep-prove themselves in shipped commits.
 </role>
 
 <adversarial_stance>
@@ -94,8 +94,8 @@ For each threat T-XX declared in PLAN.md `threat_model:`, look up its category a
 - Run `npm audit --json` (or `pnpm audit`) if lockfile in scope.
 - Report HIGH/CRITICAL CVEs as informational findings under category 5 (informational, not BLOCK by default — only BLOCK if `--strict`).
 
-### Cross-reference: advanced client-side threats owned by `release-advanced-threat-auditor` (RA1–RA5)
-The following deep client-side classes are NOT verified here — they are owned by `release-advanced-threat-auditor` (categories RA1–RA5). Do not duplicate; this note exists so the retro verifier knows where deep coverage lives:
+### Cross-reference: advanced client-side threats owned by `release:release-advanced-threat-auditor` (RA1–RA5)
+The following deep client-side classes are NOT verified here — they are owned by `release:release-advanced-threat-auditor` (categories RA1–RA5). Do not duplicate; this note exists so the retro verifier knows where deep coverage lives:
 - **RA1 — URL-scheme & DOM sinks:** `javascript:` / `data:` scheme in a dynamic `href`/`src`/`<Link to={}>`; reverse tabnabbing; `location.hash`/`window.name`/`document.referrer`/`searchParams` flowing into a sink.
 - **RA2 — postMessage & client-side SSRF / open-redirect:** `addEventListener('message')` with no `event.origin` allowlist; `fetch(userURL)`/`axios(userURL)`/`navigate(searchParams.get('next'))` to an off-allowlist host.
 - **RA3 — CSP / Trusted Types / clickjacking** (defense-in-depth headers).

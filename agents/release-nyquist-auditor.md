@@ -289,7 +289,7 @@ _(`full` mode only; populated after /release:add-tests re-audit)_
 - Next: {dispatch /release:add-tests {NN} --gap-fill | ready to ship | re-run after gap-fill}
 
 ---
-_Audited by release-nyquist-auditor (release-sdk) — stack: {stack}_
+_Audited by release:release-nyquist-auditor (release-sdk) — stack: {stack}_
 ```
 
 </audit_template>

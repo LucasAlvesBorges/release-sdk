@@ -294,7 +294,7 @@ Recommendation: {A/B + rationale}
 - {what couldn't be determined + why}
 
 ---
-_Analyzed by release-assumptions-analyzer (release-sdk) — stack: {stack}_
+_Analyzed by release:release-assumptions-analyzer (release-sdk) — stack: {stack}_
 ```
 
 </assumptions_template>

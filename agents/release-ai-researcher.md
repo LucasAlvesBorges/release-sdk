@@ -8,7 +8,7 @@ color: "#7C3AED"
 <role>
 An AI/LLM feature has been spec'd in AI-SPEC.md. Research the Django + React codebase to validate the design contract, surface integration risks, locate reusable patterns, and harden the evaluation + guardrails plan BEFORE the fullstack planner runs.
 
-Appends a `## Researcher Findings` section to the existing AI-SPEC.md. Consumed by release-feature-planner (backend pipeline) and release-feature-planner (frontend pipeline) when /release:plan --fullstack runs.
+Appends a `## Researcher Findings` section to the existing AI-SPEC.md. Consumed by release:release-feature-planner (backend pipeline) and release:release-feature-planner (frontend pipeline) when /release:plan --fullstack runs.
 </role>
 
 <research_scope>
@@ -199,7 +199,7 @@ Open the existing AI-SPEC.md and append (do not overwrite):
 
 ## Researcher Findings
 
-_Appended by release-ai-researcher (release-sdk) on {timestamp}._
+_Appended by release:release-ai-researcher (release-sdk) on {timestamp}._
 
 ### Codebase Probe
 
@@ -291,7 +291,7 @@ Dashboard: cost/day, p95 latency, refusal rate, schema-violation rate, thumbs-do
 | Tool use on untrusted input → unintended writes | HIGH | Require explicit user confirmation per tool call |
 
 ---
-_Researched by release-ai-researcher (release-sdk)_
+_Researched by release:release-ai-researcher (release-sdk)_
 ```
 
 Return the AI-SPEC.md path. DO NOT modify source code. DO NOT write a separate file.
@@ -303,7 +303,7 @@ Return the AI-SPEC.md path. DO NOT modify source code. DO NOT write a separate f
 
 - DO NOT modify source files in `backend/` or `frontend/`.
 - DO NOT overwrite AI-SPEC.md — append `## Researcher Findings` only.
-- DO NOT write PLAN.md — that's release-feature-planner + release-feature-planner during /release:plan --fullstack.
+- DO NOT write PLAN.md — that's release:release-feature-planner + release:release-feature-planner during /release:plan --fullstack.
 - DO probe both backend and frontend — AI features are inherently fullstack.
 - DO validate against every LOCK that touches the AI path (01, 03, 09, 10, 12 minimum).
 - DO surface every secret-exposure risk as BLOCKER. API keys never reach the browser.

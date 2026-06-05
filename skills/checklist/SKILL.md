@@ -22,7 +22,7 @@ Runs the correct checklist based on files in scope.
 
 ## Django Author Checklist (Q1-Q7)
 
-Spawns `django-checklist-verifier` for:
+Spawns `release:django-checklist-verifier` for:
 - Q1: `select_related` on FK traversal
 - Q2: `prefetch_related` on reverse-FK / M2M
 - Q3: `.annotate(count=Count(...))` instead of Python-side count
@@ -33,7 +33,7 @@ Spawns `django-checklist-verifier` for:
 
 ## React Author Checklist (RC1-RC7)
 
-Spawns `release-test-auditor` + grep-based checks:
+Spawns `release:release-test-auditor` + grep-based checks:
 - RC1: `React.memo`, `useMemo`, `useCallback` where needed
 - RC2: `isLoading`/`isError` guards in data-fetching components
 - RC3: No `any` types; Zod schemas for API responses

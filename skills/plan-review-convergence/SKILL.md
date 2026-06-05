@@ -9,7 +9,7 @@ description: >
 
 # /release:plan-review-convergence — Cross-AI Plan Convergence Loop
 
-Iteratively hardens `{NN}-PLAN.md` by asking external AI CLIs (codex, gemini) for adversarial review, then re-spawning `release-feature-planner` with the aggregated concerns until convergence.
+Iteratively hardens `{NN}-PLAN.md` by asking external AI CLIs (codex, gemini) for adversarial review, then re-spawning `release:release-feature-planner` with the aggregated concerns until convergence.
 
 ## Usage
 
@@ -98,7 +98,7 @@ else:
 
 ### Step 7 — On CONTINUE
 
-Spawn `release-feature-planner` agent with these inputs:
+Spawn `release:release-feature-planner` agent with these inputs:
 - Current `{NN}-PLAN.md` (full)
 - Aggregated concerns (HIGH first, MED second; LOW listed but explicitly marked optional)
 - Explicit directive: "Revise the PLAN in-place. Address every HIGH concern. Resolve MED concerns where they do not conflict with project LOCKs. Acknowledge LOW concerns inline as comments if not addressed."
@@ -177,7 +177,7 @@ Raw `.review-*.txt` files are gitignored-by-convention (leading dot, hidden) —
    gemini: 3 HIGH, 5 MED, 1 LOW
    Aggregated (dedup): 5 HIGH, 6 MED, 3 LOW
    Verdict: CONTINUE
-   Spawning release-feature-planner with 5 HIGH + 6 MED concerns...
+   Spawning release:release-feature-planner with 5 HIGH + 6 MED concerns...
    commit a1b2c3d: plan(04): iter 1 convergence — addressed 5 HIGH, 6 MED
 
 → Iter 2

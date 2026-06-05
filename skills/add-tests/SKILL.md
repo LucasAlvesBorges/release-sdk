@@ -12,7 +12,7 @@ description: >
 # /release:add-tests — Stack-Aware Test Backfill
 
 Additive test generation against an existing implementation. Never modifies impl, never deletes
-existing tests, never introduces new test dependencies. Routes a `release-tdd-executor` in
+existing tests, never introduces new test dependencies. Routes a `release:release-tdd-executor` in
 TEST-ONLY mode that writes tests against what already exists.
 
 ## Relationship to /release:execute
@@ -126,7 +126,7 @@ guidance.
 
 ## Executor spawn (TEST-ONLY MODE)
 
-Spawn `release-tdd-executor` with explicit test-only configuration:
+Spawn `release:release-tdd-executor` with explicit test-only configuration:
 
 ```yaml
 stack: django | react

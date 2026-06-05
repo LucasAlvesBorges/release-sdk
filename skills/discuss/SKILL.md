@@ -29,13 +29,13 @@ Detects phase type and asks the right questions. Produces CONTEXT.md with locked
 
 Same as `/release:plan` — reads ROADMAP.md phase goal + tags. Classifies as backend/frontend/fullstack.
 
-## Pre-discussion assumptions probe (release-assumptions-analyzer)
+## Pre-discussion assumptions probe (release:release-assumptions-analyzer)
 
-**Immediately after stack detection, before the D-XX questioning loop**, spawn `release-assumptions-analyzer`:
+**Immediately after stack detection, before the D-XX questioning loop**, spawn `release:release-assumptions-analyzer`:
 
 ```
 Agent({
-  subagent_type: "release-assumptions-analyzer",
+  subagent_type: "release:release-assumptions-analyzer",
   phase: "{NN}",
   slug: "{slug}",
   stack: "{django|react|fullstack}"  # pass-through from detection
@@ -56,7 +56,7 @@ The user's answer locks a corresponding `D-XX` in CONTEXT.md (cite the `A-XX` re
 
 ## Backend question dimensions (Django)
 
-Spawns `django-discuss-orchestrator` for 10 dimensions:
+Spawns `release:django-discuss-orchestrator` for 10 dimensions:
 1. Data model changes? (models, migrations, FK graph)
 2. Multi-tenancy scope? (TenantModel, empresa filter)
 3. Auth + permissions? (permission classes, roles)
@@ -117,4 +117,4 @@ D-22: [LOCKED] Auth: httpOnly cookie, Django CsrfViewMiddleware active
 
 ## Notes / Constraints
 
-- v0.7.0 wires `release-assumptions-analyzer` BEFORE D-XX questioning. It produces `{NN}-ASSUMPTIONS.md` with DP-XX prompts; the orchestrator surfaces those DP-XX items first as "Hidden assumption — confirm or override:" questions, then proceeds to standard dimension questions. Skipped (file already read) if ASSUMPTIONS.md already exists.
+- v0.7.0 wires `release:release-assumptions-analyzer` BEFORE D-XX questioning. It produces `{NN}-ASSUMPTIONS.md` with DP-XX prompts; the orchestrator surfaces those DP-XX items first as "Hidden assumption — confirm or override:" questions, then proceeds to standard dimension questions. Skipped (file already read) if ASSUMPTIONS.md already exists.

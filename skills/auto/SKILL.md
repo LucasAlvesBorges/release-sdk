@@ -14,20 +14,20 @@ description: >
 NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. This applies to every skill this router dispatches to.
 
 **Substitution map** (`gsd-<x>` → `release-<x>`):
-- `gsd-debugger` → `release-debugger`
+- `gsd-debugger` → `release:release-debugger`
 - `gsd-planner` → `release-planner`
 - `gsd-executor` → `release-executor`
-- `gsd-code-reviewer` → `release-code-reviewer`
+- `gsd-code-reviewer` → `release:release-code-reviewer`
 - `gsd-verifier` → `release-verifier`
 - `gsd-phase-researcher` → `release-phase-researcher`
-- `gsd-pattern-mapper` → `release-pattern-mapper`
-- `gsd-plan-checker` → `release-plan-checker`
-- `gsd-ui-researcher` → `react-ui-researcher`
-- `gsd-ui-checker` → `react-ui-checker`
-- `gsd-ui-auditor` → `react-ui-auditor`
-- `gsd-code-fixer` → `release-code-fixer`
-- `gsd-security-auditor` → `release-security-auditor`
-- `gsd-doc-writer` → `release-doc-writer`
+- `gsd-pattern-mapper` → `release:release-pattern-mapper`
+- `gsd-plan-checker` → `release:release-plan-checker`
+- `gsd-ui-researcher` → `release:react-ui-researcher`
+- `gsd-ui-checker` → `release:react-ui-checker`
+- `gsd-ui-auditor` → `release:react-ui-auditor`
+- `gsd-code-fixer` → `release:release-code-fixer`
+- `gsd-security-auditor` → `release:release-security-auditor`
+- `gsd-doc-writer` → `release:release-doc-writer`
 - `gsd-roadmapper` → `release-roadmapper`
 - (general rule) `gsd-<name>` → `release-<name>`
 
@@ -90,7 +90,7 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 7 | "LLM", "GPT", "prompt", "embedding", "Claude", "Anthropic", "OpenAI", "RAG" | — | `/release:ai-phase` |
 | 8 | "security", "vulnerab", "audit", "OWASP", "auth bypass", "threat" | `active_stage in {executing, verified, shipped}` | `/release:secure-phase` |
 | 9 | "security", "vulnerab" — without a shipped/verified phase | — | `/release:security` |
-| 9a | advanced threat surface: "race condition", "TOCTOU", "SSRF", "deserialization", "pickle", "command injection", "SSTI", "XXE", "JWT forgery", "alg confusion", "SQL injection", "image bomb", "decompression bomb", "pixel flood", "ImageTragick", "zip slip", "AWS", "S3", "IAM", "IMDS", "169.254", "presigned URL", "cloud security", "subdomain takeover" | — | `/release:security` — advanced threat surface → full security audit (incl. release-advanced-threat-auditor A1-A13 / RA1-RA5) |
+| 9a | advanced threat surface: "race condition", "TOCTOU", "SSRF", "deserialization", "pickle", "command injection", "SSTI", "XXE", "JWT forgery", "alg confusion", "SQL injection", "image bomb", "decompression bomb", "pixel flood", "ImageTragick", "zip slip", "AWS", "S3", "IAM", "IMDS", "169.254", "presigned URL", "cloud security", "subdomain takeover" | — | `/release:security` — advanced threat surface → full security audit (incl. release:release-advanced-threat-auditor A1-A13 / RA1-RA5) |
 | 10 | "review", "code review", "diff review" | `active_stage in {executing, verified}` | `/release:review` |
 | 11 | "test gap", "missing tests", "UAT failed", "add tests" | `active_phase != null` | `/release:verify` |
 | 12 | "verify", "UAT", "did it work", "validar" | `active_phase != null` | `/release:verify-work` |
@@ -166,7 +166,7 @@ and rule 20 dispatches to `/release:fast`, both of which own their own inline / 
   `/release:fast` and `/release:quick`. `/release:auto` itself never touches the worktree.
 - **Never modify `.release-planning/STATE.md` directly.** State transitions belong to the
   dispatched skill.
-- **Never write to `.planning/`.** That's GSD-owned (see `release-import-orchestrator`).
+- **Never write to `.planning/`.** That's GSD-owned (see `release:release-import-orchestrator`).
 - **Print the route before dispatch.** No silent routing — the user must always see the
   decision and have time to abort.
 - **Fall back loudly.** LOW confidence → `AskUserQuestion`, never a silent guess.

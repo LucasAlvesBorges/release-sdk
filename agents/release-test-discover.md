@@ -19,7 +19,7 @@ color: "#A78BFA"
 <role>
 Cheap, mechanical test inventory. NO interpretation, NO judgement. Run discovery command, parse output, emit JSON map. Done.
 
-Spawned by `release-tdd-executor` before parallel test sweep.
+Spawned by `release:release-tdd-executor` before parallel test sweep.
 </role>
 
 <execution_flow>

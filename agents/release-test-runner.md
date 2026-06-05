@@ -18,7 +18,7 @@ color: "#06B6D4"
 <role>
 Mechanical test runner. ONE job: run the assigned bucket, parse results, write JSON. Do NOT edit code. Do NOT diagnose failures beyond extracting traceback head. Do NOT spawn agents.
 
-Spawned in parallel (5x typical) by `release-tdd-executor` step `parallel_test_sweep`.
+Spawned in parallel (5x typical) by `release:release-tdd-executor` step `parallel_test_sweep`.
 </role>
 
 <execution_flow>

@@ -14,7 +14,7 @@ description: >
 
 # /release:workstreams — Parallel Feature Isolation (deprecated → /release:session)
 
-Top-level isolation for features running side-by-side. While `release-wave-executor`
+Top-level isolation for features running side-by-side. While `release:release-wave-executor`
 parallelises *within* a phase, workstreams parallelise *across* phases and features.
 
 Two engineers (or two Claude sessions) can work the same milestone on different
@@ -294,12 +294,12 @@ Per workstream, same rules as `/release:init`:
 
 Stored in workstream `STATE.md` frontmatter (`stack:` field).
 
-## Integration with `release-wave-executor`
+## Integration with `release:release-wave-executor`
 
 Workstreams and waves compose:
 
 - A workstream picks up an active phase from its own `ROADMAP.md`.
-- Inside that phase, `release-wave-executor` may still split tasks across waves.
+- Inside that phase, `release:release-wave-executor` may still split tasks across waves.
 - Wave sub-agents inherit the active workstream env var so their commits land
   on `ws-<name>`.
 

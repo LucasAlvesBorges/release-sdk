@@ -153,7 +153,7 @@ Write `output_path` (default `{target_path}.classification.json`) with exact sha
     "context_hint": "{value or null}"
   },
   "classified_at": "{ISO-8601 timestamp}",
-  "classifier": "release-doc-classifier@v1"
+  "classifier": "release:release-doc-classifier@v1"
 }
 ```
 

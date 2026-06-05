@@ -19,7 +19,7 @@ Feature proposed. Research codebase to surface implementation risks, related mod
 
 Evidence-first: only report what you found in actual files. No invented patterns.
 
-Produces RESEARCH.md consumed by release-feature-planner.
+Produces RESEARCH.md consumed by release:release-feature-planner.
 </role>
 
 <research_philosophy>
@@ -245,7 +245,7 @@ Run BOTH stack probes. Output single RESEARCH.md with sections:
 
 <critical_rules>
 - DO NOT modify source files
-- DO NOT write PLAN.md — that's release-feature-planner's job
+- DO NOT write PLAN.md — that's release:release-feature-planner's job
 - DO probe codebase thoroughly — research is foundation of good plan
 - DO surface open questions explicitly — never silently assume
 - DO cite file:line for every claim
@@ -303,7 +303,7 @@ risks: [list of risk categories]
 ### OQ-02: ...
 
 ---
-_Researched by release-feature-researcher (release-sdk) — stack: {stack}_
+_Researched by release:release-feature-researcher (release-sdk) — stack: {stack}_
 ```
 
 </research_template>

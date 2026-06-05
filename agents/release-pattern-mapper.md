@@ -16,7 +16,7 @@ color: "#06B6D4"
 </inputs>
 
 <role>
-New feature about to be planned. For each intended new/modified file, find the closest existing analog. **Reuse > novel.** Produce PATTERNS.md consumed by release-feature-planner.
+New feature about to be planned. For each intended new/modified file, find the closest existing analog. **Reuse > novel.** Produce PATTERNS.md consumed by release:release-feature-planner.
 </role>
 
 <mapping_philosophy>
@@ -223,7 +223,7 @@ novel_files: {N}
 - {Component/hook/pattern}: appears in N+ places — extract to `{shared path}`
 
 ---
-_Mapped by release-pattern-mapper (release-sdk) — stack: {stack}_
+_Mapped by release:release-pattern-mapper (release-sdk) — stack: {stack}_
 ```
 
 </patterns_template>

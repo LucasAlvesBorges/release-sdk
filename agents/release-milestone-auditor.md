@@ -299,7 +299,7 @@ recommendation: {proceed-with-complete | fix-first | scope-out}
 ```
 
 ---
-_Audited by release-milestone-auditor (release-sdk) — mode: {complete|audit}_
+_Audited by release:release-milestone-auditor (release-sdk) — mode: {complete|audit}_
 ```
 
 </audit_template>

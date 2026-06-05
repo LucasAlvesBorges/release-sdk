@@ -302,7 +302,7 @@ shape: {catalog shape #N or "novel"}
 - Stack-specific checks: {pytest/makemigrations OR vitest/tsc}: {pass/fail}
 
 ---
-_Debugged by release-debugger (release-sdk) — stack: {stack}_
+_Debugged by release:release-debugger (release-sdk) — stack: {stack}_
 ```
 
 </debug_md_template>

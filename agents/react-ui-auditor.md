@@ -212,7 +212,7 @@ audited_at: {ISO-8601 timestamp}
 phase: {NN}
 slug: {phase-slug}
 ui_spec_ref: {NN}-UI-SPEC.md
-auditor: react-ui-auditor
+auditor: release:react-ui-auditor
 mode: initial | re-audit
 files_audited: {N}
 score_total: {0-100}
@@ -280,7 +280,7 @@ Pillars in order: Accessibility, Responsive, Loading/Error, i18n, Type contracts
 - SKIPPED → phase shipped no UI; nothing to do
 
 ---
-_Audited by react-ui-auditor (release-sdk) — leaf worker_
+_Audited by release:react-ui-auditor (release-sdk) — leaf worker_
 ```
 
 </ui_review_template>

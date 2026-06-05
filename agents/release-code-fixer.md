@@ -211,7 +211,7 @@ commits:
 {stack-specific checklist: ruff/pytest/makemigrations OR tsc/vitest/eslint}
 
 ---
-_Fixed by release-code-fixer (release-sdk) — stack: {stack}_
+_Fixed by release:release-code-fixer (release-sdk) — stack: {stack}_
 ```
 
 </fix_summary_template>

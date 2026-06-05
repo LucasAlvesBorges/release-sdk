@@ -10,7 +10,7 @@ description: >
 
 # /release:execute — Context-Aware Phase Executor (waves-by-default)
 
-**v0.12.0 BREAKING**: Always routes through `release-wave-executor`. Legacy direct `release-tdd-executor`
+**v0.12.0 BREAKING**: Always routes through `release:release-wave-executor`. Legacy direct `release:release-tdd-executor`
 serial path removed. Single-worktree falls out naturally for waves with 1 task / collision-bound waves.
 
 ## Usage
@@ -42,12 +42,12 @@ serial path removed. Single-worktree falls out naturally for waves with 1 task /
 **lock por-fase**. Isso permite N sessões simultâneas no mesmo repo sem colidir HEAD/índice/worktree.
 
 Before T01 runs, the executor (a) acquires a per-phase lock, (b) creates a session-scoped phase
-worktree, then spawns `release-wave-executor` with `cwd` pointing at that worktree:
+worktree, then spawns `release:release-wave-executor` with `cwd` pointing at that worktree:
 
 **Inside a `/release:session` worktree (Model B, v0.15.0):** if `.release-planning/.session` exists,
 treat this run as `--no-branch` — commit in place on the current `session/<label>` branch and SKIP the
 lock + nested phase-worktree block below (the session already isolates this checkout; its `finish`
-merges these commits back to base). Spawn `release-wave-executor` with `no_branch: true`, `cwd: .`.
+merges these commits back to base). Spawn `release:release-wave-executor` with `no_branch: true`, `cwd: .`.
 The block below applies only OUTSIDE a session.
 
 ```bash
@@ -88,7 +88,7 @@ git -C "$PHASE_WT" rev-parse HEAD > "$PHASE_WT/.release-planning/phases/{NN}-{sl
 Then spawn the wave-executor handing down the isolation context:
 
 ```yaml
-agent: release-wave-executor
+agent: release:release-wave-executor
 config:
   cwd: "$PHASE_WT"            # ALL git ops run here — never the shared main checkout
   session_id: "$SESSION_ID"   # namespaces wave worktrees + wave branches across sessions
@@ -123,24 +123,24 @@ PR is opened from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
 
 ## Workflow by stack
 
-`/release:execute` ALWAYS spawns `release-wave-executor`. Wave-executor:
+`/release:execute` ALWAYS spawns `release:release-wave-executor`. Wave-executor:
 1. Parses PLAN (`{NN}-PLAN/manifest.md` wave-split dir, OR legacy `{NN}-PLAN.md`)
 2. Auto-derives `parallel_groups` per wave when frontmatter omits them (via `files:` per task disjoint analysis)
 3. Slices PLAN per task into worktree-local `PLAN-SLICE.md` (~3KB) to drop redundant context cost
-4. Spawns N `release-tdd-executor` concurrently in `git worktree`-isolated branches when disjoint files detected
+4. Spawns N `release:release-tdd-executor` concurrently in `git worktree`-isolated branches when disjoint files detected
 5. Falls back serial-in-main-tree when files collide (Django graph coherence, migrations, lockfiles)
 6. Cherry-picks per-task commits back to `feat/{NN}-{slug}` branch after each wave
 7. Verify per-wave (intermediate) + full suite at end-of-phase (terminal wave only)
 
 ### backend (stack: django)
-- Wave-executor dispatches `release-tdd-executor` per task per worktree
+- Wave-executor dispatches `release:release-tdd-executor` per task per worktree
 - Per-task: RED → GREEN → REFACTOR (Q1-Q7) → SECURITY (9-category) → RACE (if Q5) → MEMRAY (if Q7)
 - Conventional Commits: `test(app):`, `feat(app):`, `refactor(app):`
 - Verification per-wave: `ruff`, `makemigrations --check`. Full pytest sweep ONLY after terminal wave.
 - Produces: `{NN}-SUMMARY.md` + `{NN}-WAVE-SUMMARY.md`
 
 ### frontend (stack: react-tsx)
-- Wave-executor dispatches `release-tdd-executor` per task per worktree
+- Wave-executor dispatches `release:release-tdd-executor` per task per worktree
 - Per-task: RED → GREEN → REFACTOR (RC1-RC7) → SECURITY (9-category)
 - Conventional Commits: `test(ui):`, `feat(ui):`, `refactor(ui):`
 - Verification per-wave: `tsc --noEmit`, RC6 grep. Full vitest sweep ONLY after terminal wave.
@@ -210,7 +210,7 @@ Token economy: serial PLAN re-read per spawn dropped from ~115KB × N spawns to 
 /release:execute 01
 
 → Reading PLAN.md frontmatter: stack: react-tsx
-→ Routing to release-tdd-executor
+→ Routing to release:release-tdd-executor
 
 → T01 RED: InvoiceList.test.tsx (8 failing tests)
    vitest: 8 failed ✓ (expected)

@@ -54,7 +54,7 @@ list to know what's left.
 
 ### Step 1 — Spawn the milestone auditor
 
-Dispatch the `release-milestone-auditor` agent (defined at
+Dispatch the `release:release-milestone-auditor` agent (defined at
 `/Users/lucas/release/personal/django-sdk/agents/release-milestone-auditor.md`). Inputs:
 
 ```
@@ -253,7 +253,7 @@ Single git commit (`chore(milestone): complete {name}`) on the current branch.
 
 → Resolved milestone: v1.0
 
-→ Spawning release-milestone-auditor...
+→ Spawning release:release-milestone-auditor...
   · 5 phases scanned
   · 18 requirements: 18 COVERED, 0 PARTIAL, 0 GAP
   · 22 UAT items: 22 CLOSED, 0 OPEN
@@ -305,7 +305,7 @@ Next: /release:new-milestone   (start v1.1)
 ## Notes
 
 - GSD analog: mirrors `/gsd:complete-milestone`. Different filesystem; same intent.
-- The auditor agent (`release-milestone-auditor`) is also reusable standalone via
+- The auditor agent (`release:release-milestone-auditor`) is also reusable standalone via
   `/release:audit-milestone` for mid-cycle health checks. The only difference is the output
   path (timestamped under `.release-planning/` vs. canonical under `milestones/{name}/`).
 - "Notable findings" in SUMMARY.md is a deliberate carry-over. The next milestone planning

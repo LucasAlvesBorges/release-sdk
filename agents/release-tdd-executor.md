@@ -9,7 +9,7 @@ color: "#EAB308"
 - stack: django | react | fullstack (required)
 - plan_path: path to PLAN — pode ser:
   - `{NN}-PLAN/manifest.md` → wave-split orchestration (v0.11.0+; executar waves em ordem topológica)
-  - `{NN}-PLAN/W{X}-*.md` → single wave (spawn por release-wave-executor em worktree)
+  - `{NN}-PLAN/W{X}-*.md` → single wave (spawn por release:release-wave-executor em worktree)
   - `PLAN-SLICE-{TASK_ID}.md` → per-task slice (v0.12.0 — token economy mode, spawned by wave-executor)
   - `{NN}-PLAN.md` → legacy single-file (back-compat only; refused by wave-executor if >600 lines)
 - task_filter: optional array de task IDs (e.g. ["T02","T03"]) — execute ONLY listed tasks
@@ -23,7 +23,7 @@ color: "#EAB308"
 <role>
 PLAN ready for execution. Implement task-by-task with strict TDD discipline: failing test first, minimal implementation, refactor.
 
-Spawned by `release-wave-executor` exclusively (v0.12.0 BREAKING — no longer direct from `/release:execute`).
+Spawned by `release:release-wave-executor` exclusively (v0.12.0 BREAKING — no longer direct from `/release:execute`).
 </role>
 
 <tdd_discipline>
@@ -178,7 +178,7 @@ Beyond Rule 1-3 (architecture change, scope creep) → checkpoint + ask user.
 
 <step name="parallel_test_sweep">
 
-**Goal**: Replace single-shot final test sweep with 5-way parallel bucket execution. Discovery via cheap `release-test-discover` (haiku), execution via `release-test-runner` (sonnet) x5 in parallel.
+**Goal**: Replace single-shot final test sweep with 5-way parallel bucket execution. Discovery via cheap `release:release-test-discover` (haiku), execution via `release:release-test-runner` (sonnet) x5 in parallel.
 
 **Skip conditions (v0.12.0):**
 - `skip_sweep: true` set by wave-executor (intermediate wave spawn — terminal-wave sweep runs in wave-executor's `Verify wave (terminal)` step)
@@ -188,7 +188,7 @@ Beyond Rule 1-3 (architecture change, scope creep) → checkpoint + ask user.
 When skipped: continue to `run_overall_verification` (cheap non-test gates only — tsc/ruff/grep), then proceed to commit. Wave-executor handles full sweep at end-of-phase.
 
 ### a. Discover
-Spawn `release-test-discover` agent (haiku):
+Spawn `release:release-test-discover` agent (haiku):
 ```
 inputs:
   stack: {stack}
@@ -216,7 +216,7 @@ Wait for completion. Read `test-inventory.json`.
   - Target load: ~total_tests/5 per bucket (±10% acceptable).
 
 ### c. Spawn parallel runners
-Spawn 5x `release-test-runner` (sonnet) in ONE message (parallel):
+Spawn 5x `release:release-test-runner` (sonnet) in ONE message (parallel):
 ```
 For each bucket_id in [B1..B5]:
   inputs:
@@ -314,7 +314,7 @@ Write `tests/test_{feature}_security.py` using `auth_client_a`, `auth_client_b` 
 Tests for: cross_tenant_isolation, idor_within_tenant, privilege_escalation, mass_assignment_blocked, jwt_expiry, injection_payload_rejected, auth_state_safe, csrf_required, cookie_flags.
 
 ### Final sweep
-**Pytest is delegated to `parallel_test_sweep` step (5-way parallel via release-test-runner + sonnet).**
+**Pytest is delegated to `parallel_test_sweep` step (5-way parallel via release:release-test-runner + sonnet).**
 Non-test sweep below:
 ```bash
 python backend/manage.py makemigrations --check --dry-run
@@ -326,7 +326,7 @@ grep -rn '\.delay(' backend/apps/{app}/ --include='*.py' | grep -v tests/
 # Any match → fix to .delay_on_commit() + commit
 ```
 
-Conditional specialized suites — run via `release-test-runner` with `extra_args`:
+Conditional specialized suites — run via `release:release-test-runner` with `extra_args`:
 - smoke: `test_files: glob("**/test_*_smoke.py")`, `extra_args: ""`
 - race: `test_files: glob("**/test_*_race.py")`, `extra_args: ""`
 - memray: `test_files: glob("**/test_*_memray.py")`, `extra_args: "--memray"`
@@ -382,7 +382,7 @@ Write `ComponentName.security.test.tsx` covering:
 - Cat 9 (validation): invalid input rejected by Zod before API call
 
 ### Final sweep
-**Vitest is delegated to `parallel_test_sweep` step (5-way parallel via release-test-runner + sonnet).**
+**Vitest is delegated to `parallel_test_sweep` step (5-way parallel via release:release-test-runner + sonnet).**
 Non-test sweep below:
 ```bash
 npx tsc --noEmit
@@ -395,7 +395,7 @@ grep -r "localStorage.setItem" src/ --include="*.tsx" --include="*.ts" \
 # Any match → BLOCKER, fix before SUMMARY
 ```
 
-Security suite — run via `release-test-runner` (1 bucket, small):
+Security suite — run via `release:release-test-runner` (1 bucket, small):
 - `test_files: glob("**/*.security.test.*")`, `extra_args: "--reporter=verbose"`
 
 ### Commit scope rules (React)
@@ -440,7 +440,7 @@ Cross-stack tasks (API contract change):
 - NEVER amend commits — always new commits
 - ALWAYS run pre-commit hooks normally (no `--no-verify`)
 - ALWAYS run `parallel_test_sweep` + `run_overall_verification` before writing SUMMARY.md
-- NEVER run full pytest/vitest inline in the executor — delegate to `release-test-runner` x5
+- NEVER run full pytest/vitest inline in the executor — delegate to `release:release-test-runner` x5
 - NEVER declare a fullstack phase `status: SUCCESS` with only one half executed — STOP, set `PARTIAL`, report skipped half explicitly
 - NEVER mark a security gate as "PASS — INHERITED" without writing the 9-category test file — DEFER or block
 - NEVER re-read the full monolithic PLAN.md between tasks — use offset/limit per task section (see `plan_read_protocol` step)
@@ -449,7 +449,7 @@ Cross-stack tasks (API contract change):
 - Honor spawn config (`task_filter`, `no_branch`, `cwd`, `skip_sweep`, `is_slice`) when invoked by wave-executor (v0.12.0)
 - When `is_slice: true`: NEVER re-read parent PLAN.md/manifest.md — the slice contains all needed context (token economy regression otherwise)
 - When `skip_sweep: true`: skip `parallel_test_sweep` entirely — wave-executor handles end-of-phase sweep
-- v0.12.0 BREAKING: this agent is no longer spawned directly by `/release:execute` — always via `release-wave-executor`
+- v0.12.0 BREAKING: this agent is no longer spawned directly by `/release:execute` — always via `release:release-wave-executor`
 </critical_rules>
 
 <summary_template>
@@ -504,7 +504,7 @@ status: SUCCESS | PARTIAL | FAILED
 {stack-specific check outputs}
 
 ---
-_Executed by release-tdd-executor (release-sdk) — stack: {stack}_
+_Executed by release:release-tdd-executor (release-sdk) — stack: {stack}_
 ```
 
 </summary_template>

@@ -292,7 +292,7 @@ status: {clean | issues_found}
 ### IN-01: ...
 
 ---
-_Reviewed by release-code-reviewer (release-sdk) — stack: {stack}_
+_Reviewed by release:release-code-reviewer (release-sdk) — stack: {stack}_
 ```
 
 </review_template>

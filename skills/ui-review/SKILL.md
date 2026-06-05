@@ -22,7 +22,7 @@ dimension. Distinct from `/release:ui-phase` (author-time design-contract) and f
 | Input | SPEC + CONTEXT + LOCKs | Shipped React source + UI-SPEC | PLAN must_haves + source |
 | Output | `{NN}-UI-SPEC.md` (contract) | `{NN}-UI-REVIEW.md` (scored audit) | `{NN}-VERIFICATION.md` (truth verdict) |
 | Modifies code | No | No (read-only audit) | No |
-| Agents | react-ui-researcher | react-ui-auditor | release-phase-verifier |
+| Agents | release:react-ui-researcher | release:react-ui-auditor | release:release-phase-verifier |
 
 ## Usage
 
@@ -61,7 +61,7 @@ For each phase being audited:
 
 ## Execution
 
-For each in-scope phase, spawn one `react-ui-auditor` with this config:
+For each in-scope phase, spawn one `release:react-ui-auditor` with this config:
 
 ```yaml
 phase_number: "{NN}"
@@ -80,7 +80,7 @@ When `--all`, run audits in parallel (one auditor per phase). Collect each resul
 .release-planning/phases/{NN}-{slug}/{NN}-UI-REVIEW.md
 ```
 
-The auditor produces a scorecard (see `react-ui-auditor` for full template). Frontmatter
+The auditor produces a scorecard (see `release:react-ui-auditor` for full template). Frontmatter
 includes `audited_at`, `score_total`, `score_per_dim` (6 numbers). The skill rolls these up
 into a printed summary table.
 
@@ -125,7 +125,7 @@ Never auto-commits any source-code changes — the audit is read-only.
 → Phase: 03-invoice-list  (stack: fullstack)
 → UI-SPEC.md found: 8 UI-DECs
 → Scope: 11 .tsx files from a1b2c3..HEAD
-→ Spawning react-ui-auditor...
+→ Spawning release:react-ui-auditor...
 
 → Auditor results:
    Accessibility:   72 (target 80)  — 4 inputs missing aria-label
@@ -148,7 +148,7 @@ Next:
 /release:ui-review --all
 
 → Phases with has_ui: true: 01, 03, 07
-→ Spawning 3 react-ui-auditor instances in parallel...
+→ Spawning 3 release:react-ui-auditor instances in parallel...
 
 → Summary:
    | Phase | Total | A11y | Resp | L/E | i18n | Types | DS  | Verdict   |

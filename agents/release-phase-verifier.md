@@ -332,7 +332,7 @@ status: PASS | PASS_WITH_WARNINGS | GAPS_FOUND | CRITICAL
 - CRITICAL → escalate; block any phase advancement until resolved
 
 ---
-_Verified by release-phase-verifier (release-sdk) — stack: {stack}_
+_Verified by release:release-phase-verifier (release-sdk) — stack: {stack}_
 ```
 
 </verification_template>

@@ -211,7 +211,7 @@ Update `.release-planning/STATE.md`:
 
 <critical_rules>
 
-- NEVER write PLAN.md — that's release-feature-planner's job.
+- NEVER write PLAN.md — that's release:release-feature-planner's job.
 - NEVER write code.
 - NEVER assume — ask if ambiguous.
 - NEVER override LOCK-XX from PROJECT.md (those are NOT re-decideable per phase).

@@ -12,7 +12,7 @@ description: >
 
 # /release:audit-milestone — Non-Destructive Milestone Health Check
 
-Runs the same `release-milestone-auditor` agent that gates `/release:complete-milestone`, but
+Runs the same `release:release-milestone-auditor` agent that gates `/release:complete-milestone`, but
 read-only. Output goes to a timestamped file under `.release-planning/` (not under
 `milestones/{name}/`), so re-running it leaves a trail without touching the canonical archive
 location.
@@ -75,7 +75,7 @@ print:
 
 ### Step 2 — Spawn the auditor
 
-Dispatch `release-milestone-auditor` with:
+Dispatch `release:release-milestone-auditor` with:
 
 ```
 milestone:        {name}
@@ -197,7 +197,7 @@ stdout only (see Step 3).
 → Resolved milestone: v1.1 (6 phases — 3 shipped, 3 in-flight)
 → Scanning .release-planning/phases/
 
-→ Spawning release-milestone-auditor (mode=audit)...
+→ Spawning release:release-milestone-auditor (mode=audit)...
   · 6 phase dirs scanned
   · 22 requirements: 14 COVERED, 5 PARTIAL, 3 GAP
   · 28 UAT items: 19 CLOSED, 9 OPEN

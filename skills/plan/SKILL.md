@@ -51,20 +51,20 @@ Detects phase type (backend / frontend / fullstack) and routes to the correct pl
 ### backend
 1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists (GSD import), else `.release-planning/PROJECT.md`. Both may coexist — RELEASE-LOCKS.md takes precedence for LOCK-XX values.
 2. Load ROADMAP phase entry, CONTEXT.md.
-3. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
-4. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
-5. Spawn `release-feature-planner` → `{NN}-PLAN.md`.
-6. Spawn `release-plan-checker` (`Agent({subagent_type: "release-plan-checker", stack: "django", phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`) → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK).
+3. Spawn `release:release-feature-researcher` → `{NN}-RESEARCH.md`.
+4. Spawn `release:release-pattern-mapper` → `{NN}-PATTERNS.md`.
+5. Spawn `release:release-feature-planner` → `{NN}-PLAN.md`.
+6. Spawn `release:release-plan-checker` (`Agent({subagent_type: "release:release-plan-checker", stack: "django", phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`) → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK).
 7. If BLOCK: report blockers, suggest `--revise`. If WARN: log to PLAN-CHECK.md but proceed. If PASS: continue.
 8. Commit artifacts.
 
 ### frontend
 1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists, else `.release-planning/PROJECT.md`.
 2. Load ROADMAP phase entry, CONTEXT.md.
-2. Spawn `release-feature-researcher` → `{NN}-RESEARCH.md`.
-3. Spawn `release-pattern-mapper` → `{NN}-PATTERNS.md`.
-4. Spawn `release-feature-planner` → `{NN}-PLAN.md`.
-5. Spawn `release-plan-checker` (`Agent({subagent_type: "release-plan-checker", stack: "react", phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`) → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK). If BLOCK: report + suggest `--revise`; if WARN: proceed; if PASS: continue.
+2. Spawn `release:release-feature-researcher` → `{NN}-RESEARCH.md`.
+3. Spawn `release:release-pattern-mapper` → `{NN}-PATTERNS.md`.
+4. Spawn `release:release-feature-planner` → `{NN}-PLAN.md`.
+5. Spawn `release:release-plan-checker` (`Agent({subagent_type: "release:release-plan-checker", stack: "react", phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`) → `{NN}-PLAN-CHECK.md` (PASS/WARN/BLOCK). If BLOCK: report + suggest `--revise`; if WARN: proceed; if PASS: continue.
 6. Verify plan manually: RC1-RC7 present, security matrix present, TDD ordering correct.
 7. Commit artifacts.
 
@@ -90,10 +90,10 @@ git worktree add --detach "$WT_BASE/{NN}-{slug}-frontend"
 
 Spawn both pipelines in one message — independent worktrees → safe parallel:
 
-- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `release-plan-checker` (stack=`django`, phase_dir scoped to backend worktree) execute in `$WT_BASE/{NN}-{slug}-backend`
-- `release-feature-researcher`, `release-pattern-mapper`, `release-feature-planner`, `release-plan-checker` (stack=`react`, phase_dir scoped to frontend worktree) execute in `$WT_BASE/{NN}-{slug}-frontend`
+- `release:release-feature-researcher`, `release:release-pattern-mapper`, `release:release-feature-planner`, `release:release-plan-checker` (stack=`django`, phase_dir scoped to backend worktree) execute in `$WT_BASE/{NN}-{slug}-backend`
+- `release:release-feature-researcher`, `release:release-pattern-mapper`, `release:release-feature-planner`, `release:release-plan-checker` (stack=`react`, phase_dir scoped to frontend worktree) execute in `$WT_BASE/{NN}-{slug}-frontend`
 
-Each pipeline's checker call: `Agent({subagent_type: "release-plan-checker", stack: <django|react>, phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`. Verdict handling: BLOCK → abort merge, report blockers, suggest `--revise`; WARN → log + proceed; PASS → continue to merge phase.
+Each pipeline's checker call: `Agent({subagent_type: "release:release-plan-checker", stack: <django|react>, phase: "{NN}", slug: "{slug}", phase_dir: ".release-planning/phases/{NN}-{slug}"})`. Verdict handling: BLOCK → abort merge, report blockers, suggest `--revise`; WARN → log + proceed; PASS → continue to merge phase.
 
 Each pipeline writes its `{NN}-PLAN-*.md` + research artifacts under that worktree's `.release-planning/phases/{NN}-{slug}/`.
 
@@ -211,7 +211,7 @@ This skill spawns merged `release-*` agents. Stack is inferred from `.release-pl
 
 ## Notes / Constraints
 
-- `release-plan-checker` (v0.7.0) é auto-spawnado after `release-feature-planner` for ALL stacks, BEFORE commit. Verdict gates: BLOCK aborts (suggests `--revise`); WARN logs to PLAN-CHECK.md and proceeds; PASS commits.
+- `release:release-plan-checker` (v0.7.0) é auto-spawnado after `release:release-feature-planner` for ALL stacks, BEFORE commit. Verdict gates: BLOCK aborts (suggests `--revise`); WARN logs to PLAN-CHECK.md and proceeds; PASS commits.
 - **v0.11.0 BREAKING:** PLAN.md monolítico substituído por `{NN}-PLAN/` dir (manifest.md + N wave files). Plans monolíticos pré-v0.11 são lidos (back-compat) mas checker emite MED finding sugerindo re-rodar `/release:plan`.
 - **Wave budget:** target 400 linhas / 3-5 tasks per wave; hard cap 600 linhas (BLOCKER).
-- **Model dispatch:** `release-plan-checker`, `release-pattern-mapper`, `release-codebase-mapper`, `release-intel-updater`, `release-nyquist-auditor`, `release-eval-auditor`, security-retro pairs, `django-checklist-verifier` rodam em **Sonnet 4.6**. `release-doc-verifier` e `release-doc-classifier` rodam em **Haiku 4.5**. Planejadores e executores permanecem em Opus 4.7.
+- **Model dispatch:** `release:release-plan-checker`, `release:release-pattern-mapper`, `release:release-codebase-mapper`, `release:release-intel-updater`, `release:release-nyquist-auditor`, `release:release-eval-auditor`, security-retro pairs, `release:django-checklist-verifier` rodam em **Sonnet 4.6**. `release:release-doc-verifier` e `release:release-doc-classifier` rodam em **Haiku 4.5**. Planejadores e executores permanecem em Opus 4.7.

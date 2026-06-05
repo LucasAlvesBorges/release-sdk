@@ -42,11 +42,11 @@ Final review → PR draft → `gh pr create` → cursor moves to `shipped`. No m
 
 ### Step 1 — Pre-ship review (skippable with `--skip-review`)
 
-Spawn `release-code-reviewer` against the phase diff:
+Spawn `release:release-code-reviewer` against the phase diff:
 
 ```
 Agent({
-  subagent_type: "release-code-reviewer",
+  subagent_type: "release:release-code-reviewer",
   description: "Pre-ship review of phase {NN}",
   prompt: "Review diff for phase {NN}-{slug}. Scope: `git diff main...HEAD`. Focus: blockers only — bugs, security, broken contracts. Skip nits.",
   metadata: { stack, phase_path: ".release-planning/phases/{NN}-{slug}/" }
@@ -130,7 +130,7 @@ Print PR URL to user.
 → Worktree clean ✓
 → Branch: feat/03-invoice-pdf-export (not main) ✓
 → gh auth ✓
-→ Pre-ship review: release-code-reviewer…
+→ Pre-ship review: release:release-code-reviewer…
   [no blockers]
 → Drafting PR title + body from SPEC + PLAN + UAT
 → Pushing branch + opening PR…

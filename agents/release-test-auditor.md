@@ -86,14 +86,14 @@ git commit -m "test({scope}): add {type} test skeleton for {feature}"
 | `@shared_task` / `@app.task` | `test_X_task` (happy + retry + idempotency) |
 | `@receiver(...)` signal handler | `test_X_signal` (fire + no-fire conditions) |
 | Custom `BasePermission` | `test_X_permission` (allow + deny) |
-| `.raw()` / `cursor.execute()` / `RawSQL()` / `.extra()` / `?ordering` (Cat A11) | `test_sqli_stacked_sentinel_survives`, `test_sqli_time_blind_no_delay`, `test_sqli_orderby_allowlist` (data-layer assertions — NOT HTTP status) — owner: `release-advanced-threat-auditor` |
-| Image / media upload (`ImageField` / `FileField` / Pillow / archive extract) (Cat A12) | `test_decompression_bomb_rejected_before_load`, `test_svg_upload_served_as_attachment`, `test_zip_slip_path_traversal_blocked` — owner: `release-advanced-threat-auditor` |
-| Outbound fetch on user-controlled URL (`requests`/`httpx`/`urlopen`) (Cat A13.1) | `test_ssrf_blocks_link_local_169_254` — owner: `release-advanced-threat-auditor` |
-| `subprocess` / `os.system` / shell-out on user input (Cat A12b) | `test_command_injection` — owner: `release-advanced-threat-auditor` |
-| AWS/boto3 + IaC (`terraform/*.tf`, `serverless.yml`, `cdk/`, policy JSON) (Cat A13) | `test_imds_v2_enforced` (pytest) + `check_*` **static gates** (tfsec/checkov/conftest/CI grep — NOT pytest) — owner: `release-advanced-threat-auditor` |
+| `.raw()` / `cursor.execute()` / `RawSQL()` / `.extra()` / `?ordering` (Cat A11) | `test_sqli_stacked_sentinel_survives`, `test_sqli_time_blind_no_delay`, `test_sqli_orderby_allowlist` (data-layer assertions — NOT HTTP status) — owner: `release:release-advanced-threat-auditor` |
+| Image / media upload (`ImageField` / `FileField` / Pillow / archive extract) (Cat A12) | `test_decompression_bomb_rejected_before_load`, `test_svg_upload_served_as_attachment`, `test_zip_slip_path_traversal_blocked` — owner: `release:release-advanced-threat-auditor` |
+| Outbound fetch on user-controlled URL (`requests`/`httpx`/`urlopen`) (Cat A13.1) | `test_ssrf_blocks_link_local_169_254` — owner: `release:release-advanced-threat-auditor` |
+| `subprocess` / `os.system` / shell-out on user input (Cat A12b) | `test_command_injection` — owner: `release:release-advanced-threat-auditor` |
+| AWS/boto3 + IaC (`terraform/*.tf`, `serverless.yml`, `cdk/`, policy JSON) (Cat A13) | `test_imds_v2_enforced` (pytest) + `check_*` **static gates** (tfsec/checkov/conftest/CI grep — NOT pytest) — owner: `release:release-advanced-threat-auditor` |
 
 > **Advanced categories (A11/A12/A13) — ownership + evidence model.** The last five matrix rows
-> belong to `release-advanced-threat-auditor` (runs ALWAYS, in parallel, on every `/release:security`).
+> belong to `release:release-advanced-threat-auditor` (runs ALWAYS, in parallel, on every `/release:security`).
 > This auditor only needs to KNOW these test types are required so it can flag their absence as a gap.
 > Two non-negotiable rules carry over from ADVANCED-SECURITY-GAP.md:
 > - **A11/A12/A13 pytest tests assert DATA-LAYER / behavioral impact** (sentinel survives, row-count baseline,
@@ -111,7 +111,7 @@ grep -ln "@shared_task\|@app.task\|delay_on_commit" backend/apps/{app}/
 grep -ln "@receiver(\|signal.connect" backend/apps/{app}/
 grep -ln "permissions.BasePermission" backend/apps/{app}/
 grep -ln "router.register\|path(" backend/apps/{app}/urls.py
-# advanced surfaces (Cat A11/A12/A13 — owner: release-advanced-threat-auditor)
+# advanced surfaces (Cat A11/A12/A13 — owner: release:release-advanced-threat-auditor)
 grep -ln "\.raw(\|cursor.execute(\|RawSQL(\|\.extra(\|OrderingFilter\|?ordering" backend/apps/{app}/   # A11 raw-SQL / ORDER BY
 grep -ln "ImageField\|FileField\|PIL\|Image.open\|zipfile\|tarfile\|extractall" backend/apps/{app}/    # A12 image/archive upload
 grep -ln "requests.get\|httpx\|urlopen\|urllib.request" backend/apps/{app}/                            # A13.1 SSRF (outbound fetch)
@@ -131,7 +131,7 @@ grep -l "pytest.mark.limit_memory" backend/apps/{app}/tests/*.py
 for cat in cross_tenant idor privilege_escalation mass_assignment jwt input_validation auth_transitions csrf cookie; do
   grep -l "test_${cat}\|test_.*${cat}" backend/apps/{app}/tests/test_*security*.py
 done
-# advanced categories (A11/A12/A13 — owner: release-advanced-threat-auditor)
+# advanced categories (A11/A12/A13 — owner: release:release-advanced-threat-auditor)
 grep -l "test_sqli_stacked_sentinel_survives\|test_sqli_time_blind_no_delay\|test_sqli_orderby_allowlist" backend/apps/{app}/tests/test_*.py   # A11
 grep -l "test_decompression_bomb_rejected_before_load\|test_svg_upload_served_as_attachment\|test_zip_slip_path_traversal_blocked" backend/apps/{app}/tests/test_*.py   # A12
 grep -l "test_ssrf_blocks_link_local_169_254\|test_command_injection\|test_imds_v2_enforced" backend/apps/{app}/tests/test_*.py   # A13.1 / A12b / A13.1
@@ -252,7 +252,7 @@ class Test{Feature}Security:
     # indistinguishable. Such a test is itself a FINDING: flag it, do NOT emit it. Mitigation
     # is proven ONLY by DATA-LAYER impact assertions (sentinel survives, row-count baseline,
     # wall-time, no DB-error leak). Owner of full Cat A11 exploitation matrix:
-    # release-advanced-threat-auditor.
+    # release:release-advanced-threat-auditor.
 
     def test_sqli_stacked_sentinel_survives(self, auth_client_a):
         """Cat A11 stacked: seed a sentinel, fire a stacked DROP/DELETE, assert it survives."""
@@ -318,7 +318,7 @@ For race tests: ALWAYS include `tenant_var.set(empresa_id)` in each thread — D
 | 1 Unit | hook isolation: `renderHook()` with mocked API; pure utilities; Zustand slice actions+selectors | every exported function/hook |
 | 2 Component (RTL) | render + `userEvent.click/type/selectOptions` + DOM assertions + callback assertions | at least 1 happy-path + 1 error-state per component |
 | 3 Integration (MSW) | MSW mocks HTTP, full data flow fetch → render → user action → mutation → cache invalidate | any component fetching data |
-| 4 Security | 9-category `.security.test.tsx` (see release-security-auditor) | every feature with API calls |
+| 4 Security | 9-category `.security.test.tsx` (see release:release-security-auditor) | every feature with API calls |
 | 5 A11y | `axe-core` violations + keyboard nav | interactive components — WARNING if missing |
 
 ### Trigger → required dimension matrix
@@ -360,7 +360,7 @@ grep -rln "axe-core\|toHaveNoViolations" src/ --include="*.tsx" | head
 
 **Component test skeleton (Dim 2):**
 ```tsx
-// ComponentName.test.tsx — skeleton generated by release-test-auditor
+// ComponentName.test.tsx — skeleton generated by release:release-test-auditor
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
@@ -527,7 +527,7 @@ status: COMPLETE | GAPS_FOUND
 3. Commit per skeleton: `test({scope}): add {type} test for {feature}`
 
 ---
-_Audited by release-test-auditor (release-sdk) — stack: {stack}_
+_Audited by release:release-test-auditor (release-sdk) — stack: {stack}_
 ```
 
 </audit_template>
@@ -536,7 +536,7 @@ _Audited by release-test-auditor (release-sdk) — stack: {stack}_
 - [ ] Every implementation trigger probed (stack-specific list)
 - [ ] Every required test type/dimension checked
 - [ ] Django: 9 security categories audited individually
-- [ ] Django: advanced surfaces (A11 raw-SQL/ORDER BY, A12 image/archive upload, A13.1 SSRF, A12b command-injection, A13 AWS) probed; required A11/A12/A13 test types flagged if missing — owner `release-advanced-threat-auditor`
+- [ ] Django: advanced surfaces (A11 raw-SQL/ORDER BY, A12 image/archive upload, A13.1 SSRF, A12b command-injection, A13 AWS) probed; required A11/A12/A13 test types flagged if missing — owner `release:release-advanced-threat-auditor`
 - [ ] Django: any injection/sqli test asserting ONLY an HTTP status flagged as HOLLOW (finding, mitigation UNVERIFIED) — never emitted as coverage
 - [ ] React: 5 dimensions assessed per component
 - [ ] Gaps listed with skeleton code

@@ -62,7 +62,7 @@ Abort with an actionable message on failure:
      - Prefer {NN}-AI-EVAL.md if present (companion mode)
      - Otherwise {NN}-AI-SPEC.md (append mode)
      - --eval-spec flag forces AI-EVAL.md
-2. Spawn release-eval-auditor with:
+2. Spawn release:release-eval-auditor with:
      phase_number: NN
      phase_dir: .release-planning/phases/{NN}-{slug}/
      ai_spec_path: absolute path to AI-SPEC.md
@@ -112,7 +112,7 @@ In parallel the auditor verifies:
 
 Single agent (no stack dispatch — eval audits are use-case-level, not stack-level):
 
-- `release-eval-auditor` — read-only audit, produces EVAL-REVIEW.md.
+- `release:release-eval-auditor` — read-only audit, produces EVAL-REVIEW.md.
 
 If the AI phase shipped fullstack components (Django proxy + React consumer), the auditor still
 runs once but probes both `backend/` and `frontend/` paths as the plan demands (e.g. Zod schema
@@ -181,7 +181,7 @@ Next: {recommended action based on verdict}
 ```
 /release:eval-review 04
 → Phase 04-invoice-summarize (stage=shipped, plan=04-AI-SPEC.md, append mode)
-→ Spawning release-eval-auditor; probing tests/eval/, golden.jsonl, judges, AILog, workflows...
+→ Spawning release:release-eval-auditor; probing tests/eval/, golden.jsonl, judges, AILog, workflows...
 → 8 dims: 4 COVERED, 2 PARTIAL, 2 MISSING (E-03 pii_leakage CRITICAL, E-08 tone_fit LOW)
 → Dataset: 12/20 cases, 0% adversarial → PARTIAL
 → Monitoring: AILog missing ttft_ms + eval_dim_scores; redaction_count never populated → PARTIAL

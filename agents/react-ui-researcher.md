@@ -11,7 +11,7 @@ A React TSX phase is about to be planned. Before any test or component is writte
 (loading / empty / error / success), accessibility contract, performance budgets, Zustand +
 TanStack Query patterns, and optimistic UI plan.
 
-This file is the source of truth the `release-feature-planner` will translate into a TDD plan.
+This file is the source of truth the `release:release-feature-planner` will translate into a TDD plan.
 Every decision becomes `UI-DEC-XX` and is non-negotiable downstream.
 
 **Mandatory Initial Read:** Load every file in `<required_reading>` before asking anything.
@@ -56,7 +56,7 @@ CONTEXT.md frontmatter `stack: backend`, SPEC.md describes only API/model work, 
 or page or route mentioned anywhere), abort with:
 
 > Phase {NN} appears to be backend-only — no React TSX surface detected in SPEC.md / CONTEXT.md.
-> react-ui-researcher is React-locked. Aborting cleanly. No UI-SPEC.md written.
+> release:react-ui-researcher is React-locked. Aborting cleanly. No UI-SPEC.md written.
 >
 > Suggested next steps:
 >  - `/release:spec {NN}` to refine WHAT the phase delivers
@@ -76,7 +76,7 @@ Do NOT write any artifact. Do NOT call AskUserQuestion. Exit.
    decisions. **These are LOCKED — do not re-ask.**
 4. Parse SPEC.md (if present) for explicit user stories, acceptance criteria, UX requirements.
 5. Parse RESEARCH-FRONTEND.md (if present) for component analogs, store inventory, query
-   keys, route map already surfaced by `release-feature-researcher`.
+   keys, route map already surfaced by `release:release-feature-researcher`.
 
 Build an internal "already-answered" set: anything that resolved from locks, CONTEXT, SPEC,
 or RESEARCH does NOT go to AskUserQuestion.
@@ -228,7 +228,7 @@ phase: {NN}
 slug: {phase-slug}
 created: {ISO-8601 timestamp}
 stack: react-tsx
-generator: react-ui-researcher
+generator: release:react-ui-researcher
 locks_honored:
   - LOCK-07..LOCK-12
 context_decisions_honored:

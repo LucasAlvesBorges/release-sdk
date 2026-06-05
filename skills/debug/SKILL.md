@@ -12,7 +12,7 @@ description: >
 
 ## Agent Policy (LOCKED)
 
-NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation. Specifically: `gsd-debugger` → `release-debugger`.
+NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation. Specifically: `gsd-debugger` → `release:release-debugger`.
 
 ---
 
@@ -57,11 +57,11 @@ Detect stack from:
 - File extensions cited in the bug report (`.py` → django, `.tsx` → react)
 - If neither signals → `AskUserQuestion`: "Stack for this debug?" → django / react / fullstack
 
-### Step 2 — Spawn `release-debugger`
+### Step 2 — Spawn `release:release-debugger`
 
 ```
 Agent({
-  subagent_type: "release-debugger",
+  subagent_type: "release:release-debugger",
   description: "Debug session {session_id}",
   prompt: "{bug report from user}",
   metadata: { stack, session_id, session_path: ".release-planning/debug/{session_id}/" }
@@ -101,7 +101,7 @@ for tenant=acme; works locally for same PDF"
 
 → Stack: django (active phase 03-invoice-pdf-export, signal: .py in trace)
 → Session: debug-01-invoice-pdf-memory
-→ Spawning release-debugger…
+→ Spawning release:release-debugger…
 [agent runs, writes SESSION.md after each hypothesis]
 [user /clear; user runs /release:debug --resume debug-01-invoice-pdf-memory; agent picks up]
 [agent isolates: ReportLab streaming buffer not flushed; verdict: RESOLVED]
@@ -111,4 +111,4 @@ for tenant=acme; works locally for same PDF"
 
 ---
 
-_Driven by `release-debugger` agent. Stack-aware. Checkpoint-persistent._
+_Driven by `release:release-debugger` agent. Stack-aware. Checkpoint-persistent._
