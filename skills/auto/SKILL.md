@@ -95,6 +95,7 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 11 | "test gap", "missing tests", "UAT failed", "add tests" | `active_phase != null` | `/release:verify` |
 | 12 | "verify", "UAT", "did it work", "validar" | `active_phase != null` | `/release:verify-work` |
 | 13 | "parallel", "session", "paralelo", "domínio", "worktree", "branch off", "sessões simultâneas" | — | `/release:session` |
+| 13a | "land", "aterrissa", "merge back", "land the quick/phase", "finish the held merge", "/release:land" | a held / `--no-merge` unit exists (a `quick/*`, `feat/*`, or `session/*` worktree whose branch is not yet on base) | `/release:land` |
 | 14 | "checklist", "RC1", "RC7", "Q1", "Q7" | — | `/release:checklist` |
 | 15 | "execute", "run plan", "roda fase", "termina" | `active_stage == planned` | `/release:execute` |
 | 16 | "plan", "break into tasks", "task list", "RC1-RC7" | `active_stage == discussed` | `/release:plan` |

@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Real-git contract test for /release:session (v0.16.0).
+# Real-git contract test for the shared merge-back engine (v0.17.0).
 #
-# The helpers below are FAITHFUL slices of skills/session/SKILL.md (base_token / untrack_planning /
-# sync_into_session / finish / cleanup). They are a touch STRICTER than the doc on exactly one point:
-# the cleanup uses BARE `git` after `cd "$MAIN_ROOT"` (the doc additionally uses `git -C` belt-and-
-# suspenders) so the `cd "$MAIN_ROOT"` line is load-bearing — delete it and the from-inside test fails,
-# guarding bug #1. stderr from the from-inside finish is captured and asserted clean.
+# This test SOURCES the real shipped engine — bin/release-merge-lib.sh — so there is NO faithful-slice
+# drift: the code under test IS the code skills/{session,quick,execute,land} run. `sfinish` here is a thin
+# session shim (resolve label+base from the .session marker, then delegate to land_branch).
 #
-# Coverage (each maps to a fixed bug):
+# Coverage (each maps to a fixed bug / behavior):
 #   #1  cwd-drift: finish FROM INSIDE the worktree → no `Unable to read cwd`, worktree AND branch gone
 #   #2  refused merge (untracked-collision) STOPS, base untouched
 #   #3  planning never leaks (assert ALL of .release-planning/ except base-branch); modify/delete planning
@@ -18,9 +16,18 @@
 #   #7  throwaway path (base checked out NOWHERE) + cleanup with MAIN HEAD != base, branch -D
 #   #8  per-base lock serializes; a stale lock from a DEAD pid is reclaimed
 #   plus: code conflict STOPS base byte-identical (never auto-resolved)
+#   v0.17.0 engine generalization:
+#   #9  quick/* and feat/* branches land via the SAME engine (name-agnostic), full teardown
+#   #10 two disjoint quicks both land; the 2nd re-syncs the 1st under the lock (parallel, no collision)
+#   #11 held-dirty: a LIVE base checkout with uncommitted tracked work is NEVER clobbered; retry lands
 #
 # Run: bash bin/test-session-merge.sh
 set -euo pipefail
+
+# ── source the REAL engine (single source of truth — no faithful-slice drift) ──────────────────────
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=release-merge-lib.sh
+source "$HERE/release-merge-lib.sh"
 
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
@@ -39,94 +46,23 @@ printf '.release-planning/.session\n' >> "$(git -C "$REPO" rev-parse --absolute-
 WT="$REPO/../release-worktrees"; SESS="$WT/sessions"; LOCKS="$WT/.locks"
 cd "$REPO"   # stand in the sandbox main checkout so cwd-based MAIN_ROOT resolves to $REPO
 
-# ── faithful slices of skills/session/SKILL.md ───────────────────────────────────────────────────
-main_root() { git worktree list --porcelain | awk '/^worktree /{print substr($0,10); exit}'; }
-base_token() { printf '%s' "$1" | tr '/' '_'; }
-
-untrack_planning() {  # $1 = worktree
-  local wt="$1"
-  if git -C "$wt" ls-files -u -- .release-planning/base-branch 2>/dev/null | grep -q .; then
-    git -C "$wt" checkout --theirs -- .release-planning/base-branch 2>/dev/null || true
-    git -C "$wt" add -- .release-planning/base-branch 2>/dev/null || true
-  fi
-  git -C "$wt" rm -r --cached --quiet --ignore-unmatch -- .release-planning/ >/dev/null 2>&1 || true
-  [ -f "$wt/.release-planning/base-branch" ] && git -C "$wt" add -f -- .release-planning/base-branch || true
-}
-
-sync_into_session() {  # $1 worktree, $2 base ; 0 synced, 2 code-conflict, 3 refused
-  local wt="$1" base="$2" mout mrc
-  [ -d "$wt" ] || return 1
-  [ -z "$(git -C "$wt" status --porcelain --untracked-files=no)" ] || return 1
-  mout="$(git -C "$wt" merge "$base" --no-commit --no-ff 2>&1)"; mrc=$?
-  if [ "$mrc" -ne 0 ] && ! git -C "$wt" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 \
-       && [ -z "$(git -C "$wt" diff --name-only --diff-filter=U 2>/dev/null)" ]; then
-    return 3   # merge refused before it started (e.g. untracked-file collision)
-  fi
-  local code; code="$(git -C "$wt" diff --name-only --diff-filter=U -- ':(exclude).release-planning/' 2>/dev/null || true)"
-  if [ -n "$code" ]; then git -C "$wt" merge --abort 2>/dev/null || true; return 2; fi
-  untrack_planning "$wt"
-  if git -C "$wt" diff --cached --quiet && ! git -C "$wt" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then :
-  else git -C "$wt" commit --no-edit -m "merge($base): sync + untrack planning" >/dev/null; fi
-  return 0
-}
-
-# Faithful finish. Echoes RESULT=merged|conflict|refused|locked|planningblock|baseadvanced|badbase|nolabel.
-# Always returns 0. Label: $1 or auto-detected from the cwd worktree's .session marker (the from-inside path).
+# ── session shim over the shared engine (resolve label+base from marker, then delegate) ────────────
+# Echoes RESULT=merged|conflict|refused|held-dirty|locked|planningblock|baseadvanced|badbase|nolabel|error.
 sfinish() {
-  local arg="${1:-}" MAIN_ROOT BASE label br wt SESS_DIR LOCK_DIR lock temp="" basewt rc hp
-  MAIN_ROOT="$(main_root)"
+  local arg="${1:-}" label br wt BASE MR
+  MR="$(release_main_root)"
   if [ -n "$arg" ]; then label="$arg"
   else label="$(sed -n 's/^label: //p' "$(git rev-parse --show-toplevel)/.release-planning/.session" 2>/dev/null)"; fi
   [ -n "$label" ] || { echo "RESULT=nolabel"; return 0; }
   br="session/$label"
-  SESS_DIR="$MAIN_ROOT/../release-worktrees/sessions"; LOCK_DIR="$MAIN_ROOT/../release-worktrees/.locks"
-  wt="$SESS_DIR/$label"
+  wt="$MR/../release-worktrees/sessions/$label"
   BASE="$(sed -n 's/^base: //p' "$wt/.release-planning/.session" 2>/dev/null)"
-  [ -n "$BASE" ] || BASE="$(cat "$MAIN_ROOT/.release-planning/base-branch" 2>/dev/null || git -C "$MAIN_ROOT" rev-parse --abbrev-ref HEAD)"
-  case "$BASE" in session/*) echo "RESULT=badbase"; return 0;; esac
-
-  # data-loss guard (#4): base tracks planning beyond base-branch?
-  if [ -n "$(git -C "$MAIN_ROOT" ls-tree -r --name-only "$BASE" -- .release-planning/ 2>/dev/null | grep -v '^\.release-planning/base-branch$')" ]; then
-    echo "RESULT=planningblock"; return 0; fi
-
-  # lock FIRST (#6 atomic; #5 slash-safe; #8 stale-reclaim)
-  mkdir -p "$LOCK_DIR"; lock="$LOCK_DIR/merge-$(base_token "$BASE").lock"
-  if ! ( set -o noclobber; printf '%s\n' "$label $$" > "$lock" ) 2>/dev/null; then
-    hp="$(awk 'NR==1{print $2}' "$lock" 2>/dev/null)"
-    if [ -n "$hp" ] && ! kill -0 "$hp" 2>/dev/null; then
-      rm -f "$lock"; ( set -o noclobber; printf '%s\n' "$label $$" > "$lock" ) 2>/dev/null || { echo "RESULT=locked"; return 0; }
-    else echo "RESULT=locked"; return 0; fi
-  fi
-
-  # sync UNDER the lock
-  sync_into_session "$wt" "$BASE"; rc=$?
-  if [ "$rc" = 3 ]; then rm -f "$lock"; echo "RESULT=refused"; return 0; fi
-  if [ "$rc" = 2 ]; then rm -f "$lock"; echo "RESULT=conflict"; return 0; fi
-  [ "$rc" = 0 ] || { rm -f "$lock"; echo "RESULT=error"; return 0; }
-
-  # locate base checkout; throwaway if base is checked out nowhere (#7)
-  basewt="$(git worktree list --porcelain | awk -v b="refs/heads/$BASE" '/^worktree /{w=substr($0,10)} /^branch /{if($2==b)print w}')"
-  if [ -z "$basewt" ]; then temp="$MAIN_ROOT/../release-worktrees/.merge-$(base_token "$BASE")"; git -C "$MAIN_ROOT" worktree add -q "$temp" "$BASE"; basewt="$temp"; fi
-
-  # guarded merge: session ⊇ base ⇒ clean; abort+restore on any surprise conflict
-  if ! git -C "$basewt" merge --no-ff "$br" -m "merge(session): $label into $BASE" -q 2>/dev/null; then
-    git -C "$basewt" merge --abort 2>/dev/null || true
-    [ -n "$temp" ] && git -C "$MAIN_ROOT" worktree remove --force "$temp" 2>/dev/null
-    rm -f "$lock"; echo "RESULT=baseadvanced"; return 0
-  fi
-
-  # cwd-safe cleanup (#1): cd to MAIN_ROOT, then BARE git (the cd is the guard). stderr left VISIBLE.
-  cd "$MAIN_ROOT" || cd /
-  git worktree remove --force "$wt"
-  if git merge-base --is-ancestor "$br" "$BASE"; then git branch -D "$br" >/dev/null; fi
-  [ -n "$temp" ] && git worktree remove --force "$temp" 2>/dev/null
-  git worktree prune 2>/dev/null
-  rm -f "$lock"
-  echo "RESULT=merged"; return 0
+  [ -n "$BASE" ] || BASE="$(release_read_base)"
+  land_branch "$br" "$wt" "$BASE"
 }
 
 scleanup() {  # faithful cmd_cleanup slice ($1 = base). echoes CLEANED/SKIP-DIRTY/KEPT per session.
-  local MAIN_ROOT BASE lbl br; MAIN_ROOT="$(main_root)"; BASE="$1"; cd "$MAIN_ROOT" || true
+  local MAIN_ROOT BASE lbl br; MAIN_ROOT="$(release_main_root)"; BASE="$1"; cd "$MAIN_ROOT" || true
   git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | while read -r wt; do
     case "$wt" in *"/sessions/"*) ;; *) continue;; esac
     lbl="$(sed -n 's/^label: //p' "$wt/.release-planning/.session" 2>/dev/null)"; [ -n "$lbl" ] || lbl="$(basename "$wt")"
@@ -270,6 +206,45 @@ eq "finish refuses while live lock held" "RESULT=locked" "$(sfinish lk | tail -1
 printf 'ghost 999999\n' > "$LOCKS/merge-dev.lock"   # DEAD pid ⇒ reclaim + proceed
 eq "finish reclaims stale (dead-pid) lock → merged" "RESULT=merged" "$(sfinish lk | tail -1)"
 [ -f "$LOCKS/merge-dev.lock" ] && no "lock not released after merge" || ok "lock released after reclaim+merge"
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# v0.17.0 — the engine is branch-name-agnostic: quick/* and feat/* land via land_branch the same way.
+echo "── #9 quick/* and feat/* branches land via the SAME engine (name-agnostic), full teardown ──"
+git -C "$REPO" worktree add -q -b quick/q1 "$WT/q1" dev
+mkdir -p "$WT/q1/q1"; printf 'q1\n' > "$WT/q1/q1/m.py"; git -C "$WT/q1" add -A; git -C "$WT/q1" commit -qm "quick(q1)"
+eq "quick/q1 land → merged" "RESULT=merged" "$(land_branch quick/q1 "$WT/q1" dev | tail -1)"
+git -C "$REPO" ls-tree -r --name-only dev -- q1/m.py | grep -q . && ok "quick work on dev" || no "quick missing on dev"
+git -C "$REPO" show-ref --verify --quiet refs/heads/quick/q1 && no "quick branch lingered" || ok "quick branch torn down"
+[ -d "$WT/q1" ] && no "quick worktree lingered" || ok "quick worktree torn down"
+git -C "$REPO" worktree add -q -b feat/07-pay "$WT/f7" dev
+mkdir -p "$WT/f7/pay"; printf 'pay\n' > "$WT/f7/pay/v.py"; git -C "$WT/f7" add -A; git -C "$WT/f7" commit -qm "feat(07)"
+eq "feat/07-pay land → merged" "RESULT=merged" "$(land_branch feat/07-pay "$WT/f7" dev | tail -1)"
+git -C "$REPO" ls-tree -r --name-only dev -- pay/v.py | grep -q . && ok "phase work on dev" || no "phase missing on dev"
+[ -z "$(git -C "$REPO" status --porcelain)" ] && ok "dev clean after quick+feat lands" || no "dev dirty"
+
+echo "── #10 two disjoint quicks both land; 2nd re-syncs the 1st under the lock (no collision) ──"
+git -C "$REPO" worktree add -q -b quick/pa "$WT/pa" dev
+git -C "$REPO" worktree add -q -b quick/pb "$WT/pb" dev
+mkdir -p "$WT/pa/pa"; printf 'a\n' > "$WT/pa/pa/m.py"; git -C "$WT/pa" add -A; git -C "$WT/pa" commit -qm "quick(pa)"
+mkdir -p "$WT/pb/pb"; printf 'b\n' > "$WT/pb/pb/m.py"; git -C "$WT/pb" add -A; git -C "$WT/pb" commit -qm "quick(pb)"
+eq "quick/pa land → merged" "RESULT=merged" "$(land_branch quick/pa "$WT/pa" dev | tail -1)"   # advances dev
+eq "quick/pb land (now behind) → merged" "RESULT=merged" "$(land_branch quick/pb "$WT/pb" dev | tail -1)"
+{ [ -f "$REPO/pa/m.py" ] && [ -f "$REPO/pb/m.py" ]; } && ok "both quicks on dev (no collision)" || no "a quick missing"
+[ -z "$(git -C "$REPO" status --porcelain)" ] && ok "dev clean across parallel quick lands" || no "dev dirty"
+
+echo "── #11 held-dirty: a LIVE base checkout with uncommitted tracked work is NEVER clobbered ──"
+git -C "$REPO" worktree add -q -b quick/hd "$WT/hd" dev
+mkdir -p "$WT/hd/hd"; printf 'h\n' > "$WT/hd/hd/m.py"; git -C "$WT/hd" add -A; git -C "$WT/hd" commit -qm "quick(hd)"
+printf 'WIP testing\n' >> "$REPO/README.md"   # dirty the LIVE base checkout ($REPO is on dev) with a tracked edit
+DEVh="$(git -C "$REPO" rev-parse dev)"
+eq "land into dirty live base → held-dirty" "RESULT=held-dirty" "$(land_branch quick/hd "$WT/hd" dev | tail -1)"
+eq "base SHA unchanged while held" "$DEVh" "$(git -C "$REPO" rev-parse dev)"
+git -C "$REPO" diff --quiet README.md && no "user's WIP lost" || ok "user's uncommitted WIP preserved"
+git -C "$REPO" show-ref --verify --quiet refs/heads/quick/hd && ok "held unit branch preserved for retry" || no "held unit branch lost"
+[ -f "$LOCKS/merge-dev.lock" ] && no "lock left held after held-dirty" || ok "lock released on held-dirty"
+git -C "$REPO" add -A; git -C "$REPO" commit -qm "user commits WIP"   # user commits → base clean → retry lands
+eq "re-land after base cleaned → merged" "RESULT=merged" "$(land_branch quick/hd "$WT/hd" dev | tail -1)"
+[ -f "$REPO/hd/m.py" ] && ok "held unit landed on retry" || no "held unit missing after retry"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

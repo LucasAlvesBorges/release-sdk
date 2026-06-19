@@ -8,7 +8,7 @@ Comandos `/release:*` context-aware roteiam automaticamente para os agents certo
 
 **Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador de 32 regras que despacha pro skill `/release:*` certo, imprime a rota escolhida + razão antes de invocar, faz fallback pra `AskUserQuestion` quando a confiança é baixa.
 
-**Versão atual: v0.16.0** — invocação curta `/release:*`, 41 skills, 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+**Versão atual: v0.17.0** — invocação curta `/release:*`, 42 skills, 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
 
 ---
 
@@ -27,6 +27,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 
 ## Novidades (v0.5 → v0.16)
 
+- **v0.17.0** — merge-back automático: rode uma fase + vários `/release:quick` em paralelo e **veja a feature funcionando ao vivo** no seu trunk. `quick` e `execute` isolam em worktree **e aterrissam sozinhos** na base quando os testes passam (hot-reload pega na hora); checkout sujo é **segurado, nunca sobrescrito** (`held-dirty`). Motor único `land_branch` (`bin/release-merge-lib.sh`) compartilhado por `session finish`/`quick`/`execute`/novo `/release:land`, serializado por lock por-base. Teste 48→66 asserts agora *sourceia* o motor real (zero drift). BREAKING: `quick` não commita mais no teu checkout; `execute` não deixa mais `feat/<NN>` solto (use `--no-merge`/`--pr` pro comportamento antigo).
 - **v0.16.0** — `/release:session` endurecido: 6 bugs de uso multi-sessão real (cwd-drift crash no `finish`, conflito mutando o checkout da base, planning vazando pra PR, sem drift handling, `base-branch` não persistindo sob gitignore, pouca visibilidade) + review adversarial de 6 lentes (27 achados — incl. TOCTOU resolvido com lock-first/sync-merge atômico, lockfile slash-safe, reclaim de lock morto, refused-merge). Novos subcomandos `sync`/`doctor`/`cleanup`; `bin/test-session-merge.sh` 12 → 48 asserts regression-guarded. **Agentes agora namespaceados** `release:<nome>` (Claude Code exige prefixo de plugin; `subagent_type` cru falhava) — 320 spawns reescritos em 62 arquivos.
 - **v0.15.0** — BREAKING: sessions worktree-native (Model B). Cada domínio paralelo (financeiro/operacional/RH…) é um worktree numa branch `session/<label>` cortada de uma base, mergeado de volta com merge serializado conflict-safe (base nunca fica suja; conflito PARA, nunca auto-resolve). `/release:session start|sync|finish|list|doctor|cleanup|abort|base`. Substitui `workstreams` (deprecated). 7 agents mortos removidos (44→37).
 - **v0.13.x** — Auditor de ameaças avançadas always-on (A1-A13 Django / RA1-RA5 React: SSRF/IMDS, desserialização insegura, command injection, SSTI/path-traversal, SQLi exploit-grade, race/TOCTOU, image-DoS, AWS-IaC). Execução concurrency-safe: worktree de fase isolado por sessão + lock por fase (fix corrupção UU em execute multi-sessão).
@@ -108,7 +109,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `/release:plan {NN}` | both | Gera PLAN.md com checklists + segurança |
 | `/release:ui-phase {NN}` | frontend | Produz UI-SPEC.md (contrato de design) |
 | `/release:ai-phase {NN}` | both | Produz AI-SPEC.md (framework LLM, prompts, eval, guardrails) |
-| `/release:execute {NN}` | both | Execução TDD-strict (pytest ou vitest) |
+| `/release:execute {NN}` | both | Execução TDD-strict (pytest ou vitest). **Auto-land** na base quando a fase passa (`--no-merge`/`--pr` pra segurar) |
 | `/release:verify {NN}` | both | Verificação estática goal-backward |
 | `/release:verify-work {NN}` | both | Walkthrough UAT conversacional (UAT.md) |
 | `/release:ship` | both | Pre-ship review → PR body grounded em SPEC/PLAN/UAT → `gh pr create` → cursor `shipped`. Nunca faz auto-merge. |
@@ -134,7 +135,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 |---|---|---|
 | `/release:debug` | both | Sessão de debug persistente em `.release-planning/debug/{id}/`. Sobrevive `/clear` via checkpoint. |
 | `/release:fast` | both | Edit inline trivial. Sem agents, sem state. Gate de worktree limpa, commit atômico. Envelope < 30 LOC. |
-| `/release:quick` | both | Task bounded multi-arquivo com TDD executor. Cursor intocado. Entre fast (sem envelope) e plan (envelope completo). |
+| `/release:quick` | both | Task bounded multi-arquivo com TDD executor, **isolado em worktree** (N quicks em paralelo, sem colisão) + **auto-land** na base ao passar. Cursor intocado. Entre fast e plan. |
 | `/release:forensics` | both | Post-mortem pra workflows que falharam. Timeline + 5-whys + plano de recovery. |
 | `/release:add-tests {NN}` | both | Backfill de cobertura UAT ou cobertura de regressão pra um arquivo. |
 
@@ -144,6 +145,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `/release:map-codebase` | both | Análise paralela 4-focus do codebase (tech, arch, quality, concerns) → `.release-planning/codebase/*.md` |
 | `/release:docs-update` | both | Regenera README/CONTRIBUTING/ARCHITECTURE verificados contra o codebase |
 | `/release:session [sub]` | both | Sessões paralelas worktree-native: `start`/`sync`/`finish`/`list`/`doctor`/`cleanup`/`abort`/`base`. N domínios independentes → um trunk, merge-back serializado conflict-safe |
+| `/release:land [label]` | both | Aterrissa na base uma unidade segurada/`--no-merge` (`quick/*`, `feat/*`, `session/*`) — retry do auto-merge, mesmo motor serializado conflict-safe. `--all` aterrissa todas |
 | `/release:workstreams [sub]` | both | ⚠️ Deprecated (v0.15) — substituído por `/release:session` |
 
 ### Legacy single-stack (mantidos por compatibilidade)

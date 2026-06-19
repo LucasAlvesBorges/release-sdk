@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] — 2026-06-19
+
+### Added — auto merge-back: run a phase + many quicks in parallel, and test live on your trunk
+
+Worktree isolation is now **invisible**. `/release:quick` and `/release:execute` isolate their work
+**and auto-land it back onto your trunk the moment tests pass** — so you keep one stable checkout
+running the app and **see every feature land live** (hot-reload), while a phase and any number of
+quicks run concurrently without ever corrupting base. The worktree stopped being a place you have to go.
+
+- **Shared merge-back engine — `bin/release-merge-lib.sh::land_branch`.** The hardened v0.16.0 session
+  `finish` logic (lock **first** → sync base→unit under the lock → conflict-safe merge into base's
+  **live** checkout → cwd-safe teardown) is extracted into one reusable, contract-tested function.
+  `session finish`, `quick`, `execute`, and the new `land` all call it — a single per-base lock
+  serializes every merge-back, so concurrent units never race on your trunk.
+- **`/release:quick` isolates by default + auto-lands.** Each quick runs in its own `quick/<label>`
+  worktree off base, so N quicks (and a running `execute`) proceed in parallel with **zero collision** —
+  the old "worktree clean required" precondition is gone (your main checkout may stay dirty). On green
+  it auto-lands onto base.
+- **`/release:execute` auto-lands the phase.** A GREEN terminal wave now lands `feat/<NN>-<slug>` onto
+  base (**phase-complete granularity** — never a half-phase) instead of leaving a dangling branch and a
+  manual push/PR. `--no-merge` / `--pr` keep the old dangling-branch behavior.
+- **Your live trunk is never clobbered (`held-dirty`).** If the base checkout has uncommitted work at
+  land time, the merge-back is **held** (not applied) and reported — your WIP is never touched.
+- **New `/release:land [<label>] [--all]`.** Retry path for a held / conflicted / `--no-merge` unit:
+  lands it once your trunk is clean, through the same serialized engine.
+- **`/release:spec` sharper + Linear-aware.** The clarifier now asks **≥5 domain-clarifying questions**
+  (mandatory floor — ≥2 probe the business domain, ≥1 is an explicit out-of-scope), so trivial-looking
+  phases can't skip a hidden domain assumption. And when a **Linear MCP** is connected, the spec is
+  mirrored to a `[spec] Phase {NN}:` Linear issue whose description equals the SPEC.md **byte-for-byte**
+  (idempotent upsert; skipped silently when no Linear MCP is connected).
+
+### Changed
+
+- `bin/test-session-merge.sh` now **sources the real engine** (`release-merge-lib.sh`) instead of
+  carrying faithful-slice copies — **zero drift** between the test and shipped code. **66 assertions**
+  (48 session invariants + branch-name-agnostic `quick/*`/`feat/*` landing, two-parallel-quicks-no-collision,
+  held-dirty hold-and-retry).
+- `/release:auto` router: new rule **13a → `/release:land`** ("land / aterrissa / merge back the held unit").
+
+### Migration
+
+- **BREAKING (behavioral).** `/release:quick` no longer commits into your current checkout — it isolates
+  and auto-lands. `/release:execute` no longer leaves `feat/<NN>-<slug>` dangling by default — it lands
+  on base. Automation that relied on the dangling branch should pass `--no-merge` (or `--pr`).
+
 ## [0.16.0] — 2026-06-05
 
 ### Fixed — `/release:session` hardening (6 real multi-session incidents) + plugin-namespaced agent spawns

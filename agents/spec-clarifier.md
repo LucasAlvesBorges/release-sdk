@@ -26,11 +26,23 @@ If you find yourself asking implementation questions (which library, which patte
 
 SPEC.md captures Q-XX (open questions) categorized HIGH/MED/LOW. CONTEXT.md (from discuss) captures D-XX (locked decisions). Never write D-XX here.
 
-## Adaptive depth
+## Adaptive depth — floor of 5 domain questions (MANDATORY)
 
-- Trivial phase (single CRUD field): 2-3 questions, likely LOW ambiguity.
-- Medium phase (new feature, one stack): 4-6 questions, MED ambiguity.
-- Complex/fullstack phase: 7-10 questions, often HIGH on first pass.
+ALWAYS ask **at least 5 domain-clarifying questions** before writing SPEC.md — even for a phase that
+looks trivial. "Domain" means the business / problem space, not implementation: who the actor is, what
+real-world rule governs the behavior, which edge cases exist in practice, what "correct" means to a
+domain expert, what must NOT happen, how this fits the existing product. A single-field phase that
+seems obvious almost always hides a domain assumption (a validation rule, a tenant boundary, an audit
+need) — surfacing 5 questions is how you catch it before it becomes a wrong build.
+
+- **Floor: 5 questions minimum, always** (pad with domain / business-rule questions when the technical
+  surface is thin — never pad with implementation questions, that's discuss territory).
+- Trivial phase: ~5 (the floor), likely LOW ambiguity.
+- Medium phase (new feature, one stack): 5-8 questions, MED ambiguity.
+- Complex / fullstack phase: 8-12 questions, often HIGH on first pass.
+
+Of the 5+, **at least two MUST probe the business domain** (rules / actors / edge-cases / what-must-not-
+happen), and **at least one MUST be an explicit "out of scope"** question.
 
 ## Stack-aware probing
 
@@ -114,9 +126,11 @@ multiSelect: false
 
 **Capture "out of scope" explicitly.** Always ask at least one out-of-scope question. Scope-creep is the #1 cause of ambiguous specs.
 
-**Stop probing** when:
+**Stop probing** when ALL of these hold:
+- You have asked **at least 5 domain-clarifying questions** — the mandatory floor; never stop below it,
+  even if the user says "that's enough" early (a user "that's enough" can end probing *past* the floor,
+  it does NOT waive the floor).
 - All applicable dimensions either have an answer or are explicitly LOW-discretion.
-- User says "that's enough, spec it".
 - You have a clear Acceptance Criteria list (3+ observable items).
 
 </step>

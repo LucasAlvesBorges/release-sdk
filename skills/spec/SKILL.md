@@ -60,9 +60,12 @@ Same logic as `/release:plan` and `/release:discuss`:
 1. Load LOCK context: read `.release-planning/RELEASE-LOCKS.md` if exists, else `.release-planning/PROJECT.md`.
 2. Load ROADMAP phase entry, REQUIREMENTS.md, and (if present) prior SPEC/CONTEXT artifacts.
 3. Spawn `release:spec-clarifier` agent with detected stack + LOCK context.
-4. Agent runs stack-aware WHAT-questions via `AskUserQuestion`.
+4. Agent runs stack-aware WHAT-questions via `AskUserQuestion` — **at least 5 domain-clarifying questions
+   (mandatory floor)**, of which ≥2 probe the business domain and ≥1 is an explicit "out of scope".
 5. Agent writes `{phase_dir}/{NN}-SPEC.md` from `templates/SPEC.md`.
 6. Skill verifies output, prints ambiguity verdict, recommends next step.
+7. **Linear sync (only if the Linear MCP is connected):** mirror the spec into Linear as a `[spec]`
+   issue whose body equals the `.md` (see *Linear sync* below). If no Linear MCP, skip silently.
 
 ## Backend WHAT dimensions (Django)
 
@@ -108,6 +111,7 @@ slug: {phase-slug}
 stack: django | react | fullstack
 ambiguity_score: HIGH | MED | LOW
 ready_for_discuss: true | false
+linear_issue: {Linear issue URL if synced, else omit}
 ---
 
 # Phase {NN} Spec: {phase-name}
@@ -153,6 +157,29 @@ ready_for_discuss: true | false
 → `/release:discuss {NN}`  (lock D-XX decisions)
 ```
 
+## Linear sync (auto — only when a Linear MCP server is connected)
+
+After SPEC.md is written and verified, mirror it into Linear so the team sees the spec where they plan.
+This is **optional and conditional** — it runs only if a Linear MCP server is connected this session.
+
+1. **Detect.** Check whether a Linear MCP create-issue tool is available (e.g. `mcp__linear__create_issue`)
+   — load it via `ToolSearch` (`"select:mcp__linear__create_issue"`, or keyword `"linear create issue"`).
+   If no Linear MCP tool resolves, **skip silently**: Linear is optional, never block the spec on it.
+2. **Read the just-written `{phase_dir}/{NN}-SPEC.md` verbatim.**
+3. **Idempotency first.** Search Linear for an open issue whose title starts with `[spec] Phase {NN}:`
+   (e.g. `mcp__linear__list_issues` / search). If one exists → **update** its description; else **create**.
+4. **Create / update the issue:**
+   - **Title:** `[spec] Phase {NN}: {phase-name}` — the `[spec]` prefix marks release-sdk specs.
+   - **Description:** the **exact** Markdown body of `{NN}-SPEC.md` — byte-for-byte, no summarizing, no
+     reformatting, no truncation. The Linear issue text MUST equal the `.md`.
+   - **Team / project:** use `.release-planning/PROJECT.md` `linear_team:` if present; else the MCP's
+     default/first team; else ask once via `AskUserQuestion`.
+5. **Record back.** Write the returned issue URL into the SPEC.md frontmatter `linear_issue:` field and
+   print it. The `.md` on disk stays the source of truth; Linear is a mirror with identical text.
+
+> Re-running `/release:spec {NN}` after edits re-syncs: same `[spec] Phase {NN}:` issue, description
+> overwritten to match the new `.md`. No duplicates.
+
 ## Example
 
 ```
@@ -181,6 +208,10 @@ ready_for_discuss: true | false
 → Writing .release-planning/phases/03-invoice-export/03-SPEC.md
   Ambiguity score: MED (6 questions, 1 HIGH)
   ready_for_discuss: true
+
+→ Linear MCP detected → upserted issue "[spec] Phase 03: Invoice export with filters" (description = 03-SPEC.md, byte-for-byte)
+  linear_issue: https://linear.app/acme/issue/ENG-412
+  (no Linear MCP connected → this step is skipped silently)
 
 → Next: /release:discuss 03
 ```

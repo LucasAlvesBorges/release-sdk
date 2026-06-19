@@ -54,6 +54,10 @@ The block below applies only OUTSIDE a session.
 [ -f .release-planning/.session ] && NO_BRANCH=1   # Model B: session worktree → commit in place, skip block
 ROOT=$(git rev-parse --show-toplevel)
 BRANCH="feat/{NN}-{slug}"
+BASE="$(git rev-parse --abbrev-ref HEAD)"          # auto-land target = the branch you're on (your live test surface); feat/<NN> is cut from it
+NO_MERGE=0; PR=0                                   # --no-merge: keep feat/<NN> dangling for manual push/PR; --pr: open a PR instead of local-land
+case " $* " in *" --no-merge "*) NO_MERGE=1;; esac
+case " $* " in *" --pr "*) PR=1;; esac
 WT_ROOT="$ROOT/../release-worktrees"
 LOCK="$WT_ROOT/.locks/{NN}-{slug}.lock"          # shared sibling — visible to ALL sessions
 SESSION_ID="$(date +%s)-$$-$RANDOM"               # unique per execute invocation
@@ -103,23 +107,48 @@ config:
 - `--no-branch` → skip lock + worktree entirely, commit to current branch in the main checkout (legacy, single-session responsibility on the user).
 - Fullstack: same branch holds both `--backend` and `--frontend` commits (no split).
 - Wave-executor creates short-lived `wave/{SESSION_ID}/w{N}-{TXX}` branches per worktree, deleted after cherry-pick back to phase branch.
-- On completion the `trap` releases the lock and removes the phase worktree; the `feat/{NN}-{slug}` branch survives as a normal ref.
+- On a GREEN terminal wave the phase **auto-lands on `$BASE`** via the shared `land_branch` engine: the phase worktree + `feat/{NN}-{slug}` branch are torn down and the work appears on your trunk (live). With `--no-merge`/`--pr` (or in-session), the branch instead survives as a dangling ref for manual push/PR / session `finish`.
 
-**Teardown (run on completion AND on any abort — the `trap` above documents intent, but since
-steps run as discrete shell calls you MUST run this explicitly as the final step):**
+**Completion — auto-land the phase onto base (v0.17.0), then teardown:**
+
+When the **terminal wave is GREEN** (full suite passed), land the whole phase back onto base through the
+shared serialized engine — the SAME `land_branch` that powers `/release:session finish` and
+`/release:quick`. Granularity is **phase-complete**, never per-wave: a half-phase (a migration without
+the endpoint that uses it) must not reach base. Auto-land runs only OUTSIDE a session; in-session
+(`NO_BRANCH=1`) the session's own `finish` lands these commits. `land_branch` needs `$PHASE_WT` to
+still exist (it syncs base in there first), so DO NOT remove the worktree before landing — it tears the
+worktree down itself on success.
 
 ```bash
-git worktree remove --force "$WT_ROOT/$SESSION_ID/phase" 2>/dev/null   # commits already on $BRANCH
-git worktree prune
-rm -f "$LOCK"                                                          # release the per-phase lock
+if [ -z "${NO_BRANCH:-}" ] && [ "${NO_MERGE:-0}" != 1 ] && [ "${PR:-0}" != 1 ]; then
+  RELEASE_LIB="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/release-merge-lib.sh}"
+  [ -n "$RELEASE_LIB" ] && [ -f "$RELEASE_LIB" ] || RELEASE_LIB="$(find "$HOME/.claude" -name release-merge-lib.sh -path '*/bin/*' 2>/dev/null | head -1)"
+  [ -f "$RELEASE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
+  . "$RELEASE_LIB"
+  RESULT="$(land_branch "$BRANCH" "$PHASE_WT" "$BASE" | tail -1)"   # sync base in → merge → tear down $PHASE_WT
+  cd "$ROOT"                                                        # land may remove $PHASE_WT from under us
+  rm -f "$LOCK"; git -C "$ROOT" worktree prune                     # release the per-phase lock either way
+  case "$RESULT" in
+    RESULT=merged)     echo "✓ phase landed on $BASE (live). Test it on $BASE, then: /release:verify {NN}." ;;
+    RESULT=held-dirty) echo "⏸ $BASE has uncommitted work — phase kept on $BRANCH, NOT landed. Commit/stash, then: /release:land {NN}-{slug}" ;;
+    RESULT=conflict)   echo "✗ code conflict vs $BASE. Resolve in $PHASE_WT, commit, then: /release:land {NN}-{slug}" ;;
+    RESULT=refused)    echo "✗ merge refused (untracked-file collision). Clean $PHASE_WT, then: /release:land {NN}-{slug}" ;;
+    *)                 echo "✗ land failed ($RESULT). Phase worktree kept at $PHASE_WT for inspection." ;;
+  esac
+else
+  # --no-merge / --pr / in-session: keep feat/{NN}-{slug} as a dangling ref for manual push/PR (or session finish).
+  git -C "$ROOT" worktree remove --force "$PHASE_WT" 2>/dev/null   # commits already on $BRANCH
+  git -C "$ROOT" worktree prune
+  rm -f "$LOCK"                                                    # release the per-phase lock
+fi
 ```
 
-Leave the phase worktree in place ONLY when execution failed mid-wave and you want it for debugging —
-then print its path and still release the lock (a held lock on a dead session blocks future runs).
+On a mid-wave FAILURE (terminal wave never went green): do NOT land. Keep `$PHASE_WT` for debugging,
+print its path, and still `rm -f "$LOCK"` (a held lock on a dead session blocks future runs).
 
-`feat/{NN}-{slug}` is a shared ref after execute — `verify`/push/PR reach it without re-checkout:
-`git push -u origin feat/{NN}-{slug}` works from the main checkout regardless of its current branch.
-PR is opened from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
+With `--no-merge` or `--pr`, `feat/{NN}-{slug}` survives as a shared ref — `verify`/push/PR reach it
+without re-checkout: `git push -u origin feat/{NN}-{slug}` works from the main checkout regardless of
+its current branch; open the PR from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
 
 ## Workflow by stack
 
@@ -162,17 +191,24 @@ Which do you want to execute first?
 
 ## Verification after execute
 
-After execution completes, suggests:
+By default the phase **auto-landed on `$BASE`**, so verification and manual testing run against your
+live trunk (the checkout you keep the app running in):
 ```
-/release:verify {NN}   # goal-backward verification
+/release:verify {NN}   # goal-backward verification, on $BASE
 ```
 
-Then:
+Publish / PR — the work is already on `$BASE`:
+```
+git push origin $BASE                      # publish the landed trunk
+```
+If instead you ran with `--pr` or `--no-merge`, the work is on `feat/{NN}-{slug}` (not yet on base):
 ```
 git push -u origin feat/{NN}-{slug}
 gh pr create --base main --head feat/{NN}-{slug} --title "feat({NN}): {phase-slug}" \
   --body "$(cat .release-planning/phases/{NN}-{slug}/{NN}-SUMMARY.md)"
 ```
+A phase **held** at land time (base was dirty) finishes with `/release:land {NN}-{slug}` once you
+commit/stash on `$BASE`.
 
 ## Parallel waves (default since v0.12.0)
 

@@ -320,68 +320,32 @@ if $PR; then
   exit 0
 fi
 
-# ── LOCAL MERGE: lock FIRST, then sync + merge atomically UNDER the lock ───────────────────────────────
-# Acquiring the lock AFTER sync would open a TOCTOU window: a concurrent finish could advance base between
-# our sync and our merge, so "session ⊇ base" goes stale and the base merge conflicts — dirtying base.
-# Lock → sync → merge keeps the whole fan-in atomic (#toctou). The lock name is slash-safe (#lock-slash).
-mkdir -p "$LOCK_DIR"; MERGE_LOCK="$LOCK_DIR/merge-$(base_token "$BASE").lock"
-if ! ( set -o noclobber; printf '%s\n' "$label $$" > "$MERGE_LOCK" ) 2>/dev/null; then
-  # Possibly a stale lock from a hard-killed finish (its EXIT trap never fired). Reclaim if the holder PID is dead.
-  HOLDER_PID="$(awk 'NR==1{print $2}' "$MERGE_LOCK" 2>/dev/null)"
-  if [ -n "$HOLDER_PID" ] && ! kill -0 "$HOLDER_PID" 2>/dev/null; then
-    rm -f "$MERGE_LOCK"
-    ( set -o noclobber; printf '%s\n' "$label $$" > "$MERGE_LOCK" ) 2>/dev/null \
-      || { echo "ABORT: could not reclaim stale lock $MERGE_LOCK — rm it manually if no finish is running."; exit 1; }
-    echo "  (reclaimed stale lock from dead PID $HOLDER_PID)"
-  else
-    echo "ABORT: another finish is merging into '$BASE' (lock $MERGE_LOCK). Retry in a moment."; exit 1
-  fi
-fi
-TEMP_WT=""
-# Single EXIT trap tears down BOTH the lock and any throwaway worktree, on every exit path (#temp-trap).
-trap 'rm -f "$MERGE_LOCK"; [ -n "$TEMP_WT" ] && git -C "$MAIN_ROOT" worktree remove --force "$TEMP_WT" 2>/dev/null; git -C "$MAIN_ROOT" worktree prune 2>/dev/null' EXIT
+# ── LOCAL MERGE: delegate to the shared, serialized, conflict-safe engine ──────────────────────────
+# The whole fan-in (lock FIRST → sync base→session UNDER the lock → merge session→base in base's LIVE
+# checkout → cwd-safe teardown) lives in ONE place: bin/release-merge-lib.sh::land_branch. /release:quick
+# and /release:execute land through the SAME function, so a quick, a phase, and a session all serialize
+# on the same per-base lock and behave identically. A dirty live base checkout is NEVER clobbered.
+# Contract-tested by bin/test-session-merge.sh (66 assertions).
+RELEASE_LIB="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/release-merge-lib.sh}"
+[ -n "$RELEASE_LIB" ] && [ -f "$RELEASE_LIB" ] || RELEASE_LIB="$(find "$HOME/.claude" -name release-merge-lib.sh -path '*/bin/*' 2>/dev/null | head -1)"
+[ -f "$RELEASE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
+# shellcheck source=/dev/null
+. "$RELEASE_LIB"
 
-# [1] sync base INTO session — UNDER the lock, so base cannot move under us. CODE conflict ⇒ stop, base untouched.
-echo "[1/4] sync $BASE → session (conflicts surface here, not in base)…"
-sync_into_session "$WT_DIR" || { echo "→ resolve the code conflict in the session, commit, re-run finish."; exit 2; }
-
-# [2] locate base's checkout (a branch lives in ONE worktree): merge in that checkout, or a throwaway one.
-echo "[2/4] locate $BASE checkout…"
-BASE_WT="$(base_wt)"
-if [ -z "$BASE_WT" ]; then
-  TEMP_WT="$MAIN_ROOT/../release-worktrees/.merge-$(base_token "$BASE")"
-  git -C "$MAIN_ROOT" worktree add "$TEMP_WT" "$BASE" >/dev/null; BASE_WT="$TEMP_WT"
-elif [ -n "$(git -C "$BASE_WT" status --porcelain --untracked-files=no)" ]; then
-  echo "ABORT: base checkout ($BASE_WT) is dirty. Commit/stash there first."; exit 1
-fi
-
-# [3] merge session → base. Session ⊇ base (step 1) ⇒ should be a clean fast-forward. GUARD anyway: if it
-#     conflicts (e.g. base advanced via an external push outside our lock), --abort so base is byte-identical.
-echo "[3/4] merge session/$label → $BASE (in $BASE_WT)…"
-if ! git -C "$BASE_WT" merge --no-ff "$BRANCH" -m "merge(session): $label into $BASE" >/dev/null 2>&1; then
-  git -C "$BASE_WT" merge --abort 2>/dev/null || true
-  echo "✗ '$BASE' advanced under us — merge aborted, base byte-identical. Re-run finish (it re-syncs)."
-  exit 2
-fi
-N="$(git -C "$BASE_WT" rev-list --count "$BASE@{1}..$BASE" 2>/dev/null || echo '?')"
-echo "  ✓ $N commit(s) on $BASE"
-
-# [4] CWD-DRIFT FIX (#1): finish is run FROM INSIDE $WT_DIR. Removing it would yank the shell's own cwd →
-#     `fatal: Unable to read current working directory`, and the branch delete would silently NOT run. cd to
-#     MAIN_ROOT first, AND drive every op via `git -C "$MAIN_ROOT"`. Delete the branch only once it's proven
-#     an ancestor of base (merge landed); -D is safe behind that gate even when the merge used a throwaway.
-echo "[4/4] cleanup worktree + branch…"
-cd "$MAIN_ROOT" || cd / || true
-git -C "$MAIN_ROOT" worktree remove --force "$WT_DIR"
-if $KEEP; then
-  echo "  worktree removed; branch $BRANCH kept (--keep)"
-elif git -C "$MAIN_ROOT" merge-base --is-ancestor "$BRANCH" "$BASE"; then
-  git -C "$MAIN_ROOT" branch -D "$BRANCH" && echo "  ✓ worktree + branch $BRANCH removed"
-else
-  echo "  ⚠ worktree removed but $BRANCH is not an ancestor of $BASE — branch kept for inspection."
-fi
-# TEMP_WT + lock are torn down by the EXIT trap.
-echo "✓ finish $label complete."
+KEEPFLAG=""; $KEEP && KEEPFLAG="--keep"
+echo "[merge] session/$label → $BASE (serialized, conflict-safe)…"
+RESULT="$(land_branch "$BRANCH" "$WT_DIR" "$BASE" $KEEPFLAG | tail -1)"
+case "$RESULT" in
+  RESULT=merged)        echo "✓ finish $label complete — $BRANCH landed on $BASE." ;;
+  RESULT=conflict)      echo "✗ CODE conflict bringing $BASE into the session. Resolve in $WT_DIR, commit, re-run finish."; exit 2 ;;
+  RESULT=refused)       echo "✗ merge refused before it started (untracked-file collision in the session). Clean it, re-run finish."; exit 2 ;;
+  RESULT=held-dirty)    echo "⏸ '$BASE' is checked out live with uncommitted work — NOT clobbered. Commit/stash there, then: /release:land $label"; exit 0 ;;
+  RESULT=locked)        echo "✗ another finish/land is merging into '$BASE'. Retry in a moment."; exit 1 ;;
+  RESULT=planningblock) echo "✗ base '$BASE' tracks planning files finish would delete. Untrack on base first (see /release:session doctor)."; exit 1 ;;
+  RESULT=baseadvanced)  echo "✗ '$BASE' advanced under us — merge aborted, base byte-identical. Re-run finish (it re-syncs)."; exit 2 ;;
+  RESULT=badbase)       echo "✗ base resolved to a session branch. Pin one: /release:session base <branch>."; exit 1 ;;
+  *)                    echo "✗ finish failed ($RESULT)."; exit 1 ;;
+esac
 ```
 
 **Why base→session first (the whole point):** the session author has the context to resolve their
