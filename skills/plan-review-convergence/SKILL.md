@@ -90,6 +90,12 @@ else:
     verdict = CONTINUE
 ```
 
+> **Shared guardrail engine (v0.18.0):** the `iter >= max_iters` cap is `loop_guard` from
+> `bin/release-loop-lib.sh` — the same primitive `/release:loop` and `/release:audit-fix` use. Also
+> pass a `loop_signature` of the deduped HIGH+MED concern set as the no-progress signal: two iterations
+> with an identical concern set ⇒ reviewers + planner are oscillating; stop as `STUCK` early rather
+> than burning the remaining iterations on a plan that isn't converging.
+
 ### Step 6 — On CONVERGED
 
 - Append final entry to `${log_path}` with verdict `CONVERGED`.

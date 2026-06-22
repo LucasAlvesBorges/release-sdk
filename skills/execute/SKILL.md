@@ -5,6 +5,9 @@ description: >
   phase type from PLAN, ALWAYS spawns wave-executor which fans out N tdd-executor
   in worktree-isolated parallel branches per disjoint task group. TDD-strict per task:
   RED → GREEN → REFACTOR → SECURITY. Atomic Conventional commits cherry-picked back to phase branch.
+  v0.18.0: LOOPS BY DEFAULT — after building it runs the closed loop (objective gate via run_gate →
+  independent checker via release:phase-verifier → release:code-fixer on the real evidence → re-verify)
+  until GATE=GREEN AND checker PASS, then auto-lands. `--once` = legacy single-pass.
   Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 
@@ -23,6 +26,9 @@ serial path removed. Single-worktree falls out naturally for waves with 1 task /
 /release:execute 01 --dry-run        # preview parallel_groups + spawn count without committing
 /release:execute 01 --gaps           # execute gap-closure plan (still via wave-executor)
 /release:execute 01 --no-branch      # disable branch-per-phase (commit to current branch)
+/release:execute 01 --once           # legacy single-pass: build → gate once → land/hold (NO loop, NO auto-verify)
+/release:execute 01 --max-iters 8    # raise the closed-loop cap (default 6)
+/release:execute 01 --budget-usd 4   # also stop the loop if this session's tracked spend crosses $4
 ```
 
 `--waves` flag REMOVED in v0.12.0 — waves are the only execution mode.
@@ -107,44 +113,96 @@ config:
 - `--no-branch` → skip lock + worktree entirely, commit to current branch in the main checkout (legacy, single-session responsibility on the user).
 - Fullstack: same branch holds both `--backend` and `--frontend` commits (no split).
 - Wave-executor creates short-lived `wave/{SESSION_ID}/w{N}-{TXX}` branches per worktree, deleted after cherry-pick back to phase branch.
-- On a GREEN terminal wave the phase **auto-lands on `$BASE`** via the shared `land_branch` engine: the phase worktree + `feat/{NN}-{slug}` branch are torn down and the work appears on your trunk (live). With `--no-merge`/`--pr` (or in-session), the branch instead survives as a dangling ref for manual push/PR / session `finish`.
+- After the build, the phase runs the closed loop (gate → checker → fix) and **auto-lands on `$BASE`** only when GATE=GREEN **and** `release:phase-verifier` PASSES, via the shared `land_branch` engine: the phase worktree + `feat/{NN}-{slug}` branch are torn down and the work appears on your trunk (live). With `--no-merge`/`--pr` (or in-session), a verified phase keeps the branch as a dangling ref for manual push/PR / session `finish` instead of landing.
 
-**Completion — auto-land the phase onto base (v0.17.0), then teardown:**
+**Completion — the closed loop (v0.18.0): gate → checker → fix → land.**
 
-When the **terminal wave is GREEN** (full suite passed), land the whole phase back onto base through the
-shared serialized engine — the SAME `land_branch` that powers `/release:session finish` and
-`/release:quick`. Granularity is **phase-complete**, never per-wave: a half-phase (a migration without
-the endpoint that uses it) must not reach base. Auto-land runs only OUTSIDE a session; in-session
-(`NO_BRANCH=1`) the session's own `finish` lands these commits. `land_branch` needs `$PHASE_WT` to
-still exist (it syncs base in there first), so DO NOT remove the worktree before landing — it tears the
-worktree down itself on success.
+By default `/release:execute` does NOT stop at "built". The wave-executor build is just **iteration 1**;
+execute then drives the closed loop — the SAME engines `/release:loop` uses — and lands ONLY when the
+gate is GREEN **and** the checker PASSES. So `/release:execute {NN}` now *is* the phase loop: it gates
+objectively, **calls the checker (`release:phase-verifier`) for you**, feeds the real failure as
+evidence to `release:code-fixer`, and re-verifies — no separate `/release:verify` round, no hand-fixing
+gaps. `--once` restores the legacy single-pass (build → gate-once → land/hold, no auto-fix, no
+auto-verify). Granularity stays **phase-complete** — a half-phase never reaches base. `land_branch`
+needs `$PHASE_WT` alive (it syncs base in first), so the loop lands BEFORE any teardown.
 
+Source the three engines (mirror the merge-lib discovery), parse the budget flags:
 ```bash
-if [ -z "${NO_BRANCH:-}" ] && [ "${NO_MERGE:-0}" != 1 ] && [ "${PR:-0}" != 1 ]; then
-  RELEASE_LIB="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/release-merge-lib.sh}"
-  [ -n "$RELEASE_LIB" ] && [ -f "$RELEASE_LIB" ] || RELEASE_LIB="$(find "$HOME/.claude" -name release-merge-lib.sh -path '*/bin/*' 2>/dev/null | head -1)"
-  [ -f "$RELEASE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
-  . "$RELEASE_LIB"
-  RESULT="$(land_branch "$BRANCH" "$PHASE_WT" "$BASE" | tail -1)"   # sync base in → merge → tear down $PHASE_WT
-  cd "$ROOT"                                                        # land may remove $PHASE_WT from under us
-  rm -f "$LOCK"; git -C "$ROOT" worktree prune                     # release the per-phase lock either way
+find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+MERGE_LIB="$(find_lib release-merge-lib.sh)"; GATE_LIB="$(find_lib release-gate-lib.sh)"; LOOP_LIB="$(find_lib release-loop-lib.sh)"
+[ -f "$MERGE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
+. "$MERGE_LIB"; [ -f "$GATE_LIB" ] && . "$GATE_LIB"; [ -f "$LOOP_LIB" ] && . "$LOOP_LIB"
+MAX_ITERS=6;  case " $* " in *" --max-iters "*)  MAX_ITERS="<value after --max-iters>";; esac
+BUDGET_USD=""; case " $* " in *" --budget-usd "*) BUDGET_USD="<value after --budget-usd>";; esac
+ONCE=0;       case " $* " in *" --once "*)        ONCE=1;; esac
+```
+
+The loop (`iter` 1 = the build that just finished). `run_gate` falls back to GREEN when no gate-lib /
+no gate resolvable, so a repo with no `VERIFY-GATE.yml` and an unknown stack behaves like pre-v0.18.0:
+```
+LAND=1; [ -n "${NO_BRANCH:-}" ] && LAND=0; [ "${NO_MERGE:-0}" = 1 ] && LAND=0; [ "${PR:-0}" = 1 ] && LAND=0
+iter=1; prev_sig=""; VERIFIED=0; STOP=""
+
+if ONCE:                                       # legacy single pass — gate once, no auto-fix, no auto-verify
+    GATE = last "GATE=" of (run_gate "$PHASE_WT")
+    if GATE == RED:  STOP="gate-red (--once, no auto-fix)"   else  VERIFIED=1
+else while true:
+    # 1. OBJECTIVE GATE — the tool decides, not the agent
+    OUT = run_gate "$PHASE_WT";  GATE = last "GATE=" ;  EV = "GATE_EVIDENCE=" path
+    if GATE == RED:
+        cur = loop_signature < contents(EV)
+        if loop_guard $iter $MAX_ITERS "$prev_sig" "$cur"  →  "LOOP=stop ...":  STOP=<reason>; break
+        surface EV (the real failing command + its output — not a paraphrase)
+        prev_sig=cur; iter=$((iter+1))
+        spawn release:code-fixer { cwd: $PHASE_WT, stack, finding: <EV contents>,
+                                   instruction: "make run_gate green; fix ONLY what this evidence shows" }
+        continue
+    # 2. GATE GREEN → run the CHECKER automatically (maker ≠ checker)
+    spawn release:phase-verifier { cwd: $PHASE_WT, stack, phase_number: NN, phase_dir }
+        # goal = SPEC acceptance criteria + PLAN must_haves + ROADMAP success_criteria (+ D-XX)
+    if verifier status in {PASS, PASS_WITH_WARNINGS}:  VERIFIED=1; break
+    # 3. GAPS_FOUND / CRITICAL — tests green, goal not met
+    cur = loop_signature < (verifier gaps text)
+    if loop_guard $iter $MAX_ITERS "$prev_sig" "$cur"  →  stop:  STOP=<reason>; break
+    surface the gaps (with the verifier's evidence)
+    prev_sig=cur; iter=$((iter+1))
+    spawn release:code-fixer { cwd: $PHASE_WT, stack, finding: <gaps>,
+                               instruction: "close these goal gaps; add the missing test + impl" }
+    continue
+    # once per round, if BUDGET_USD set: loop_token_spend "$BUDGET_USD" echoing "reason=budget-tokens" ⇒ STOP; break
+```
+
+Then land — only on `VERIFIED=1` AND `LAND=1`; otherwise hold (never clobber, never silently grind):
+```bash
+if [ "$VERIFIED" = 1 ] && [ "$LAND" = 1 ]; then
+  RESULT="$(land_branch "$BRANCH" "$PHASE_WT" "$BASE" | tail -1)"   # syncs base in → merges → tears down $PHASE_WT
+  cd "$ROOT"; rm -f "$LOCK"; git -C "$ROOT" worktree prune
   case "$RESULT" in
-    RESULT=merged)     echo "✓ phase landed on $BASE (live). Test it on $BASE, then: /release:verify {NN}." ;;
-    RESULT=held-dirty) echo "⏸ $BASE has uncommitted work — phase kept on $BRANCH, NOT landed. Commit/stash, then: /release:land {NN}-{slug}" ;;
-    RESULT=conflict)   echo "✗ code conflict vs $BASE. Resolve in $PHASE_WT, commit, then: /release:land {NN}-{slug}" ;;
-    RESULT=refused)    echo "✗ merge refused (untracked-file collision). Clean $PHASE_WT, then: /release:land {NN}-{slug}" ;;
-    *)                 echo "✗ land failed ($RESULT). Phase worktree kept at $PHASE_WT for inspection." ;;
+    RESULT=merged)     echo "✓ phase loop done ($iter iters): green + checker PASS → landed on $BASE (live). Test it on $BASE." ;;
+    RESULT=held-dirty) echo "⏸ green + PASS, but $BASE has uncommitted work — kept on $BRANCH. Commit/stash, then: /release:land {NN}-{slug}." ;;
+    RESULT=conflict)   echo "✗ green + PASS, but code conflict vs $BASE. Resolve in $PHASE_WT, then: /release:land {NN}-{slug}." ;;
+    *)                 echo "✗ land failed ($RESULT). Phase worktree kept at $PHASE_WT." ;;
   esac
+elif [ "$VERIFIED" = 1 ]; then
+  # verified but DON'T land here: in-session ⇒ session finish lands; --no-merge/--pr ⇒ keep feat/{NN}-{slug}.
+  [ -n "${NO_BRANCH:-}" ] || git -C "$ROOT" worktree remove --force "$PHASE_WT" 2>/dev/null
+  cd "$ROOT"; rm -f "$LOCK"; git -C "$ROOT" worktree prune
+  echo "✓ phase loop done ($iter iters): green + PASS — not landed (in-session ⇒ session finish; or --no-merge/--pr ⇒ feat/{NN}-{slug} kept)."
 else
-  # --no-merge / --pr / in-session: keep feat/{NN}-{slug} as a dangling ref for manual push/PR (or session finish).
-  git -C "$ROOT" worktree remove --force "$PHASE_WT" 2>/dev/null   # commits already on $BRANCH
-  git -C "$ROOT" worktree prune
-  rm -f "$LOCK"                                                    # release the per-phase lock
+  # CIRCUIT BREAKER — loop_guard / token ceiling stopped us before green+PASS. HOLD: keep $PHASE_WT, base clean.
+  cd "$ROOT"; rm -f "$LOCK"   # release the lock; do NOT remove $PHASE_WT — the work + evidence live there
+  echo "⚠ phase loop stopped: $STOP after $iter iterations — NOT landed, base clean."
+  echo "  Stuck on: <the failing gate command + evidence path, OR the verifier's open gaps>"
+  echo "  Worktree: $PHASE_WT (branch $BRANCH)"
+  # AskUserQuestion: [ more iterations → /release:execute {NN} --resume --max-iters M
+  #                  | take it over in $PHASE_WT | discard branch + worktree ]
 fi
 ```
 
-On a mid-wave FAILURE (terminal wave never went green): do NOT land. Keep `$PHASE_WT` for debugging,
-print its path, and still `rm -f "$LOCK"` (a held lock on a dead session blocks future runs).
+- **no-progress** (two iterations, identical failure signature) is surfaced first — more iterations
+  rarely help; the maker isn't changing the outcome. **budget-iters** = hit `--max-iters`.
+  **budget-tokens** = `--budget-usd` crossed (`/release:tokens` daemon; absent ⇒ guard inactive).
+- **`--once`** is the escape hatch for automation that wants a single deterministic pass.
 
 With `--no-merge` or `--pr`, `feat/{NN}-{slug}` survives as a shared ref — `verify`/push/PR reach it
 without re-checkout: `git push -u origin feat/{NN}-{slug}` works from the main checkout regardless of
@@ -191,11 +249,14 @@ Which do you want to execute first?
 
 ## Verification after execute
 
-By default the phase **auto-landed on `$BASE`**, so verification and manual testing run against your
-live trunk (the checkout you keep the app running in):
+**Verification is now folded into the loop** (v0.18.0): `release:phase-verifier` already ran inline
+and the phase landed only because it returned PASS. So when execute reports `merged`, the goal is
+already verified on `$BASE` — go straight to manual/UAT testing of the live feature. A standalone
+re-check on base is still available (and useful after you hand-edit on top of a landed phase):
 ```
-/release:verify {NN}   # goal-backward verification, on $BASE
+/release:verify {NN}   # optional goal-backward RE-check on $BASE (the loop already verified pre-land)
 ```
+For a conversational UAT walkthrough of the landed feature: `/release:verify-work {NN}`.
 
 Publish / PR — the work is already on `$BASE`:
 ```

@@ -212,6 +212,11 @@ last_verdict: CLEAN
 - `--max-iters` is a hard cap; default 3. Above 5 the skill warns "thrashing — investigate".
 - Two consecutive iterations with identical finding sets → exit with `verdict: NO_PROGRESS`
   (the fixer is regressing or the auditor is non-deterministic; human triage).
+- **Shared guardrail engine (v0.18.0):** the iteration cap + no-progress detection are the SAME
+  primitives `/release:loop` uses — source `bin/release-loop-lib.sh` and gate each round on
+  `loop_guard <iter> <max> <prev_sig> <cur_sig>`, where each `*_sig` is `loop_signature` over the
+  iteration's deduped finding set. One guardrail engine across every loop in the plugin — no per-skill
+  drift in how "stop" is decided.
 - If `release:code-fixer` reports `cannot_fix`, reclassify as `NEEDS_HUMAN` and continue.
   Never retry the same fixer twice on the same finding within one run.
 - `.planning/` is untouched — this plugin owns `.release-planning/` only.

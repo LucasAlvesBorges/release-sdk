@@ -105,9 +105,19 @@ RELEASE_LIB="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/release-merge-lib.sh}
 [ -f "$RELEASE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
 . "$RELEASE_LIB"
 
-RESULT="$(land_branch "$BRANCH" "$QWT" "$BASE" | tail -1)"
+# v0.18.0 — the objective GATE decides landing, not the executor's word. RED ⇒ keep $QWT, don't land.
+# Gate-lib absent / empty verdict ⇒ GATE stays GREEN (graceful fallback to pre-v0.18.0 behavior).
+GATE_LIB="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/release-gate-lib.sh}"
+[ -n "$GATE_LIB" ] && [ -f "$GATE_LIB" ] || GATE_LIB="$(find "$HOME/.claude" -name release-gate-lib.sh -path '*/bin/*' 2>/dev/null | head -1)"
+GATE=GREEN; [ -f "$GATE_LIB" ] && { . "$GATE_LIB"; GATE="$(run_gate "$QWT" | sed -n 's/^GATE=//p' | tail -1)"; }
+if [ "$GATE" = RED ]; then
+  RESULT="RESULT=gate-red"
+else
+  RESULT="$(land_branch "$BRANCH" "$QWT" "$BASE" | tail -1)"
+fi
 cd "$MAIN_ROOT"   # land may remove $QWT from under us → stand in the main checkout afterwards
 case "$RESULT" in
+  RESULT=gate-red)   echo "✗ verify-gate RED — quick NOT landed (base clean). Worktree kept: $QWT. Fix there + /release:land $LABEL, or /release:loop to auto-close." ;;
   RESULT=merged)     echo "✓ landed on $BASE (live) — if your app runs on $BASE, hot-reload already has it." ;;
   RESULT=held-dirty) echo "⏸ $BASE has uncommitted work — quick kept on $BRANCH, NOT landed. Commit/stash, then: /release:land $LABEL" ;;
   RESULT=conflict)   echo "✗ code conflict vs $BASE. Resolve in $QWT, commit, then: /release:land $LABEL" ;;

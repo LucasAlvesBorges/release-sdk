@@ -1,0 +1,26 @@
+# VERIFY-GATE.yml — the objective stop condition for /release:* loops.
+#
+# Copy to .release-planning/VERIFY-GATE.yml and edit to YOUR project's real commands.
+# This file IS the "verifiable goal" the loop checks: /release:loop, /release:execute and
+# /release:quick run these commands and only land work when ALL of them pass (GATE=GREEN).
+# If this file is absent, a stack default is used (Django: ruff + makemigrations --check +
+# pytest; React: lint + build). Defining it explicitly is strongly recommended — a vague gate
+# makes the loop expensive and unpredictable; a sharp one makes "done" objective and cheap.
+#
+# Format: an ORDERED flat map, one `name: command` per line.
+#   - Steps run top-to-bottom. Put the CHEAPEST/FASTEST first (lint before tests): the loop is
+#     fail-fast, so a 2-second ruff failure short-circuits before a 2-minute pytest run.
+#   - Split is on the FIRST colon only — a command may contain colons (`pytest -k "parse:edge"`).
+#   - '#' comments and blank lines are ignored.
+#   - Every command MUST exit 0 on success and non-zero on failure (that is the whole contract).
+#   - Avoid watch-mode runners (they hang the gate): use `vitest run`, not bare `vitest`.
+
+# ── Django backend ──────────────────────────────────────────────────────────────────────────
+lint:    ruff check backend/
+migrate: python backend/manage.py makemigrations --check --dry-run
+test:    pytest backend/apps -q
+
+# ── React frontend (uncomment + adjust for fullstack) ────────────────────────────────────────
+# fe-lint:  npm --prefix frontend run lint
+# fe-types: npm --prefix frontend run build
+# fe-test:  npm --prefix frontend run test -- --run

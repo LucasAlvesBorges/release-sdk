@@ -97,7 +97,8 @@ Apply rules in order. First match wins. Cite the rule that fired in the dispatch
 | 13 | "parallel", "session", "paralelo", "domínio", "worktree", "branch off", "sessões simultâneas" | — | `/release:session` |
 | 13a | "land", "aterrissa", "merge back", "land the quick/phase", "finish the held merge", "/release:land" | a held / `--no-merge` unit exists (a `quick/*`, `feat/*`, or `session/*` worktree whose branch is not yet on base) | `/release:land` |
 | 14 | "checklist", "RC1", "RC7", "Q1", "Q7" | — | `/release:checklist` |
-| 15 | "execute", "run plan", "roda fase", "termina" | `active_stage == planned` | `/release:execute` |
+| 14a | "/release:loop", "loop this", "keep fixing until green", "drive it to done", "build-test-fix loop", "deixa rodando até passar", "itera até ficar verde" — closed loop on a bounded FREEFORM task with NO phase (goal = the prompt). For a PHASE, `/release:execute` already loops → rule 15. (NOT "audit-to-fix loop" → 29; NOT "run all phases" → 21) | `active_phase == null` AND a bounded buildable goal | `/release:loop` |
+| 15 | "execute", "run plan", "roda fase", "termina", "loop the phase", "drive phase to done", "keep fixing until green" + a phase | `active_stage in {planned, executing}` | `/release:execute` — LOOPS by default (build→gate→checker→fix→land; `--once` = single-pass) |
 | 16 | "plan", "break into tasks", "task list", "RC1-RC7" | `active_stage == discussed` | `/release:plan` |
 | 17 | "discuss", "explore tradeoffs", "open questions" | `active_stage == spec` | `/release:discuss` |
 | 18 | "new feature", "design", "spec", "como modelar", "what should X do" | — | `/release:spec` |

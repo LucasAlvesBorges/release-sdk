@@ -56,10 +56,13 @@ Three-level check per truth:
 
 <step name="load_artifacts">
 1. Read `{phase_dir}/{NN}-PLAN.md` — extract `must_haves`, `threat_model`, `covers_decisions`
-2. Read `{phase_dir}/{NN}-CONTEXT.md` — extract D-XX decisions
-3. Read `{phase_dir}/{NN}-SUMMARY.md` — note claims (DO NOT trust)
-4. Read `.release-planning/PROJECT.md` for LOCK-XX
-5. Read `.release-planning/ROADMAP.md` — extract phase `success_criteria`
+2. Read `{phase_dir}/{NN}-SPEC.md` if present — extract every `## Acceptance Criteria` checkbox. The
+   SPEC is the phase's WHAT contract (what the user signed off on in `/release:spec`); each acceptance
+   criterion is a first-class goal truth, tagged AC-XX. This is the loop's intent goal in phase mode.
+3. Read `{phase_dir}/{NN}-CONTEXT.md` — extract D-XX decisions
+4. Read `{phase_dir}/{NN}-SUMMARY.md` — note claims (DO NOT trust)
+5. Read `.release-planning/PROJECT.md` for LOCK-XX
+6. Read `.release-planning/ROADMAP.md` — extract phase `success_criteria`
 
 If no SUMMARY.md → return `## NOT_YET_EXECUTED`
 </step>
@@ -75,10 +78,13 @@ Else mode = `initial`
 <step name="merge_truth_sources">
 Combine into single audit list:
 1. `success_criteria` from ROADMAP (non-negotiable — roadmap contract)
-2. `must_haves.truths` from PLAN.md
-3. Each D-XX from CONTEXT.md (each decision must be observable)
+2. Each `## Acceptance Criteria` item AC-XX from SPEC.md (the WHAT the user signed off on — the loop's
+   intent goal; each AC must be observable in code AND a passing test)
+3. `must_haves.truths` from PLAN.md
+4. Each D-XX from CONTEXT.md (each decision must be observable)
 
-Deduplicate. ROADMAP wins on conflict.
+Deduplicate (an AC and a must_have often describe the same truth — merge them, keep the AC wording).
+ROADMAP wins on conflict, then SPEC acceptance criteria, then PLAN.
 </step>
 
 <step name="verify_each_truth">

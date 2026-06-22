@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] — 2026-06-21
+
+### Added — loop engineering: you stop being the element inside the loop
+
+The plugin already had the maker/checker agents, worktree isolation, auto-land, and safety-in-hooks.
+v0.18.0 adds the two missing pieces that close the loop automatically: a single **objective gate**
+(the verifiable goal) and a **closed build→gate→check→fix→land harness** that drives a phase or a
+bounded task to "done" without you re-prompting each round.
+
+- **The Gate — `bin/release-gate-lib.sh::run_gate`.** One objective, tool-checked stop condition
+  (lint / migrate / test / build). Reads `.release-planning/VERIFY-GATE.yml` (an ordered `name: command`
+  map; copy from `templates/VERIFY-GATE.yml`), else a stack default (Django: ruff + `makemigrations
+  --check` + pytest; React: lint + build). On RED it captures the first failing command's output as
+  **evidence** the next iteration feeds back into the maker. The agent never "decides" green — the lib
+  runs the real commands and decides. Contract-tested by `bin/test-gate-lib.sh` (30 assertions, sources
+  the real engine — no faithful-slice drift).
+- **The guardrails — `bin/release-loop-lib.sh`.** The shared budget substrate every loop sources:
+  `loop_guard` (hard iteration cap + no-progress detection), `loop_signature` (stable per-iteration
+  failure hash with volatile temp-paths normalized out), `loop_token_spend` (best-effort spend ceiling
+  wired to the `/release:tokens` daemon — degrades silently when the meter is down). Contract-tested by
+  `bin/test-loop-lib.sh` (13 assertions, sources the real engine).
+- **`/release:loop` — the closed harness.** Maker (`release:wave-executor` for a phase,
+  `release:tdd-executor` for freeform) builds in an ephemeral worktree off base → `run_gate` →
+  independent checker → targeted `release:code-fixer` on real evidence → repeat until GATE=GREEN **and**
+  the checker PASSES, then auto-lands so you can test the feature. `maker ≠ checker` always. iter 1
+  builds; iter 2+ fix only what the evidence shows. Bounded by `--max-iters` (default 6), no-progress
+  detection, and `--budget-usd`. On a stuck loop it HOLDS (worktree kept, base untouched) and pings you
+  — never a silent overnight grind.
+- **The goal is always concrete.** Phase mode → the goal is the phase **SPEC acceptance criteria**
+  (`/release:spec`); `release:phase-verifier` now reads them as first-class truths. Freeform mode → the
+  goal is **your prompt verbatim**, judged by the new `release:loop-goal-verifier`. A green gate is
+  necessary, not sufficient: the checker judges intent, with evidence.
+- **`/release:auto` router: new rule 14a → `/release:loop`** ("loop until green / build-test-fix /
+  drive it to done / keep fixing until it passes").
+
+### Changed
+
+- **`/release:execute` loops by default (BREAKING).** After building, execute now runs the closed loop
+  itself — `run_gate` → `release:phase-verifier` (the checker, run for you) → `release:code-fixer` on the
+  real evidence → re-verify — and lands ONLY on GATE=GREEN **and** checker PASS. Verification is folded
+  in (no separate `/release:verify` round needed); gaps are auto-fixed instead of hand-fixed. Bounded by
+  `--max-iters` (default 6) / no-progress / `--budget-usd`; a stuck loop holds and pings. `--once`
+  restores the legacy single-pass (build → gate-once → land/hold). `/release:loop {NN}` is now an alias
+  for this; `/release:loop "<task>"` is the freeform (no-phase) loop.
+- **The gate is the law for landing.** `/release:quick` also runs `run_gate` before `land_branch` — an
+  explicit RED holds the work (worktree kept, base clean). Gate-lib absent or no gate resolvable ⇒
+  graceful fallback (only an explicit RED ever blocks a land).
+- **One guardrail engine, no drift.** `/release:audit-fix` and `/release:plan-review-convergence` now
+  reference the shared `release-loop-lib.sh` primitives for their iteration cap + no-progress detection,
+  the same `/release:loop` uses. `release:code-fixer`'s final sweep prefers `run_gate` when present.
+
+### Migration
+
+- **BREAKING (behavioral) — `/release:execute` loops + auto-verifies + lands only on checker PASS.**
+  Previously execute built, landed on a green terminal wave, and left verification to a separate
+  `/release:verify`. Now it gates objectively, runs `release:phase-verifier` inline, auto-fixes gaps via
+  `release:code-fixer`, and lands only on green+PASS. Automation that wants the old single deterministic
+  pass must pass `--once`.
+- **No config required for graceful behavior.** An absent `.release-planning/VERIFY-GATE.yml` falls back
+  to the stack default, and a missing/empty gate never blocks a land — so a repo with no gate config
+  still builds and lands on green much like pre-v0.18.0 (it just won't have a sharp objective goal). For
+  the full payoff, copy `templates/VERIFY-GATE.yml` → `.release-planning/VERIFY-GATE.yml` and set your
+  real commands.
+
 ## [0.17.0] — 2026-06-19
 
 ### Added — auto merge-back: run a phase + many quicks in parallel, and test live on your trunk

@@ -68,7 +68,12 @@ Multi-file findings (rename FK, refactor hook signature, etc.):
 </step>
 
 <step name="final_verification">
-After all fixes applied — run full stack sweep (see `<final_sweep>` blocks).
+After all fixes applied — run the full sweep. **Single source of truth (v0.18.0):** if
+`release-gate-lib.sh` is discoverable (`$CLAUDE_PLUGIN_ROOT/bin/` or under `~/.claude/**/bin/`), source
+it and run `run_gate` — that is the SAME objective gate `/release:loop` and `/release:execute` land on,
+so green here means green there (no drift). Fall back to the hardcoded `<final_sweep>` commands below
+only when the lib is absent. When spawned inside a `/release:loop` round, the loop re-runs `run_gate`
+after you anyway — your job is to make it green, not to declare it so.
 </step>
 
 <step name="write_fix_summary">
