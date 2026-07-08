@@ -123,6 +123,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `/release:security` | both | Audit de segurança 9-categorias author-time (SECURITY.md) |
 | `/release:secure-phase {NN}` | both | Audit retroativo de threat-mitigation (scorecard) |
 | `/release:checklist` | both | Verificação Q1-Q7 + RC1-RC7 |
+| `/release:architecture` | both | Review clean-code + escalabilidade (2 dims + Scale Ceiling) — ARCH-REVIEW.md |
 | `/release:validate-phase {NN}` | both | Audit de cobertura Nyquist: cada requirement precisa de ≥2 testes |
 | `/release:ui-review {NN}` | frontend | Audit visual retroativo 6-pilares (a11y, responsive, loading/error, i18n, type contracts, design system) |
 | `/release:eval-review {NN}` | both | Audit retroativo de cobertura de eval AI (COVERED/PARTIAL/MISSING por dim) |
@@ -212,6 +213,7 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 | `doc-writer` | Escreve/atualiza README, CONTRIBUTING, ARCHITECTURE, ONBOARDING grounded nos artefatos |
 | `doc-classifier` | Classifica doc de planning como ADR/PRD/SPEC/DOC/UNKNOWN |
 | `doc-verifier` | Verifica claims factuais em docs contra o codebase vivo |
+| `architecture-reviewer` | Review clean-code (CC1-CC6) + escalabilidade stack-dispatched (Django SD1-SD7 / React SR1-SR6) com Scale Ceiling — spawned por `/release:architecture` |
 
 ### Django-specific (lógica pura Django)
 | Agent | Papel |
