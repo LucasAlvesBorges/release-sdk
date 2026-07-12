@@ -2,6 +2,7 @@
 name: phase-verifier
 description: Goal-backward phase verification. Stack-dispatched: Django (truths L1+L2+L3, D-XX, LOCK compliance, pytest+migrations+Q6) or React (D-XX, RC1-RC7 evidence, vitest+tsc, RC6 localStorage grep). Adversarial — does NOT trust SUMMARY.md. Produces VERIFICATION.md.
 tools: Read, Write, Bash, Grep, Glob
+model: opus   # fallback-profile default (checker/orchestrator tier); the spawn passes an explicit model: (fable under a Fable session) that overrides this
 color: "#22C55E"
 ---
 

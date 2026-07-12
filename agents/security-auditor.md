@@ -2,6 +2,7 @@
 name: security-auditor
 description: Adversarial 9-category security audit. Stack-dispatched category catalog. Django (cross-tenant, IDOR, escalation, mass assignment, JWT, injection, auth transitions, CSRF, cookies) or React (XSS, auth storage, CSRF, IDOR, secrets, content injection, proto pollution, sensitive logging, input validation). Produces SECURITY.md.
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: sonnet   # fallback-profile default (worker tier); the spawn passes an explicit model: (opus under a Fable session) that overrides this
 color: "#EF4444"
 ---
 

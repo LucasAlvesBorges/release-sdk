@@ -2,6 +2,7 @@
 name: advanced-threat-auditor
 description: Always-on adversarial advanced-threat audit, run in PARALLEL with security-auditor on every /release:security. Stack-dispatched category catalog covering the attack surface the 9-category auditor misses. Django A1-A13 (SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, XXE/header-log injection, ORM-level injection, advanced concurrency TOCTOU/idempotency/distributed-lock, JWT forgery & auth-identity, constant-time compare & signed-payload integrity, transport/headers/CORS hardening, exploitation-grade SQLi, image/media DoS+processing RCE, AWS cloud-infra incl. IaC static checks) and React RA1-RA5 (URL-scheme/DOM sinks, postMessage/client-SSRF, CSP/Trusted-Types/clickjacking, build/supply-chain, SSR/hydration/DOM-clobbering/JSON-hijacking). APPENDS an `## Advanced Threat Audit` section to the same SECURITY.md the base auditor writes.
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: sonnet   # fallback-profile default (worker tier); the spawn passes an explicit model: (opus under a Fable session) that overrides this
 color: "#DC2626"
 ---
 

@@ -2,6 +2,7 @@
 name: wave-executor
 description: Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. Always invoked by /release:execute (no flag).
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
+model: opus
 color: "#F59E0B"
 ---
 
@@ -12,6 +13,18 @@ Default orchestrator for `/release:execute` (v0.12.0 BREAKING — replaces direc
 
 **Token economy is mandatory.** Every executor spawn MUST receive a sliced PLAN-SLICE.md (~3KB), not the monolithic PLAN.md (often >100KB).
 </role>
+
+<model_tiers>
+You are the **fan-out sub-orchestrator** (orchestrator tier). `/release:execute` spawned you with:
+- `worker_model` — the maker tier (`opus` under a Fable session | `sonnet` under an Opus session). Tag
+  EVERY `release:tdd-executor` spawn AND the terminal `release:test-runner` sweep with `model: <worker_model>`.
+- `mechanical_model` — the collection tier (`haiku`). Tag the terminal `release:test-discover` spawn with it.
+
+If these are unset (invoked outside the wired path), resolve them yourself from `bin/release-model-lib.sh`
+(`release_worker_model` / `release_mechanical_model`); if the lib is unreachable, default `worker_model=sonnet`,
+`mechanical_model=haiku`. NEVER omit `model:` on a spawn — an unset worker inherits YOUR (orchestrator) tier,
+which defeats the maker≠checker hierarchy. Every worker spawn's prompt also says "operate at maximum rigor / max effort".
+</model_tiers>
 
 <execution_flow>
 
@@ -234,6 +247,7 @@ done
 
 ```yaml
 agent: release:tdd-executor
+model: <worker_model>               # maker tier handed down by /release:execute (opus | sonnet). NEVER omit.
 config:
   plan_path: "<worktree>/.release-planning/phases/{NN}-{slug}/PLAN-SLICE-{TASK_ID}.md"
   task_filter: ["T02"]              # only this task (defensive — slice already contains only this)
@@ -242,6 +256,7 @@ config:
   no_branch: true                   # already on wave branch
   skip_sweep: true                  # intermediate wave — terminal sweep runs at end-of-phase
   is_slice: true                    # signal that plan_path is a slice (full-read OK, no offset gymnastics)
+  instruction_suffix: "operate at maximum rigor / max effort"
 ```
 
 The executor agents must respect `task_filter`, `cwd`, `skip_sweep`, `is_slice`. (See `<task_filter_contract>` below.)
@@ -302,7 +317,10 @@ If verification fails → STOP, report failure with last good SHA. User can `--r
 After cherry-pick of LAST wave, spawn `release:test-discover` + 5x `release:test-runner` for full parallel sweep:
 - Mirrors `release:tdd-executor`'s `parallel_test_sweep` step
 - Runs ONCE per phase (not per wave)
-- 5-way parallel buckets, sonnet-tier
+- 5-way parallel buckets
+- **Model tiers:** `release:test-discover` spawned with `model: <mechanical_model>` (haiku — pure
+  `--collect-only`, no judgment); the 5x `release:test-runner` each with `model: <worker_model>` (the maker
+  tier — running/diagnosing a failing bucket is worker-loop work). Both handed down by `/release:execute`.
 - This is what skip_sweep:true on intermediate spawns defers TO
 
 If any bucket fails → diagnose, fix, re-run failing bucket, max 3 attempts then escalate.

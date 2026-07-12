@@ -35,6 +35,45 @@ Substituting `gsd-*` bypasses release-sdk hooks/audit/stack-dispatch and corrupt
 
 ---
 
+## Model-Tier Orchestration (LOCKED — applies to every routed skill)
+
+Every operation runs as a **loop** on a two-tier model hierarchy. Source of truth: `bin/release-model-lib.sh`. Full doctrine + topology diagram: README → "Model-tier orchestration".
+
+**The topology.** The **orchestrator** (THIS session — the main loop: *plan → fan out → evaluate → re-dispatch*) fans work out to **N workers**, each running its own inner **worker loop** (build → self-check → fix). The orchestrator NEVER authors code; a worker NEVER decides its own "done". Every **checker/verifier** runs on the **orchestrator tier** — a model *above* the maker evaluates the maker's work, so "the orchestrator loops to evaluate the workers" is literal AND maker≠checker (anti-confirmation-bias) holds by construction.
+
+**Profile = your own session model — auto-derived, NEVER ask the user.** You already know your model from your system prompt ("You are powered by …"). Derive the profile from it silently:
+- You are **Fable** → profile `fable-opus`: workers = **Opus**, orchestrator/checkers = **Fable**.
+- You are **Opus** (Fable unavailable) → profile `opus-sonnet`: workers = **Sonnet**, orchestrator/checkers = **Opus**.
+- Any other session model → nearest match: treat a model at/above Opus as `fable-opus` behavior only if it truly has Fable workers, else `opus-sonnet`. When unsure, `opus-sonnet` (the safe floor).
+
+Deriving from the session model guarantees a spawn NEVER requests a tier the user lacks (workers are always exactly one rung below the orchestrator). bash cannot read the session model (no env var — only `$CLAUDE_EFFORT`), so YOU set it from self-knowledge; there is nothing to prompt the user for.
+
+**At the start of any spawning operation, resolve tiers ONCE:**
+```bash
+find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
+# You know your own model → set the profile from it (silent auto-detect; do NOT ask the user):
+#   → you are Opus (no Fable):  export RELEASE_MODEL_PROFILE=opus-sonnet
+#   → you are Fable:            leave the default (fable-opus)
+# A user's explicit RELEASE_MODEL_PROFILE env or .release-planning/MODELS.yml `profile:` pin ALWAYS wins
+# (the rare cost-control / headless override — the lib reads both; no command needed to set them).
+WORKER_MODEL="$(release_worker_model)"; CHECKER_MODEL="$(release_checker_model)"
+ORCH_MODEL="$(release_orchestrator_model)"; MECH_MODEL="$(release_mechanical_model)"
+echo "→ models: $(release_model_summary)"    # transparency: prints the active mapping every run
+```
+
+**Then EVERY spawn passes an explicit `model:`** — never rely on inherited defaults (an unset model would run a worker at the orchestrator tier). Role → model, all at **maximum effort**:
+
+| Role | Agents | `model:` |
+|------|--------|----------|
+| Maker / fixer / auditor / debugger (worker loop) | `tdd-executor`, `code-fixer`, `test-runner`, `security-auditor`, `advanced-threat-auditor`, `*-security-retro`, `debugger` | `$WORKER_MODEL` |
+| Fan-out sub-orchestrator + checker/verifier | `wave-executor`, `phase-verifier`, `loop-goal-verifier` | `$CHECKER_MODEL` |
+| Collection-only (the ONE effort exception) | `test-discover` | `$MECH_MODEL` |
+
+Also instruct every worker spawn to "operate at maximum rigor / max effort" in its prompt (subagent effort is not yet a spawnable param; `$CLAUDE_EFFORT` on this session is already `max`). If the lib is unreachable, fall back to the frontmatter defaults (worker→sonnet, checker→opus) and say so.
+
+---
+
 # /release:auto — Intent Router
 
 One entry point. User describes what they want; this skill picks the right

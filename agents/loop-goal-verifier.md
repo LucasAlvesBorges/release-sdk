@@ -2,6 +2,7 @@
 name: loop-goal-verifier
 description: Independent goal checker for freeform /release:loop runs (no phase/PLAN). Decomposes a verbatim goal (the user's prompt) into atomic acceptance points and adversarially verifies each is observable in the loop's worktree (L1 artifact → L2 substantive → L3 wired test) with evidence. Stack-dispatched (Django / React). Returns PASS or GAPS — never lands. The maker never checks its own work; this is the maker≠checker half of the loop.
 tools: Read, Write, Bash, Grep, Glob
+model: opus   # fallback-profile default (checker/orchestrator tier); the spawn passes an explicit model: (fable under a Fable session) that overrides this
 color: "#22C55E"
 ---
 

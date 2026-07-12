@@ -22,16 +22,36 @@ Routes to the correct security auditor based on file type. Unified SECURITY.md o
 /release:security --diff main..HEAD          # audit changed files
 ```
 
+## Model tiers (LOCKED — see /release:auto → "Model-Tier Orchestration")
+
+This audit IS the loop topology: the **orchestrator** (this session) fans out to **worker auditors**,
+then **evaluates** their findings on the orchestrator tier. Resolve tiers ONCE before spawning — you are
+the orchestrator; self-identify (if your session model is Opus, not Fable: `export RELEASE_MODEL_PROFILE=opus-sonnet`):
+```bash
+find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
+WORKER_MODEL="$(  [ -f "$MODEL_LIB" ] && release_worker_model  || echo sonnet )"   # security-auditor, advanced-threat-auditor
+CHECKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_checker_model || echo opus   )"   # code-fixer verification / re-audit orchestration
+```
+
 ## Routing logic
 
 1. Resolve scope: phase directory, explicit paths, or git diff.
-2. Split `.py` → `release:security-auditor`, `.tsx/.ts` → `release:security-auditor`.
-3. **ALWAYS** spawn `release:advanced-threat-auditor` over the SAME resolved scope, regardless of
-   detected surface (it is never conditional on a trigger surface being present). It runs in
-   PARALLEL with the 9-category `release:security-auditor` pass.
+2. Split `.py` → `release:security-auditor`, `.tsx/.ts` → `release:security-auditor`. Spawn each with
+   `model: $WORKER_MODEL` and a prompt suffix "operate at maximum rigor / max effort".
+3. **ALWAYS** spawn `release:advanced-threat-auditor` (also `model: $WORKER_MODEL`) over the SAME resolved
+   scope, regardless of detected surface (it is never conditional on a trigger surface being present). It
+   runs in PARALLEL with the 9-category `release:security-auditor` pass.
 4. Run all auditors in parallel; their findings merge into ONE SECURITY.md (the advanced auditor
    APPENDS its `## Advanced Threat Audit` section to the same per-phase SECURITY.md — no separate file).
 5. Merge into SECURITY.md with per-stack category tables.
+6. **Orchestrator evaluation (checker tier — the "loop to evaluate the workers" leg).** YOU, on the
+   orchestrator/checker tier, review the merged findings before finalizing: reject false positives,
+   confirm each OPEN cites real evidence (a HOLLOW status-code-only test is itself a finding, never a
+   PASS), and reconcile severity. This is maker≠checker — the auditors found; a model *above* them
+   adjudicates. If `--fix` is passed, spawn `release:code-fixer { model: $WORKER_MODEL, ... }` on the
+   confirmed OPEN issues, then re-run the relevant auditor (worker tier) to verify the fix closed the
+   category — a worker loop until the finding is CLOSED or escalated.
 
 ## Django 9 categories (backend)
 1. Cross-Tenant Isolation

@@ -84,7 +84,18 @@ find_lib() {  # $1 = lib filename → echo absolute path or empty
 GATE_LIB="$(find_lib release-gate-lib.sh)"; MERGE_LIB="$(find_lib release-merge-lib.sh)"; LOOP_LIB="$(find_lib release-loop-lib.sh)"
 for L in "$GATE_LIB" "$MERGE_LIB" "$LOOP_LIB"; do [ -f "$L" ] || { echo "ABORT: missing engine ($L). Set CLAUDE_PLUGIN_ROOT."; exit 1; }; done
 . "$GATE_LIB"; . "$MERGE_LIB"; . "$LOOP_LIB"
+MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
 ```
+
+**Resolve model tiers ONCE** (see /release:auto → "Model-Tier Orchestration (LOCKED)"). You are the
+orchestrator; self-identify: if your session model is Opus (not Fable), `export RELEASE_MODEL_PROFILE=opus-sonnet`
+first. Then:
+```bash
+WORKER_MODEL="$(  [ -f "$MODEL_LIB" ] && release_worker_model  || echo sonnet )"   # tdd-executor (maker), code-fixer (fixer)
+CHECKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_checker_model || echo opus   )"   # loop-goal-verifier / phase-verifier, wave-executor
+[ -f "$MODEL_LIB" ] && echo "→ models: $(release_model_summary)"
+```
+Every spawn below carries an explicit `model:` from these; worker prompts also say "operate at maximum rigor / max effort".
 
 ## Isolate (ephemeral worktree off base)
 
@@ -119,10 +130,12 @@ iter = 0
 # ── iteration 1: build ──────────────────────────────────────────────────────────────────────
 iter = 1
 MAKER.build():
-  phase mode    → spawn release:wave-executor { cwd: $LWT, branch: $BRANCH, branch_already_set: true,
-                                                no_land: true }     # build the PLAN, commit, NO land
-  freeform mode → spawn release:tdd-executor  { cwd: $LWT, quick_mode: true, no_plan: true,
-                                                branch_already_set: true, task: "<the prompt>" }
+  phase mode    → spawn release:wave-executor { model: $CHECKER_MODEL, worker_model: $WORKER_MODEL,
+                                                cwd: $LWT, branch: $BRANCH, branch_already_set: true,
+                                                no_land: true }     # fan-out sub-orchestrator; builds the PLAN, NO land
+  freeform mode → spawn release:tdd-executor  { model: $WORKER_MODEL, cwd: $LWT, quick_mode: true, no_plan: true,
+                                                branch_already_set: true, task: "<the prompt>",
+                                                instruction_suffix: "operate at maximum rigor / max effort" }
 
 # ── iterate: gate → (fix | check) ───────────────────────────────────────────────────────────
 while true:
@@ -143,15 +156,15 @@ while true:
       surface the evidence (the actual failing command + output — not a paraphrase)
       iter += 1
       MAKER.fix(evidence):
-        spawn release:code-fixer { cwd: $LWT, finding: <gate evidence>,
-                                   instruction: "make `run_gate` green; fix ONLY what this evidence shows" }
+        spawn release:code-fixer { model: $WORKER_MODEL, cwd: $LWT, finding: <gate evidence>,
+                                   instruction: "operate at maximum rigor; make `run_gate` green; fix ONLY what this evidence shows" }
       continue                               # re-gate next round
 
   # verdict == GREEN → the objective half is satisfied; now verify the INTENT half
-  # 2. INDEPENDENT CHECKER (maker ≠ checker; must return evidence, not a claim)
-  CHK = phase mode    → spawn release:phase-verifier   { stack, phase_number: NN, phase_dir,
+  # 2. INDEPENDENT CHECKER (maker ≠ checker: checker runs on the orchestrator tier, above the maker)
+  CHK = phase mode    → spawn release:phase-verifier   { model: $CHECKER_MODEL, stack, phase_number: NN, phase_dir,
                                                          goal_source: "SPEC acceptance criteria + PLAN must_haves" }
-        freeform mode → spawn release:loop-goal-verifier { stack, goal: "<the prompt verbatim>", worktree: $LWT }
+        freeform mode → spawn release:loop-goal-verifier { model: $CHECKER_MODEL, stack, goal: "<the prompt verbatim>", worktree: $LWT }
 
   if CHK == PASS:
       LAND. break                            # ↓ see "Land"
@@ -164,8 +177,8 @@ while true:
   surface the gaps (with the checker's evidence)
   iter += 1
   MAKER.fix(gaps):
-    spawn release:code-fixer { cwd: $LWT, finding: <checker gaps>,
-                               instruction: "close these goal gaps; add the missing test+impl" }
+    spawn release:code-fixer { model: $WORKER_MODEL, cwd: $LWT, finding: <checker gaps>,
+                               instruction: "operate at maximum rigor; close these goal gaps; add the missing test+impl" }
   continue
 
 # optional token ceiling — check once per round when --budget-usd is set:

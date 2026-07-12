@@ -25,7 +25,42 @@ Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Ze
 
 ---
 
+## Orquestração por tier de modelo (v0.19.0)
+
+**Toda operação roda como um loop, sobre uma hierarquia de dois tiers de modelo.** Fonte única de verdade: `bin/release-model-lib.sh` (contrato em `bin/test-model-lib.sh`, 23 asserts). Doctrine LOCKED herdada por todas as skills: `/release:auto`.
+
+```
+          ┌─ evaluate ─┐                                    Worker loop
+          ↓            │                             ┌──────────────────┐
+   ┌──────────────┐   │            fan out           │  Worker 1 (Opus) │↺
+   │ Orchestrator │───┼──────────────────────────────┤  build→check→fix │
+   │   (Fable)    │   │                               ├──────────────────┤
+   │ plan · loop  │───┴───────────────────────────────┤  Worker 2 (Opus) │↺
+   └──────────────┘↺  Main loop                        ├──────────────────┤
+                                                       │  Worker N (Opus) │↺
+                                                       └──────────────────┘
+```
+
+- **Orchestrator** (a sessão que roda a skill) tem o **main loop**: planeja → **fan-out** pra N workers → **avalia** o trabalho → re-despacha. NUNCA escreve código.
+- **Workers** (makers/fixers/auditores/debuggers) rodam **um degrau abaixo**, cada um com seu **worker loop** interno (build → self-check → fix). NUNCA decidem o próprio "done".
+- Todo **checker/verifier** roda no **tier do orquestrador** — um modelo *acima* do maker avalia o maker. Assim "o orquestrador loopa pra avaliar os workers" é literal **e** maker≠checker (anti-viés) vale por construção.
+
+**Dois perfis, derivados do model da SUA sessão** (o orquestrador se auto-identifica):
+
+| Perfil | Sessão em | Orquestrador/checker | Worker | Quando |
+|--------|-----------|----------------------|--------|--------|
+| `fable-opus` (primário) | **Fable** | Fable | **Opus** | você tem Fable |
+| `opus-sonnet` (fallback) | **Opus** | Opus | **Sonnet** | Fable indisponível |
+
+Derivar o perfil do model da sessão **garante que nunca se spawna um tier que você não tem** — workers são sempre exatamente um degrau abaixo do orquestrador. Tudo roda em **effort máximo** (`$CLAUDE_EFFORT`). Exceção única: `test-discover` (`pytest --collect-only`, zero julgamento) fica em Haiku de propósito.
+
+**Perfil auto-detectado do model da sessão — zero configuração, o SDK nunca pergunta.** O orquestrador (o LLM) já sabe o próprio model e deriva o perfil sozinho; toda skill imprime `→ models: …` no início pra transparência. Override raro (cost-control / headless): env `RELEASE_MODEL_PROFILE` ou `.release-planning/MODELS.yml` (`profile: fable-opus|opus-sonnet`) — a lib lê ambos, sem comando. Skills fiadas nativamente: `execute` (+ `wave-executor` → `tdd-executor`/`code-fixer`/`phase-verifier`/`test-runner`/`test-discover`), `loop`, `quick`, `security`, `debug`.
+
+---
+
 ## Novidades (v0.5 → v0.16)
+
+- **v0.19.0** — **Orquestração por tier de modelo.** Toda operação vira um loop de dois tiers: orquestrador (Fable) faz fan-out pra workers (Opus), cada worker loopa sozinho, e o orquestrador loopa pra avaliar — checker sempre um tier acima do maker (maker≠checker literal). Fallback quando não há Fable: orquestrador Opus + workers Sonnet. Perfil **auto-detectado** do model da sessão (o LLM sabe o próprio model — nunca pergunta, nunca spawna tier que você não tem). Nova lib `bin/release-model-lib.sh` (SSOT) + `bin/test-model-lib.sh` (23 asserts). Override raro via env `RELEASE_MODEL_PROFILE`/`MODELS.yml`. Fiado em `execute`/`loop`/`quick`/`security`/`debug` + `wave-executor`; doctrine LOCKED no router herdada por todas as skills. Tudo em effort máximo (exceção: `test-discover`/Haiku).
 
 - **v0.17.0** — merge-back automático: rode uma fase + vários `/release:quick` em paralelo e **veja a feature funcionando ao vivo** no seu trunk. `quick` e `execute` isolam em worktree **e aterrissam sozinhos** na base quando os testes passam (hot-reload pega na hora); checkout sujo é **segurado, nunca sobrescrito** (`held-dirty`). Motor único `land_branch` (`bin/release-merge-lib.sh`) compartilhado por `session finish`/`quick`/`execute`/novo `/release:land`, serializado por lock por-base. Teste 48→66 asserts agora *sourceia* o motor real (zero drift). BREAKING: `quick` não commita mais no teu checkout; `execute` não deixa mais `feat/<NN>` solto (use `--no-merge`/`--pr` pro comportamento antigo).
 - **v0.16.0** — `/release:session` endurecido: 6 bugs de uso multi-sessão real (cwd-drift crash no `finish`, conflito mutando o checkout da base, planning vazando pra PR, sem drift handling, `base-branch` não persistindo sob gitignore, pouca visibilidade) + review adversarial de 6 lentes (27 achados — incl. TOCTOU resolvido com lock-first/sync-merge atômico, lockfile slash-safe, reclaim de lock morto, refused-merge). Novos subcomandos `sync`/`doctor`/`cleanup`; `bin/test-session-merge.sh` 12 → 48 asserts regression-guarded. **Agentes agora namespaceados** `release:<nome>` (Claude Code exige prefixo de plugin; `subagent_type` cru falhava) — 320 spawns reescritos em 62 arquivos.

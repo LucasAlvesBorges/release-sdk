@@ -99,11 +99,14 @@ Then spawn the wave-executor handing down the isolation context:
 
 ```yaml
 agent: release:wave-executor
+model: $CHECKER_MODEL          # fan-out sub-orchestrator → orchestrator tier (Fable | Opus)
 config:
   cwd: "$PHASE_WT"            # ALL git ops run here — never the shared main checkout
   session_id: "$SESSION_ID"   # namespaces wave worktrees + wave branches across sessions
   branch: "feat/{NN}-{slug}"
   branch_already_set: true    # phase worktree already on the branch → skip its ensure_branch checkout
+  worker_model: $WORKER_MODEL  # wave-executor tags EVERY tdd-executor spawn with this (maker tier: Opus | Sonnet)
+  mechanical_model: $MECH_MODEL # test-discover collection tier (haiku); test-runner uses worker_model
 ```
 
 **Rules:**
@@ -126,16 +129,29 @@ gaps. `--once` restores the legacy single-pass (build → gate-once → land/hol
 auto-verify). Granularity stays **phase-complete** — a half-phase never reaches base. `land_branch`
 needs `$PHASE_WT` alive (it syncs base in first), so the loop lands BEFORE any teardown.
 
-Source the three engines (mirror the merge-lib discovery), parse the budget flags:
+Source the four engines (mirror the merge-lib discovery), parse the budget flags:
 ```bash
 find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
-MERGE_LIB="$(find_lib release-merge-lib.sh)"; GATE_LIB="$(find_lib release-gate-lib.sh)"; LOOP_LIB="$(find_lib release-loop-lib.sh)"
+MERGE_LIB="$(find_lib release-merge-lib.sh)"; GATE_LIB="$(find_lib release-gate-lib.sh)"; LOOP_LIB="$(find_lib release-loop-lib.sh)"; MODEL_LIB="$(find_lib release-model-lib.sh)"
 [ -f "$MERGE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
-. "$MERGE_LIB"; [ -f "$GATE_LIB" ] && . "$GATE_LIB"; [ -f "$LOOP_LIB" ] && . "$LOOP_LIB"
+. "$MERGE_LIB"; [ -f "$GATE_LIB" ] && . "$GATE_LIB"; [ -f "$LOOP_LIB" ] && . "$LOOP_LIB"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
 MAX_ITERS=6;  case " $* " in *" --max-iters "*)  MAX_ITERS="<value after --max-iters>";; esac
 BUDGET_USD=""; case " $* " in *" --budget-usd "*) BUDGET_USD="<value after --budget-usd>";; esac
 ONCE=0;       case " $* " in *" --once "*)        ONCE=1;; esac
 ```
+
+**Resolve model tiers ONCE (see /release:auto → "Model-Tier Orchestration (LOCKED)").** You are the
+orchestrator; self-identify: if your session model is Opus (not Fable), `export RELEASE_MODEL_PROFILE=opus-sonnet`
+first (Fable sessions leave the default). Then:
+```bash
+WORKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_worker_model  || echo sonnet )"   # tdd-executor, code-fixer
+CHECKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_checker_model || echo opus   )"   # wave-executor, phase-verifier
+MECH_MODEL="$(  [ -f "$MODEL_LIB" ] && release_mechanical_model || echo haiku )"   # test-discover (collection only)
+[ -f "$MODEL_LIB" ] && echo "→ models: $(release_model_summary)"
+```
+Every agent spawn below carries an explicit `model:` from these — the fan-out coordinator + checker on
+the orchestrator tier, the makers/fixers one rung below. Never omit `model:` (an unset worker would
+inherit the orchestrator tier). Every worker spawn's prompt also says "operate at maximum rigor / max effort".
 
 The loop (`iter` 1 = the build that just finished). `run_gate` falls back to GREEN when no gate-lib /
 no gate resolvable, so a repo with no `VERIFY-GATE.yml` and an unknown stack behaves like pre-v0.18.0:
@@ -154,11 +170,11 @@ else while true:
         if loop_guard $iter $MAX_ITERS "$prev_sig" "$cur"  →  "LOOP=stop ...":  STOP=<reason>; break
         surface EV (the real failing command + its output — not a paraphrase)
         prev_sig=cur; iter=$((iter+1))
-        spawn release:code-fixer { cwd: $PHASE_WT, stack, finding: <EV contents>,
-                                   instruction: "make run_gate green; fix ONLY what this evidence shows" }
+        spawn release:code-fixer { model: $WORKER_MODEL, cwd: $PHASE_WT, stack, finding: <EV contents>,
+                                   instruction: "operate at maximum rigor; make run_gate green; fix ONLY what this evidence shows" }
         continue
-    # 2. GATE GREEN → run the CHECKER automatically (maker ≠ checker)
-    spawn release:phase-verifier { cwd: $PHASE_WT, stack, phase_number: NN, phase_dir }
+    # 2. GATE GREEN → run the CHECKER automatically (maker ≠ checker: checker on the orchestrator tier, above the maker)
+    spawn release:phase-verifier { model: $CHECKER_MODEL, cwd: $PHASE_WT, stack, phase_number: NN, phase_dir }
         # goal = SPEC acceptance criteria + PLAN must_haves + ROADMAP success_criteria (+ D-XX)
     if verifier status in {PASS, PASS_WITH_WARNINGS}:  VERIFIED=1; break
     # 3. GAPS_FOUND / CRITICAL — tests green, goal not met
@@ -166,8 +182,8 @@ else while true:
     if loop_guard $iter $MAX_ITERS "$prev_sig" "$cur"  →  stop:  STOP=<reason>; break
     surface the gaps (with the verifier's evidence)
     prev_sig=cur; iter=$((iter+1))
-    spawn release:code-fixer { cwd: $PHASE_WT, stack, finding: <gaps>,
-                               instruction: "close these goal gaps; add the missing test + impl" }
+    spawn release:code-fixer { model: $WORKER_MODEL, cwd: $PHASE_WT, stack, finding: <gaps>,
+                               instruction: "operate at maximum rigor; close these goal gaps; add the missing test + impl" }
     continue
     # once per round, if BUDGET_USD set: loop_token_spend "$BUDGET_USD" echoing "reason=budget-tokens" ⇒ STOP; break
 ```

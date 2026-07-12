@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] — 2026-07-12
+
+### Added — model-tier orchestration: Fable orchestrates Opus workers (Opus orchestrates Sonnet as fallback)
+
+The plugin already had the topology (orchestrator + fan-out + closed loops from v0.12/v0.18). v0.19.0
+adds the missing layer on top of it: a **two-tier model hierarchy** so every operation runs as a loop
+where a stronger model *orchestrates and evaluates* while cheaper-but-capable models *do the work* in
+their own inner loops — and the tier is derived from the session model so a spawn never asks for a tier
+the user lacks.
+
+- **The substrate — `bin/release-model-lib.sh`.** Single source of truth for "which model runs this
+  role?". Public API: `release_model_profile` (`fable-opus` | `opus-sonnet`), `release_orchestrator_model`,
+  `release_worker_model`, `release_checker_model` (= orchestrator tier by design), `release_mechanical_model`
+  (haiku), `release_model_effort` (max), `release_model_summary`. Resolution order: `RELEASE_MODEL_PROFILE`
+  env → `.release-planning/MODELS.yml` `profile:` pin → default `fable-opus`. Contract-tested by
+  `bin/test-model-lib.sh` (23 assertions, sources the real engine — no drift).
+- **The topology.** Orchestrator (the session — main loop: plan → fan out → evaluate → re-dispatch) →
+  N workers (each with its own worker loop: build → self-check → fix). The orchestrator never authors
+  code; a worker never decides its own "done"; every **checker/verifier runs on the orchestrator tier**
+  (a model *above* the maker) so "the orchestrator loops to evaluate the workers" is literal AND
+  maker≠checker holds by construction.
+- **Two profiles, auto-detected from the session model** (the orchestrator LLM already knows its own
+  model from its system prompt — it never asks the user). Fable session → `fable-opus` (workers=Opus,
+  checkers=Fable). Opus session → `opus-sonnet` (workers=Sonnet, checkers=Opus). Guarantees workers are
+  always exactly one rung below the orchestrator → never spawns a tier the user lacks. Everything at
+  **maximum effort** (`$CLAUDE_EFFORT`); the ONE exception is `release:test-discover` (`pytest
+  --collect-only`, no judgment) kept on Haiku.
+- **Override (rare — cost-control / headless):** `RELEASE_MODEL_PROFILE` env or a
+  `.release-planning/MODELS.yml` `profile:` pin. The lib reads both; no command needed to set them, and
+  an explicit pin always wins over auto-detection. Every loop skill prints `→ models: …` at start for
+  transparency. (No dedicated skill — auto-detection + these two overrides cover every case.)
+- **LOCKED doctrine in `/release:auto`** — a model-tier block inherited by every routed skill (like the
+  existing "NEVER spawn gsd-*" policy), with the resolve-tiers-once snippet + role→model table.
+- **Wired natively** — `execute` (and its whole chain: `wave-executor` now tags every `tdd-executor`,
+  `code-fixer`, `phase-verifier`, terminal `test-runner`/`test-discover` spawn with the resolved tier),
+  `loop` (freeform maker/checker/fixer), `quick` (maker), `security` (worker auditors + orchestrator-tier
+  evaluation of findings + optional fix→re-audit worker loop), `debug` (worker debugger). Agent
+  frontmatter now carries fallback-profile defaults (worker→sonnet, checker→opus) so a bare spawn never
+  inherits the wrong tier.
+
+### Note
+
+Subagent per-spawn `effort` is not yet a param on the Agent tool (only the session's `$CLAUDE_EFFORT`,
+already `max`), so "max effort" for workers is carried as an explicit prompt instruction plus the
+lib-emitted `release_model_effort`; it upgrades automatically if/when the harness exposes the knob.
+
 ## [0.18.0] — 2026-06-21
 
 ### Added — loop engineering: you stop being the element inside the loop

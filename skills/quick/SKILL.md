@@ -71,11 +71,20 @@ git -C "$MAIN_ROOT" worktree add -q -b "$BRANCH" "$QWT" "$BASE"   # branch off b
 
 ### Step 3 — Spawn TDD executor with `quick_mode: true` (in the worktree)
 
+**Resolve the maker tier first** (see /release:auto → "Model-Tier Orchestration (LOCKED)"). You are the
+orchestrator; self-identify — if your session model is Opus (not Fable), `export RELEASE_MODEL_PROFILE=opus-sonnet`:
+```bash
+find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
+WORKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_worker_model || echo sonnet )"   # tdd-executor maker tier (opus | sonnet)
+```
+
 ```
 Agent({
   subagent_type: "release:tdd-executor",
+  model: "{WORKER_MODEL}",     # maker tier — one rung below the orchestrator (opus under Fable, sonnet under Opus). NEVER omit.
   description: "Quick task: {first-30-chars-of-task}",
-  prompt: "Work ENTIRELY within {QWT} (cd there first; all edits, tests, and commits happen there). {full task description}",
+  prompt: "Operate at maximum rigor / max effort. Work ENTIRELY within {QWT} (cd there first; all edits, tests, and commits happen there). {full task description}",
   metadata: {
     stack,
     quick_mode: true,

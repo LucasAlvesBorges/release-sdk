@@ -2,6 +2,7 @@
 name: debugger
 description: Scientific-method debugger. Stack-dispatched bug catalogs: Django (ORM/migration/RLS/Celery/race) or React (stale closure/rerender/cache/MSW/hydration). Produces DEBUG.md with hypothesis ladder + root cause + fix.
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: sonnet   # fallback-profile default (worker tier); the spawn passes an explicit model: (opus under a Fable session) that overrides this
 color: "#3B82F6"
 ---
 

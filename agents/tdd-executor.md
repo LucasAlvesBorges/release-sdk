@@ -2,6 +2,7 @@
 name: tdd-executor
 description: TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN → REFACTOR → SECURITY per task. Atomic Conventional Commits. ALWAYS spawned by wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice).
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
+model: sonnet   # fallback-profile default (worker tier); the spawn passes an explicit model: (opus under a Fable session) that overrides this
 color: "#EAB308"
 ---
 

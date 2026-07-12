@@ -59,18 +59,29 @@ Detect stack from:
 
 ### Step 2 — Spawn `release:debugger`
 
+**Resolve the worker tier first** (see /release:auto → "Model-Tier Orchestration (LOCKED)"). The debugger
+IS the worker — it runs its own inner loop (hypothesize → test → rule out → fix). You are the orchestrator;
+self-identify — if your session model is Opus (not Fable): `export RELEASE_MODEL_PROFILE=opus-sonnet`:
+```bash
+find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
+WORKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_worker_model || echo sonnet )"   # debugger maker tier (opus | sonnet)
+```
+
 ```
 Agent({
   subagent_type: "release:debugger",
+  model: "{WORKER_MODEL}",     # worker tier — one rung below the orchestrator. NEVER omit.
   description: "Debug session {session_id}",
-  prompt: "{bug report from user}",
+  prompt: "Operate at maximum rigor / max effort. {bug report from user}",
   metadata: { stack, session_id, session_path: ".release-planning/debug/{session_id}/" }
 })
 ```
 
 Agent owns the session. It writes `SESSION.md` after every checkpoint (hypothesis test,
 ruled-out branch, partial fix). The user can `/clear` and `/release:debug --resume {id}`
-to come back.
+to come back. When it reports `RESOLVED`, YOU (orchestrator/checker tier) confirm `FIX.md`'s
+verification command actually passes before committing — maker≠checker.
 
 ### Step 3 — Close protocol
 
