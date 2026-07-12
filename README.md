@@ -1,14 +1,32 @@
 # release-sdk
 
-> Kit de aceleração full-stack para Claude Code. Django + React TSX. Sem API key — usa sua assinatura Claude.
+> Kit de aceleração full-stack para Claude Code. Django + React + React Native. Sem API key — usa sua assinatura Claude.
 
 > 🇺🇸 [English version](./README.en.md) (mirror)
 
-Comandos `/release:*` context-aware roteiam automaticamente para os agents certos baseado nos seus arquivos e ROADMAP. Um SDK, duas stacks.
+Comandos `/release:*` context-aware roteiam automaticamente para os agents certos baseado nos seus arquivos e ROADMAP. Um SDK, três stacks (Django · React · React Native).
 
 **Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador de 32 regras que despacha pro skill `/release:*` certo, imprime a rota escolhida + razão antes de invocar, faz fallback pra `AskUserQuestion` quando a confiança é baixa.
 
-**Versão atual: v0.17.0** — invocação curta `/release:*`, 42 skills, 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+**Versão atual: v0.20.0** — 3 skills especialistas por stack (`django-expert` · `react-expert` · `react-native-expert`) que auto-disparam pela sua stack; invocação curta `/release:*`; 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+
+---
+
+## Skills especialistas por stack (v0.20.0)
+
+**O SDK identifica a stack pelos seus arquivos/keywords e aciona o especialista sênior certo — automaticamente.** Três skills de codificação (boas práticas + design patterns), no padrão progressive-disclosure (`SKILL.md` denso + `references/*.md` sob demanda), espelhando o calibre do `django-expert`:
+
+| Skill | Stack | Dispara em (keywords) |
+|-------|-------|-----------------------|
+| `django-expert` | Django 4/5 + DRF | Django, DRF, viewset, serializer, queryset, N+1, `models.py`, `select_related`… |
+| `react-expert` | React 19 + TSX (web) | React, hook, TSX, Zustand, TanStack Query, react-hook-form, Vite, Vitest… |
+| `react-native-expert` | React Native 0.7x + Expo | React Native, Expo, expo-router, FlatList/FlashList, Reanimated, EAS, MMKV… |
+
+- **Sem detector novo:** a "identificação de stack" são os `MANDATORY TRIGGERS` no frontmatter de cada `SKILL.md` — o mesmo mecanismo que já ativa qualquer skill do Claude Code.
+- **Disambiguação explícita:** `react-expert` **cede** pro `react-native-expert` quando detecta `react-native`/`expo`/primitivas RN (mobile é do RN); ambos deferem ao `django-expert` no lado da API DRF. Cross-links `[[…]]` entre os três.
+- **Persona que injeta padrões enquanto você codifica** — não é reviewer pós-fato (esses são os agents `code-reviewer` / `security-auditor` / `architecture-reviewer`). Cobre: arquitetura, estado, performance, segurança e testes de cada stack.
+
+> Distribuição: as três vivem em `skills/` do plugin e chegam via `autoUpdate` após publicação. O `django-expert` também existe no `~/.claude/skills/` global (local pré-plugin) — mantido até a publicação; depois, arquive o global nos projetos que já têm o plugin pra evitar trigger duplicado.
 
 ---
 

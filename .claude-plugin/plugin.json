@@ -1,7 +1,7 @@
 {
   "name": "release",
-  "description": "Full-stack acceleration kit (Django + React TSX) — context-aware routing, adversarial code review, 9-category + always-on advanced-threat security audit (SSRF/deserialization/exploit-grade SQLi/race-TOCTOU/image-DoS/AWS-IaC), TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
-  "version": "0.19.0",
+  "description": "Full-stack acceleration kit (Django + React + React Native) — stack-expert coding skills (django-expert, react-expert, react-native-expert) that auto-trigger by stack, context-aware routing, adversarial code review, 9-category + always-on advanced-threat security audit (SSRF/deserialization/exploit-grade SQLi/race-TOCTOU/image-DoS/AWS-IaC), TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
+  "version": "0.20.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
@@ -13,6 +13,8 @@
     "django",
     "drf",
     "react",
+    "react-native",
+    "expo",
     "tsx",
     "typescript",
     "fullstack",

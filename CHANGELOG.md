@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] — 2026-07-12
+
+### Added — stack-expert coding skills: the SDK now carries senior-engineer personas for all three Release stacks (Django · React · React Native)
+
+Until now the plugin shipped only workflow/process skills (plan, execute, review, audit, verify) and
+stack-aware review/audit *agents*. It had no proactive "senior engineer at your side" **coding** skill —
+the deep best-practices-and-design-patterns companion that auto-triggers on stack keywords *while you
+write*. The only such skill (`django-expert`) lived in the user's global `~/.claude/skills/`, outside the
+plugin, so it never shipped. v0.20.0 closes that: three expert skills now live IN the plugin and ship with
+it. Progressive-disclosure structure (a rich `SKILL.md` spine + on-demand `references/*.md`), mirroring the
+django-expert exemplar's caliber — ToC per reference, "show the why", trap warnings, tradeoff tables.
+
+- **`skills/django-expert/`** — re-homed from global `~/.claude/skills/` into the plugin so it ships as part
+  of the SDK (unchanged content: SKILL.md + 5 references — performance, security, auth_patterns, testing,
+  deployment). Django 4.x/5.x + DRF.
+- **`skills/react-expert/`** (new) — React 19 + TypeScript (TSX) web. SKILL.md + 5 references: `patterns`
+  (composition, compound components, custom hooks, error boundaries, TS component patterns), `state`
+  (server-vs-client taxonomy, Zustand selectors/slices, TanStack Query v5 optimistic/invalidation/DRF
+  mapping), `performance` (re-render model, memo trio + React Compiler, virtualization, code-splitting),
+  `security` (XSS/DOMPurify, token handling, CSRF, CSP — pairs with the `react-security-guard` hook),
+  `testing` (Vitest + RTL + MSW mirroring DRF).
+- **`skills/react-native-expert/`** (new) — React Native 0.7x + Expo (SDK 50+) mobile. SKILL.md + 7
+  references: `patterns` (StyleSheet/theme, Screen primitive, gestures), `performance` (FlashList +
+  Reanimated on the UI thread, Hermes, cold-start), `navigation` (Expo Router / React Navigation, typed
+  routes, auth guards, deep-link validation), `state` (offline-first: TanStack Query + MMKV persistence +
+  secure-store hydration), `native` (config plugins, permissions, EAS Build/Update), `security` (Keychain/
+  Keystore, deep-link + SSL pinning, OWASP MASVS — pairs with `react-security-retro`), `testing` (jest-expo
+  + RNTL + Maestro/Detox).
+- **Stack identification is the trigger keywords in each `SKILL.md` frontmatter — no new detector.** Django/
+  DRF/viewset → django-expert; React/hook/TSX/Zustand → react-expert; React Native/Expo/FlashList/Reanimated
+  → react-native-expert. Disambiguation is explicit: **react-expert SKIPS** when `react-native`/`expo`/RN
+  primitives are present and defers to react-native-expert; **react-native-expert OWNS** mobile. All three
+  cross-link (`[[django-expert]]`, `[[react-expert]]`, `[[react-native-expert]]`) around the shared DRF
+  backend contract. ~3,200 lines of new React/React-Native content aligned to the Release stack (Zustand,
+  TanStack Query, Vitest/jest-expo).
+
+### Migration note
+
+`django-expert` still exists in the user's global `~/.claude/skills/django-expert` (the pre-plugin
+location). Once 0.20.0 is published and the plugin's `release:django-expert` goes live in a consuming
+project, the global copy becomes a **duplicate trigger** *in that project* — archive the global copy then to
+dedupe. Do **not** archive it before publishing: in the source repo and any project without the plugin, the
+global copy is the only active Django expert.
+
 ## [0.19.0] — 2026-07-12
 
 ### Added — model-tier orchestration: Fable orchestrates Opus workers (Opus orchestrates Sonnet as fallback)
