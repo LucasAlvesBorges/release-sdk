@@ -34,6 +34,8 @@ Depending on the task, follow the appropriate section below. For complex tasks t
 
 When reviewing Django code, systematically check each of these areas. Don't just scan for bugs — evaluate the code's overall health.
 
+For an adversarial, attacker-mindset pass — exploit chains, PoCs, and severity ratings rather than a checklist — hand off to the interactive [[security-expert]] skill. The retroactive pipeline gate is `release:security-auditor` + `release:advanced-threat-auditor` (grep-proven, test-backed).
+
 ### Security Checklist
 
 Run through these checks on every review:
@@ -386,7 +388,7 @@ SECURE_HSTS_PRELOAD = True
 # Other
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
-SECURE_BROWSER_XSS_FILTER = True      # Deprecated in modern browsers but harmless
+SECURE_BROWSER_XSS_FILTER = True      # Legacy X-XSS-Protection header; harmless but superseded by CSP (modern browsers ignore it)
 
 # Debug
 DEBUG = False  # Enforce, don't rely on environment variable alone

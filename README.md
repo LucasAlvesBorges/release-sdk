@@ -14,19 +14,20 @@ Comandos `/release:*` context-aware roteiam automaticamente para os agents certo
 
 ## Skills especialistas por stack (v0.20.0)
 
-**O SDK identifica a stack pelos seus arquivos/keywords e aciona o especialista sênior certo — automaticamente.** Três skills de codificação (boas práticas + design patterns), no padrão progressive-disclosure (`SKILL.md` denso + `references/*.md` sob demanda), espelhando o calibre do `django-expert`:
+**O SDK identifica a stack pelos seus arquivos/keywords e aciona o especialista sênior certo — automaticamente.** Quatro skills especialistas — 3 de codificação por stack (`SKILL.md` denso + `references/*.md` sob demanda) + 1 de segurança ofensiva cross-stack — com boas práticas + design patterns, espelhando o calibre do `django-expert`:
 
 | Skill | Stack | Dispara em (keywords) |
 |-------|-------|-----------------------|
 | `django-expert` | Django 4/5 + DRF | Django, DRF, viewset, serializer, queryset, N+1, `models.py`, `select_related`… |
 | `react-expert` | React 19 + TSX (web) | React, hook, TSX, Zustand, TanStack Query, react-hook-form, Vite, Vitest… |
 | `react-native-expert` | React Native 0.7x + Expo | React Native, Expo, expo-router, FlatList/FlashList, Reanimated, EAS, MMKV… |
+| `security-expert` | Cross-stack (Django · React · RN) | segurança, XSS, CSRF, IDOR, token, mass assignment, OWASP, pentest, SSL pinning… |
 
 - **Sem detector novo:** a "identificação de stack" são os `MANDATORY TRIGGERS` no frontmatter de cada `SKILL.md` — o mesmo mecanismo que já ativa qualquer skill do Claude Code.
 - **Disambiguação explícita:** `react-expert` **cede** pro `react-native-expert` quando detecta `react-native`/`expo`/primitivas RN (mobile é do RN); ambos deferem ao `django-expert` no lado da API DRF. Cross-links `[[…]]` entre os três.
 - **Persona que injeta padrões enquanto você codifica** — não é reviewer pós-fato (esses são os agents `code-reviewer` / `security-auditor` / `architecture-reviewer`). Cobre: arquitetura, estado, performance, segurança e testes de cada stack.
 
-> Distribuição: as três vivem em `skills/` do plugin e chegam via `autoUpdate` após publicação. O `django-expert` também existe no `~/.claude/skills/` global (local pré-plugin) — mantido até a publicação; depois, arquive o global nos projetos que já têm o plugin pra evitar trigger duplicado.
+> Distribuição: os experts vivem em `skills/` do plugin e chegam via `autoUpdate` após publicação. Os experts globais do usuário (`~/.claude/skills/django-expert` e `security-auditor`) foram **arquivados** (`~/.claude/archived-global-experts/`) — o SDK não usa experts globais; a fonte é só o repo/plugin. O `security-expert` é a persona de segurança ofensiva author-time (dispara em intenção de auditoria/pentest, não preempta os experts de stack em implementação de rotina; cobre backend + web + mobile — ver `references/mobile.md`); distinto do agent `security-auditor` (worker spawnado por `/release:security`).
 
 ---
 

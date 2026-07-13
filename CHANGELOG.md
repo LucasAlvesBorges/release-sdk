@@ -33,6 +33,11 @@ django-expert exemplar's caliber — ToC per reference, "show the why", trap war
   secure-store hydration), `native` (config plugins, permissions, EAS Build/Update), `security` (Keychain/
   Keystore, deep-link + SSL pinning, OWASP MASVS — pairs with `react-security-retro`), `testing` (jest-expo
   + RNTL + Maestro/Detox).
+- **`skills/security-expert/`** — re-homed from global `~/.claude/skills/security-auditor` (renamed to
+  `security-expert` to avoid colliding with the existing `agents/security-auditor` worker + match the
+  `*-expert` convention). A cross-stack offensive-security persona (Django + React + React Native) that
+  auto-triggers on security keywords — distinct from the spawned `security-auditor` agent the `skills/
+  security` gate uses to produce SECURITY.md.
 - **Stack identification is the trigger keywords in each `SKILL.md` frontmatter — no new detector.** Django/
   DRF/viewset → django-expert; React/hook/TSX/Zustand → react-expert; React Native/Expo/FlashList/Reanimated
   → react-native-expert. Disambiguation is explicit: **react-expert SKIPS** when `react-native`/`expo`/RN
@@ -43,11 +48,33 @@ django-expert exemplar's caliber — ToC per reference, "show the why", trap war
 
 ### Migration note
 
-`django-expert` still exists in the user's global `~/.claude/skills/django-expert` (the pre-plugin
-location). Once 0.20.0 is published and the plugin's `release:django-expert` goes live in a consuming
-project, the global copy becomes a **duplicate trigger** *in that project* — archive the global copy then to
-dedupe. Do **not** archive it before publishing: in the source repo and any project without the plugin, the
-global copy is the only active Django expert.
+Experts are sourced **only** from this repo/plugin — never from the user's global `~/.claude/skills/`. Both
+pre-plugin global expert skills — `django-expert` and `security-auditor` — have been **archived** out of skill
+discovery (moved to `~/.claude/archived-global-experts/`; a `django-expert` backup also exists at
+`~/.claude/gsd-user-files-backup/`), so the repo copies — shipped via the plugin as `release:django-expert`
+and `release:security-expert` — are the single source. Consequence, by design: outside a project with the
+plugin active, these no longer auto-trigger.
+
+### Refined — audit pass across the four expert skills (2026-07-13)
+
+A consistency-, depth-, and accuracy-focused refinement of the skills introduced above, before they settle. No new skill or command surface — three axes.
+
+**Accuracy fixes**
+- `react-expert/references/state.md` — corrected a corrupted `keepPreviousData` comment (`no fl: list flash` → `no list flash`).
+- `react-native-expert/SKILL.md` — recommended-packages table dropped the deprecated `sentry-expo`; now recommends `@sentry/react-native` (Expo-compatible via its config plugin).
+- `django-expert/references/auth_patterns.md` — the `CustomTokenObtainPairSerializer` example put `role` in the JWT; added a **security caveat**: authorize from the DB (`request.user.role`/`is_staff`), never from a decoded claim (a claim is a stale, forgeable snapshot). Aligns with `advanced-threat-auditor` category **A8**.
+- `django-expert/SKILL.md` — clarified `SECURE_BROWSER_XSS_FILTER` (legacy `X-XSS-Protection`, superseded by CSP; modern browsers ignore it).
+- `security-expert/SKILL.md` — the stack is **Vite**, but examples used `REACT_APP_` (Create React App, dead); replaced across prose, code, and checklist with `VITE_`.
+
+**Consistency + triggers**
+- Cross-links: the three coding experts now reference `[[security-expert]]`, and `security-expert` cross-links back to `[[django-expert]]`/`[[react-expert]]`/`[[react-native-expert]]`.
+- `security-expert` — added a **"interactive skill vs. pipeline agents"** delineation table: this skill is author-time and interactive; the retroactive, grep-proven, test-backed gate is `release:security-auditor` + `release:advanced-threat-auditor` (they share the CAT catalog).
+- `security-expert` — **triggers reworked from noun-match to security-review INTENT**, with an explicit ROUTING rule: routine implementation of auth/CORS/tokens/deep-links stays with the stack experts; the security-expert is for *finding/exploiting/assessing* vulnerabilities, so a bare mention of "token"/"cookie"/"CORS" no longer preempts a stack expert.
+
+**Depth (filling genuine gaps)**
+- `django-expert/references/security.md` — completed the OWASP Top 10: added **A06** (vulnerable/outdated components — pip-audit), **A08** (insecure deserialization — pickle/yaml), **A09** (logging/monitoring), and **A10 (SSRF)** cross-referencing `advanced-threat-auditor` A1/A13.1.
+- `django-expert/references/performance.md` — new **Concurrency & Race Conditions** section (`select_for_update` inside `transaction.atomic`, `F()` atomic counters, `get_or_create` + `UniqueConstraint`, idempotency keys), aligning with auditor category **A7**.
+- `security-expert` — the description promised mobile coverage but the body had none. Added **CAT-14 (React Native / Expo)**: a summary + recon greps in `SKILL.md`, plus a new deep-dive **`references/mobile.md`** (14.1 secure storage · 14.2 hostile deep links · 14.3 transport/pinning · 14.4 data-at-rest/on-screen · 14.5 extractable bundle · 14.6 WebView · 14.7 OTA integrity · + OWASP MASVS mapping). This also gives `security-expert` its first `references/` file, starting the progressive-disclosure structure the other three already use.
 
 ## [0.19.0] — 2026-07-12
 

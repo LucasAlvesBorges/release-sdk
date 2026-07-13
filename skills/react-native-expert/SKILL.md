@@ -331,7 +331,7 @@ Request permissions **in context** (when the user acts), with a rationale, and d
 
 ## 8. Security — Mobile Threat Model
 
-Mobile security differs from web: the attacker may own the device. This section pairs with the Release security auditors (`react-security-retro`, `advanced-threat-auditor`).
+Mobile security differs from web: the attacker may own the device. This section pairs with the interactive [[security-expert]] skill (adversarial, author-time review) and the Release pipeline auditors (`react-security-retro`, `advanced-threat-auditor`).
 
 - **Secure storage for secrets.** Tokens, refresh tokens, and PII belong in `expo-secure-store` (iOS Keychain / Android Keystore), never `AsyncStorage` or plaintext MMKV — those are recoverable from backups and rooted devices.
 - **Deep/universal links are untrusted input.** Validate every param; never authenticate, pay, or navigate to an arbitrary target from a link alone. Treat `myapp://reset?token=...` as attacker-supplied.
@@ -397,7 +397,7 @@ A solid production Expo + DRF stack:
 | `expo-notifications`, `expo-local-authentication`, `expo-camera`, `expo-location` | Common device capabilities |
 | `@testing-library/react-native` + `jest-expo` | Component testing |
 | `maestro` / `detox` | E2E |
-| `sentry-expo` / `@sentry/react-native` | Crash + error tracking |
+| `@sentry/react-native` | Crash + error tracking (Expo-compatible via its config plugin; the old `sentry-expo` package is deprecated) |
 
 ---
 

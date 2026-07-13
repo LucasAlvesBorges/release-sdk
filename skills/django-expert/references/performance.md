@@ -238,6 +238,45 @@ class Order(models.Model):
 
 ---
 
+## Concurrency & Race Conditions
+
+Under load, two requests can interleave between a read and a write — the classic *check-then-act* bug (double-redeemed coupon, oversold stock, duplicate charge). Fix it by making the critical section atomic at the database level, not in Python.
+
+**Row locking with `select_for_update`** — hold the row until the transaction commits, so a concurrent request waits instead of reading stale state:
+
+```python
+from django.db import transaction
+
+def redeem_coupon(user, code):
+    with transaction.atomic():
+        coupon = Coupon.objects.select_for_update().get(code=code)
+        if coupon.redeemed:
+            raise ValidationError("Already redeemed")
+        coupon.redeemed = True
+        coupon.redeemed_by = user
+        coupon.save(update_fields=["redeemed", "redeemed_by"])
+```
+
+`select_for_update()` **must** be inside `transaction.atomic()` — outside a transaction it's a silent no-op.
+
+**Atomic counters with `F()`** — never read-modify-write a number in Python (`obj.stock -= 1; obj.save()` loses concurrent updates). Push the arithmetic to the database:
+
+```python
+from django.db.models import F
+Product.objects.filter(pk=pk, stock__gte=1).update(stock=F("stock") - 1)
+```
+
+**`get_or_create` is not race-proof** — two parallel calls can both create. Back it with a DB `UniqueConstraint` so the loser gets an `IntegrityError` instead of a duplicate row:
+
+```python
+class Meta:
+    constraints = [models.UniqueConstraint(fields=["user", "product"], name="uniq_user_product")]
+```
+
+**Idempotency for mutating POSTs** — a retried payment/order request must not double-charge. Require an `Idempotency-Key` header (or a `UniqueConstraint` on `(user, request_id)`) and return the first result on replay. This is also a security control — `release:advanced-threat-auditor` audits it as category **A7**, and [[security-expert]] covers it under CAT-10 (API abuse).
+
+---
+
 ## Async Views & Background Tasks
 
 ### When to Use Async Views (Django 4.1+)

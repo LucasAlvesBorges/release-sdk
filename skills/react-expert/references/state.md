@@ -189,7 +189,7 @@ export function useOrders(page: number) {
   return useQuery({
     queryKey: orderKeys.list({ page }),
     queryFn: () => apiClient.get<Paginated<Order>>("/orders/", { params: { page } }),
-    placeholderData: (prev) => prev, // keepPreviousData — no fl: list flash between pages
+    placeholderData: (prev) => prev, // keepPreviousData — no list flash between pages
   });
 }
 ```

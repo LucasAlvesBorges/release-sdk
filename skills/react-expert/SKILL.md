@@ -333,7 +333,7 @@ Frontend security is real security — the browser is a hostile, inspectable env
 - **The bundle is public.** No secrets, no "hidden" admin URLs as security. Authorization is enforced by the API, always — client-side route guards are UX, not security.
 - **Validate at the boundary.** Don't trust API responses blindly either — a compromised or buggy backend shouldn't `dangerouslySetInnerHTML` its way into your DOM.
 
-This section pairs with the Release `react-security-guard` hook. Read `references/security.md` for the full threat model: XSS vectors, token handling, CSRF with cookie auth, dependency/supply-chain risk, and CSP.
+This section pairs with the interactive [[security-expert]] skill (adversarial, author-time review — attack vectors, PoCs, severity) and the Release `react-security-guard` hook. Read `references/security.md` for the full threat model: XSS vectors, token handling, CSRF with cookie auth, dependency/supply-chain risk, and CSP.
 
 ---
 

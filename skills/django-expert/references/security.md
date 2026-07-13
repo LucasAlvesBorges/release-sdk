@@ -127,6 +127,22 @@ mark_safe(bleach.clean(user_input))  # Sanitized first
 
 For DRF API responses (JSON), XSS is less of a concern since browsers don't render JSON as HTML, but ensure `Content-Type: application/json` is always set (DRF handles this).
 
+### A06: Vulnerable & Outdated Components
+
+Run `pip-audit` (or `safety`) in CI and fail on HIGH/CRITICAL. Pin dependencies with a lockfile (`pip-tools`, `uv`, or Poetry) so builds are reproducible, and track Django security releases — the ORM, `SECRET_KEY` handling, and template layers all get CVEs.
+
+### A08: Software & Data Integrity Failures
+
+Never deserialize untrusted data with `pickle.loads()` or `yaml.load()` — both are remote code execution. Use `yaml.safe_load()` / JSON, set `SESSION_SERIALIZER = "django.contrib.sessions.serializers.JSONSerializer"`, and verify every inbound webhook with an HMAC signature compared via `hmac.compare_digest` (constant-time). `release:advanced-threat-auditor` audits these as **A2** (deserialization) and **A9** (signed-payload integrity).
+
+### A09: Security Logging & Monitoring Failures
+
+Log authentication events — login success/failure, permission denials, password resets, admin actions — with enough context to reconstruct an incident, but **never** log secrets, tokens, or full PII. Ship to a real sink (Sentry, structured logs) and alert on anomalies (spikes in 401/403, brute-force patterns).
+
+### A10: Server-Side Request Forgery (SSRF)
+
+Any view that fetches a user-supplied URL (webhook target, link preview, avatar or import-by-URL) can be pointed at your internal network or the cloud metadata endpoint (`http://169.254.169.254/…`) to steal IAM credentials. Allowlist destination hosts and block private/link-local ranges before connecting; resolve DNS once to avoid rebinding. This is a top cloud-breach vector — `release:advanced-threat-auditor` audits it as **A1 / A13.1**. See [[security-expert]] CAT-11.
+
 ---
 
 ## Secure File Handling

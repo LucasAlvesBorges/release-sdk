@@ -116,6 +116,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 ```
 
+> **Security caveat — never authorize from a token claim.** Embedding `role` in the JWT is fine for *display* (the client renders role-specific UI without an extra request), but every authorization decision on the server must read the database (`request.user.role` / `is_staff`), never the decoded claim. A claim is a snapshot from token-issue time: it goes stale after a role change until the token expires, and a service that trusts it can be handed a forged or rotated token. `release:advanced-threat-auditor` flags claim-based authz as category **A8** — treat the claim as a display hint, enforce on the server. See [[security-expert]] CAT-03 (privilege escalation).
+
 ---
 
 ## Social Authentication
