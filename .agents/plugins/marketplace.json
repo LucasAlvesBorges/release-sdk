@@ -1,0 +1,20 @@
+{
+  "name": "release-sdk",
+  "interface": {
+    "displayName": "Release SDK"
+  },
+  "plugins": [
+    {
+      "name": "release",
+      "source": {
+        "source": "local",
+        "path": "./plugins/release"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+[
+  {
+    "name": "release-advanced-threat-auditor",
+    "source": "advanced-threat-auditor.md",
+    "fallback": "worker",
+    "description": "Always-on adversarial advanced-threat audit, run in PARALLEL with security-auditor on every /release:security. Stack-dispatched category catalog covering the attack surface the 9-category auditor misses. Django A1-A13 (SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, XXE/header-log injection, ORM-level injection, advanced concurrency TOCTOU/idempotency/distributed-lock, JWT forgery & auth-identity, constant-time compare & signed-payload integrity, transport/headers/CORS hardening, exploitation-grade SQLi, image/media DoS+processing RCE, AWS cloud-infra incl. IaC static checks) and React RA1-RA5 (URL-scheme/DOM sinks, postMessage/client-SSRF, CSP/Trusted-Types/clickjacking, build/supply-chain, SSR/hydration/DOM-clobbering/JSON-hijacking). APPENDS an `## Advanced Threat Audit` section to the same SECURITY.md the base auditor writes."
+  },
+  {
+    "name": "release-ai-researcher",
+    "source": "ai-researcher.md",
+    "fallback": "worker",
+    "description": "Researches an AI/LLM feature before fullstack planning — inspects Django+React codebase for existing LLM integration, evaluates framework fit against LOCKs, drafts prompt contracts, sketches eval harness, and proposes guardrails. Appends `## Researcher Findings` to AI-SPEC.md. Consumed by /release:plan --fullstack."
+  },
+  {
+    "name": "release-architecture-reviewer",
+    "source": "architecture-reviewer.md",
+    "fallback": "worker",
+    "description": "Adversarial clean-code + scalability review for high-demand systems. Stack-dispatched — Django (fat views/models, service-layer leaks, statelessness, caching, Celery offload, pagination, bulk ops, connection/transaction scope, index coverage) OR React (component decomposition, coupling, code-splitting, list virtualization, data-fetch scaling, store granularity). Scores two dimensions (Clean Code & Structure, Scalability & High-Demand) with file:line evidence and a per-risk Scale Ceiling. Produces ARCH-REVIEW.md. Cross-refs sibling gates (N+1→checklist, race/TOCTOU→advanced-threat A7, security→security) instead of duplicating them."
+  },
+  {
+    "name": "release-assumptions-analyzer",
+    "source": "assumptions-analyzer.md",
+    "fallback": "default",
+    "description": "Deep codebase analysis for a phase. Surfaces hidden assumptions the planner will make without realizing it — existing patterns to follow, mismatched field shapes, ripple importers, unwired dependencies. Stack-dispatched (Django models/serializers/views/urls OR React components/pages/routes/stores). Spawned by /release:discuss BEFORE D-XX decisions are locked. Produces ASSUMPTIONS.md with evidence (file:line). NEVER modifies code, PLAN, SPEC, or CONTEXT."
+  },
+  {
+    "name": "release-code-fixer",
+    "source": "code-fixer.md",
+    "fallback": "worker",
+    "description": "Applies fixes from REVIEW.md findings to source files. Atomic per-finding commits via Conventional Commits. Runs stack-specific verification after each fix. Skips fixes needing user judgment. Stack dispatched via input."
+  },
+  {
+    "name": "release-code-reviewer",
+    "source": "code-reviewer.md",
+    "fallback": "worker",
+    "description": "Adversarial code reviewer. Stack-dispatched: Django/DRF (N+1, mass assignment, tenant scope, races, .delay_on_commit) OR React/TSX (rerenders, stale closures, RC1-RC7, auth storage). Produces REVIEW.md with BLOCKER/WARNING/INFO."
+  },
+  {
+    "name": "release-codebase-mapper",
+    "source": "codebase-mapper.md",
+    "fallback": "worker",
+    "description": "Writes ONE structured analysis document per focus area (tech | arch | quality | concerns) for the codebase. Stack-dispatched probes — Django (apps, models, settings, celery, migrations) or React (components, stores, routing, build tooling) or both. Spawned in parallel by /release:map-codebase; each instance writes to a distinct output_path under .release-planning/codebase/. Read-only on source."
+  },
+  {
+    "name": "release-debugger",
+    "source": "debugger.md",
+    "fallback": "worker",
+    "description": "Scientific-method debugger. Stack-dispatched bug catalogs: Django (ORM/migration/RLS/Celery/race) or React (stale closure/rerender/cache/MSW/hydration). Produces DEBUG.md with hypothesis ladder + root cause + fix."
+  },
+  {
+    "name": "release-django-checklist-verifier",
+    "source": "django-checklist-verifier.md",
+    "fallback": "worker",
+    "description": "Verifies Author Checklist Q1-Q7 applied in implemented Django code — select_related (Q1), prefetch_related (Q2), annotate(Count) (Q3), Subquery/OuterRef (Q4), F()/select_for_update (Q5), .delay_on_commit() (Q6), .iterator() (Q7). Produces CHECKLIST.md with PASS/FAIL per question."
+  },
+  {
+    "name": "release-django-discuss-orchestrator",
+    "source": "django-discuss-orchestrator.md",
+    "fallback": "worker",
+    "description": "Gathers phase context through adaptive questioning. Probes the phase goal, surfaces ambiguities, asks user N targeted questions, locks decisions as D-XX in CONTEXT.md. Does NOT plan — only gathers + locks decisions. Spawned by /django:discuss."
+  },
+  {
+    "name": "release-django-security-retro",
+    "source": "django-security-retro.md",
+    "fallback": "worker",
+    "description": "Retroactive Django/DRF security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model block and greps the shipped source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the Django half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence."
+  },
+  {
+    "name": "release-doc-classifier",
+    "source": "doc-classifier.md",
+    "fallback": "worker",
+    "description": "Classifies a single planning doc as ADR / PRD / SPEC / DOC / UNKNOWN via header + content heuristics. Emits {path}.classification.json with type, confidence, title, scope_summary, cross_refs. Spawned in parallel by /release:ingest-docs and /release:docs-update for batch classification."
+  },
+  {
+    "name": "release-doc-verifier",
+    "source": "doc-verifier.md",
+    "fallback": "worker",
+    "description": "Verifies factual claims in a generated doc against the live codebase. Extracts claims (file paths, function names, command examples, version pins, env vars) and probes each. Emits {doc_path}.verify.json with per-claim status — VERIFIED / STALE / UNVERIFIABLE — and evidence (file:line or command output snippet)."
+  },
+  {
+    "name": "release-doc-writer",
+    "source": "doc-writer.md",
+    "fallback": "worker",
+    "description": "Writes or updates project documentation (README, CONTRIBUTING, ARCHITECTURE, ONBOARDING, API docs). Spawned with a doc_assignment block specifying type/mode/context. Grounds every claim in .release-planning/ artifacts + intel + codebase — no invented facts. Diff-friendly on mode=update."
+  },
+  {
+    "name": "release-eval-auditor",
+    "source": "eval-auditor.md",
+    "fallback": "worker",
+    "description": "Retroactive audit of an executed AI phase's evaluation coverage. Reads {NN}-AI-SPEC.md (or companion AI-EVAL.md) for the declared eval dimensions, then globs tests/, eval suites, prompt registries, and the AILog model for evidence each dimension is actually implemented. Classifies each dimension as COVERED, PARTIAL, or MISSING with file:line evidence. Produces a scored {NN}-EVAL-REVIEW.md with per-dimension matrix, remediation table, and production-monitoring gaps. Read-only on source code. Spawned by /release:eval-review."
+  },
+  {
+    "name": "release-feature-planner",
+    "source": "feature-planner.md",
+    "fallback": "worker",
+    "description": "Plans new feature as executable PLAN.md. Stack-dispatched: Django (Q1-Q7 + 9 security cats, smoke/race/memray tests) or React (RC1-RC7 + 9 security cats, Vitest+RTL). TDD ordering RED→GREEN→REFACTOR→SECURITY. PLAN.md consumed by tdd-executor."
+  },
+  {
+    "name": "release-feature-researcher",
+    "source": "feature-researcher.md",
+    "fallback": "worker",
+    "description": "Pre-planning codebase researcher. Stack-dispatched probes — Django (apps, models, FK graph, Celery, migrations) or React (components, Zustand, TanStack Query, routing, types). Produces RESEARCH.md consumed by feature-planner."
+  },
+  {
+    "name": "release-framework-selector",
+    "source": "framework-selector.md",
+    "fallback": "worker",
+    "description": "Interactive AI/LLM framework selector. Reads {NN}-AI-SPEC.md + RELEASE-LOCKS.md + PROJECT.md, enumerates 4-7 candidate frameworks (LangChain, LlamaIndex, LangGraph, Anthropic Agent SDK, OpenAI Assistants, Vertex AI Agent Builder, Bedrock Agents, Custom), scores each on 5 dimensions (Fit / Latency / Cost / Compliance / Stack Ergonomics), uses AskUserQuestion for high-stakes ambiguity, and writes a {NN}-FRAMEWORK-DECISION.md with a scored recommendation, rationale, caveats, and migration path. Stack-aware — prefers Python-native SDKs for Django projects and flags JS-only frameworks as friction. Spawned by /release:ai-phase when no framework is yet chosen."
+  },
+  {
+    "name": "release-import-orchestrator",
+    "source": "import-orchestrator.md",
+    "fallback": "worker",
+    "description": "One-shot mass importer for GSD-formatted projects. Reads GSD `.planning/` (project-level + every phase) and writes release-sdk artifacts to a parallel `.release-planning/` tree. Extracts LOCK-01..LOCK-12 with `.planning/file:line` citations into `.release-planning/RELEASE-LOCKS.md`, and ports each GSD phase (SPEC/CONTEXT/PLAN/VERIFICATION) into release-sdk-native `{NN}-*.md` files under `.release-planning/phases/{NN}-{slug}/`. Seeds UI-SPEC / AI-SPEC / SECURITY stubs when the phase has the matching surface. Does NOT modify any file under `.planning/`. Spawned by /release:import."
+  },
+  {
+    "name": "release-integration-checker",
+    "source": "integration-checker.md",
+    "fallback": "default",
+    "description": "Verifies cross-phase integration and E2E user workflows across multiple completed phases. Stack-aware (django=API-only via curl/pytest, react=UI-only via vitest, fullstack=API+UI+data-contract). Builds a user-workflow graph by mapping UAT items to the phases they span, runs route/test probes, cross-checks producer/consumer data shapes (DRF serializer ↔ Zod/TS type), and writes INTEGRATION-CHECK.md with workflow + contract tables and failure detail. Read-only on source code; never modifies, stages, or commits anything. Spawned ad-hoc by the user or by /release:autonomous after ≥2 phases reach `verified`/`shipped`."
+  },
+  {
+    "name": "release-intel-updater",
+    "source": "intel-updater.md",
+    "fallback": "worker",
+    "description": "Analyzes the codebase and writes structured intel files to .release-planning/intel/ as cached knowledge other agents consume instead of re-scanning the repo. Stack-aware (Django + React), idempotent (each run rewrites, never appends), read-only on source. Spawned by /release:map-codebase or ad-hoc when intel is stale."
+  },
+  {
+    "name": "release-loop-goal-verifier",
+    "source": "loop-goal-verifier.md",
+    "fallback": "worker",
+    "description": "Independent goal checker for freeform /release:loop runs (no phase/PLAN). Decomposes a verbatim goal (the user's prompt) into atomic acceptance points and adversarially verifies each is observable in the loop's worktree (L1 artifact → L2 substantive → L3 wired test) with evidence. Stack-dispatched (Django / React). Returns PASS or GAPS — never lands. The maker never checks its own work; this is the maker≠checker half of the loop."
+  },
+  {
+    "name": "release-milestone-auditor",
+    "source": "milestone-auditor.md",
+    "fallback": "worker",
+    "description": "Milestone-level coverage auditor for release-sdk. Reads `.release-planning/PROJECT.md`, `ROADMAP.md`, `REQUIREMENTS.md`, and every `phases/{NN}-{slug}/{NN}-{SPEC,PLAN,VERIFY,UAT,SUMMARY}.md` (active root) or `milestones/{name}/phases/{NN}-{slug}/...` (archived root) in the resolved milestone window. Cross-checks REQ → phase → UAT → verify. Classifies each requirement COVERED (phase exists AND verify=PASS AND every UAT item closed AND no open gaps), PARTIAL (phase exists but UAT open or accepted-gap), or GAP (no phase covers OR phase exists with verify=FAIL). Outputs `MILESTONE-AUDIT-{name}.md` (or timestamped variant when mode=audit). Read-only: never moves files, never commits, never updates STATE.md. Spawned by `/release:complete-milestone` (mode=complete, hard gate) and `/release:audit-milestone` (mode=audit, advisory)."
+  },
+  {
+    "name": "release-nyquist-auditor",
+    "source": "nyquist-auditor.md",
+    "fallback": "worker",
+    "description": "Counts tests per phase requirement using name/comment/fixture/symbol matching; classifies each requirement as SUFFICIENT (>=2 tests), THIN (1 test), or MISSING (0 tests); produces NYQUIST-AUDIT.md with per-requirement coverage matrix and gap-fill recommendations. Stack-dispatched (django pytest discovery vs react vitest discovery). Read-only on tests — never writes implementation. Spawned by /release:validate-phase."
+  },
+  {
+    "name": "release-pattern-mapper",
+    "source": "pattern-mapper.md",
+    "fallback": "worker",
+    "description": "Maps each intended new file to closest existing analog in codebase. Stack-dispatched analog tables (Django models/views/serializers OR React components/hooks/stores). Reuse > novel. Produces PATTERNS.md before feature-planner."
+  },
+  {
+    "name": "release-phase-verifier",
+    "source": "phase-verifier.md",
+    "fallback": "worker",
+    "description": "Goal-backward phase verification. Stack-dispatched: Django (truths L1+L2+L3, D-XX, LOCK compliance, pytest+migrations+Q6) or React (D-XX, RC1-RC7 evidence, vitest+tsc, RC6 localStorage grep). Adversarial — does NOT trust SUMMARY.md. Produces VERIFICATION.md."
+  },
+  {
+    "name": "release-plan-checker",
+    "source": "plan-checker.md",
+    "fallback": "default",
+    "description": "Pre-execution plan verifier for release-sdk phases. Stack-dispatched: Django (.py N+1 / raw SQL gates) or React (.tsx type-contract / localStorage BLOCKER) or fullstack (both). Also runs advanced-threat surface gates (A1 SSRF / A2 deserialization / A3 command-injection / A11 SQLi / A12 image-media / A13 AWS-IaC, owned by advanced-threat-auditor): a PLAN that introduces a dangerous surface without its matching test or check_* static gate FAILs. Verifies goal-backward coverage — every task traces to a SPEC goal + a CONTEXT decision or LOCK; every SPEC goal has ≥1 task. Read-only. Produces PLAN-CHECK.md with PASS/FAIL verdict. Spawned by /release:plan after planning completes, BEFORE /release:execute. NEVER modifies PLAN.md, never decides to execute."
+  },
+  {
+    "name": "release-react-security-retro",
+    "source": "react-security-retro.md",
+    "fallback": "worker",
+    "description": "Retroactive React/TSX security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model and greps the shipped .tsx/.ts source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the React half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence."
+  },
+  {
+    "name": "release-react-ui-auditor",
+    "source": "react-ui-auditor.md",
+    "fallback": "worker",
+    "description": "Retroactive 6-pillar scored visual audit of implemented React code for a phase. Reads {NN}-UI-SPEC.md (the contract) and the shipped .tsx/.ts source, then grep-scores accessibility, responsive, loading/error, i18n, type contracts, and design-system adherence on a 0-100 scale with file:line evidence. Produces {NN}-UI-REVIEW.md scorecard with per-dimension best/worst examples and a remediation table. Spawned by /release:ui-review. Leaf worker — spawns no children."
+  },
+  {
+    "name": "release-react-ui-checker",
+    "source": "react-ui-checker.md",
+    "fallback": "worker",
+    "description": "Validates {NN}-UI-SPEC.md design contracts against 6 quality dimensions (accessibility, responsive, loading/error states, i18n, type contracts, design system) BEFORE implementation. Adversarial — assumes the spec is incomplete until each UI-DEC-XX entry proves coverage of every dimension. Produces {NN}-UI-CHECK.md with BLOCK/FLAG/PASS verdict so /release:ui-phase can refuse to advance an under-specified contract. Leaf worker — spawns no children."
+  },
+  {
+    "name": "release-react-ui-researcher",
+    "source": "react-ui-researcher.md",
+    "fallback": "worker",
+    "description": "Pre-coding design-contract researcher for React TSX phases. Reads SPEC.md, CONTEXT.md, RESEARCH-FRONTEND.md, RELEASE-LOCKS.md/PROJECT.md. Detects existing design system (tailwind, shadcn, MUI, etc.). Uses AskUserQuestion ONLY for unanswered design dimensions. Produces UI-SPEC.md consumed by feature-planner. React-locked — refuses Django-only phases."
+  },
+  {
+    "name": "release-security-auditor",
+    "source": "security-auditor.md",
+    "fallback": "worker",
+    "description": "Adversarial 9-category security audit. Stack-dispatched category catalog. Django (cross-tenant, IDOR, escalation, mass assignment, JWT, injection, auth transitions, CSRF, cookies) or React (XSS, auth storage, CSRF, IDOR, secrets, content injection, proto pollution, sensitive logging, input validation). Produces SECURITY.md."
+  },
+  {
+    "name": "release-spec-clarifier",
+    "source": "spec-clarifier.md",
+    "fallback": "worker",
+    "description": "Clarifies WHAT a phase will deliver before /release:discuss. Detects stack (Django/React/fullstack), probes scope + exclusions + acceptance signal, scores ambiguity HIGH/MED/LOW, writes SPEC.md. Does NOT lock D-XX decisions (that's /release:discuss). Spawned by /release:spec."
+  },
+  {
+    "name": "release-tdd-executor",
+    "source": "tdd-executor.md",
+    "fallback": "worker",
+    "description": "TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN → REFACTOR → SECURITY per task. Atomic Conventional Commits. ALWAYS spawned by wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice)."
+  },
+  {
+    "name": "release-test-auditor",
+    "source": "test-auditor.md",
+    "fallback": "worker",
+    "description": "Audits test coverage against required test types. Stack-dispatched matrices: Django (smoke N+1, race Q5, memray Q7, 9 security categories, celery/signal/permission) or React (5 dimensions — unit, RTL, MSW, security, a11y). Generates skeleton tests for gaps. Produces TEST-AUDIT.md."
+  },
+  {
+    "name": "release-test-discover",
+    "source": "test-discover.md",
+    "fallback": "worker",
+    "description": "Discovers test inventory for a phase. Counts tests per file via pytest --collect-only (Django) or vitest list (React). Outputs JSON `{file_path: test_count}` consumed by tdd-executor for parallel bucket split. Read-only — never executes tests, never modifies code."
+  },
+  {
+    "name": "release-test-runner",
+    "source": "test-runner.md",
+    "fallback": "worker",
+    "description": "Parallel test bucket runner. Executes pytest (Django) or vitest (React) on an assigned bucket of test files. Spawned 5x in parallel by tdd-executor for fast final sweep. Returns PASS/FAIL + concise failure detail. Read-only on source — never edits code, never spawns other agents."
+  },
+  {
+    "name": "release-uat-conductor",
+    "source": "uat-conductor.md",
+    "fallback": "worker",
+    "description": "Drives a conversational UAT walkthrough for a completed release-sdk phase. Loads UAT items from UAT.md (or derives from PLAN.md/SPEC.md), surfaces stack-aware verification steps (Django curl/shell, React browser walk, fullstack end-to-end), prompts the user PASS/FAIL/BLOCKED/SKIP per item via AskUserQuestion, then writes results back to UAT.md with timestamps and a Next Step verdict. Does NOT commit."
+  },
+  {
+    "name": "release-wave-executor",
+    "source": "wave-executor.md",
+    "fallback": "worker",
+    "description": "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. Always invoked by /release:execute (no flag)."
+  }
+]

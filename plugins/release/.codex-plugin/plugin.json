@@ -1,0 +1,51 @@
+{
+  "name": "release",
+  "version": "0.20.0+codex.1",
+  "description": "Codex-native full-stack delivery workflows for Django, React, and React Native with specialized subagents.",
+  "author": {
+    "name": "Lucas Alves Borges",
+    "email": "cco@startecservicos.com.br",
+    "url": "https://github.com/LucasAlvesBorges"
+  },
+  "homepage": "https://github.com/LucasAlvesBorges/release-sdk",
+  "repository": "https://github.com/LucasAlvesBorges/release-sdk",
+  "license": "MIT",
+  "keywords": [
+    "django",
+    "drf",
+    "react",
+    "react-native",
+    "expo",
+    "tsx",
+    "typescript",
+    "fullstack",
+    "tdd",
+    "security",
+    "performance",
+    "multi-tenancy",
+    "zustand",
+    "tanstack-query",
+    "vitest",
+    "n-plus-one",
+    "race-conditions"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Release SDK",
+    "shortDescription": "Structured delivery workflows with Codex subagents",
+    "longDescription": "Plan, implement, review, secure, and verify Django, React, and React Native work using Codex-native skills and specialized subagents.",
+    "developerName": "Lucas Alves Borges",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/LucasAlvesBorges/release-sdk",
+    "defaultPrompt": [
+      "Set up the Release SDK subagents for Codex.",
+      "Use Release SDK to show project status and the next step.",
+      "Use Release SDK to plan and execute the active phase."
+    ],
+    "brandColor": "#10B981"
+  }
+}

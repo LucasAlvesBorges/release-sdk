@@ -1,6 +1,6 @@
 # release-sdk
 
-> Full-stack acceleration kit for Claude Code. Django + React TSX. No API key needed — uses your Claude subscription.
+> Full-stack acceleration kit for Claude Code and Codex Desktop. Django + React + React Native, with isolated runtime packages.
 
 > 🇧🇷 [Versão em português](./README.md) is the primary README. This file is the English mirror.
 
@@ -294,7 +294,7 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 
 ## Install
 
-### Marketplace (recommended)
+### Claude Code — marketplace
 
 ```
 /plugin marketplace add LucasAlvesBorges/release-sdk
@@ -303,14 +303,41 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 
 Then restart Claude Code.
 
-### Local clone (recommended for dev)
+### Codex Desktop for macOS — marketplace
+
+The Codex package is generated separately under `plugins/release/`; it does not
+modify or reuse Claude Code configuration.
+
+```bash
+codex plugin marketplace add LucasAlvesBorges/release-sdk
+codex plugin add release@release-sdk
+```
+
+Then:
+
+1. Open **Plugins** in Codex Desktop and confirm **Release SDK** under **Installed**.
+2. In a task, use `@` to select the `release:setup-codex` skill and install the `release-*` custom agents.
+3. Start a new task so Codex loads the custom agent definitions.
+
+The installer writes only `release-*.toml` files under
+`${CODEX_HOME:-$HOME/.codex}/agents/`. It never modifies `~/.claude`,
+`.claude-plugin/`, `CLAUDE.md`, or Claude caches.
+
+For local Codex development and validation:
+
+```bash
+python3 codex/build_plugin.py
+python3 codex/test_compat.py
+```
+
+### Claude Code — local clone (recommended for dev)
 
 ```bash
 git clone https://github.com/lucasalvesborges/release-sdk ~/.claude/plugins/release-sdk
 # Restart Claude Code
 ```
 
-### Symlink (live dev)
+### Claude Code — symlink (live dev)
 
 ```bash
 ln -s ~/release/personal/django-sdk ~/.claude/plugins/release-sdk
@@ -463,6 +490,7 @@ GSD (`get-shit-done`) methodology by Brennan Hughes.
 - React 18 + TypeScript 5.x
 - Vite 5.x / Next.js 14+
 - Claude Code 2.x+
+- Codex Desktop for macOS / Codex CLI with plugin and subagent support
 
 ---
 

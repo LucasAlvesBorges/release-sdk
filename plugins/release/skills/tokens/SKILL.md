@@ -1,0 +1,149 @@
+---
+name: tokens
+description: >
+  Token tracker dashboard. Inicia worker daemon HTTP em localhost:47777 (se ainda não estiver
+  rodando) e abre o dashboard no browser padrão. Mostra custo $ por sessão/dia/semana/all-time,
+  breakdown por modelo, projeto e skill, timeline de uso, e cache hit ratio — métrica chave da
+  eficiência do release-sdk. Dados gravados em ${CODEX_HOME:-$HOME/.codex}/release-sdk/token-tracker/events.jsonl via hook
+  PostToolUse que parseia o transcript JSONL.
+  Use quando: o usuário quiser ver gasto/eficiência de tokens, comparar custo entre skills,
+  ou diagnosticar baixo cache hit.
+---
+
+## Codex runtime contract (generated; overrides incompatible source directives)
+
+This skill is the Codex edition of release-sdk. The source workflow below is
+kept for behavioral parity, but this contract has precedence whenever the
+source mentions Claude Code primitives.
+
+### Isolation
+
+- Never create, edit, delete, or inspect runtime state under `~/.claude`,
+  `.claude/`, `.claude-plugin/`, `.claude-plugin-cache/`, or `CLAUDE.md`.
+- Release planning artifacts remain under `.release-planning/`. Durable Codex
+  project guidance belongs in `AGENTS.md` only when the workflow explicitly
+  needs to add it.
+- Resolve `RELEASE_PLUGIN_ROOT` as the directory two levels above this
+  `SKILL.md`. Resolve `RELEASE_PLUGIN_DATA` from `PLUGIN_DATA` when supplied;
+  otherwise use `${CODEX_HOME:-$HOME/.codex}/release-sdk`.
+
+### Tools
+
+- Treat `Read`, `Write`, `Edit`, `Bash`, `Grep`, and `Glob` in the source as
+  conceptual operations. Use the Codex tools currently available: targeted
+  file reads, `apply_patch` for edits, `exec_command` for commands, and `rg`
+  or `rg --files` for search.
+- A source reference to `AskUserQuestion` means: use the structured user-input
+  tool when it is available to the parent agent. A subagent must instead
+  return `USER_INPUT_REQUIRED` with the exact question and 2-3 choices so the
+  parent can ask it. If no structured input tool is available, ask one concise
+  question in the parent task.
+- A source reference to a `Skill` tool means to run the installed
+  `release:<skill-name>` skill. If there is no callable skill tool, delegate to
+  a `default` subagent with a task that explicitly names that installed skill,
+  pass the original arguments unchanged, wait for it, and surface its result.
+
+### Subagents
+
+- Source agent names `release:<name>` are mapped in this generated edition to
+  Codex custom agents named `release-<name>`.
+- Spawn agents only through Codex collaboration tools. Do not emulate a
+  subagent with a shell command and do not use a nonexistent `Task` or `Agent`
+  tool.
+- Prefer the named `release-<name>` agent when it is available. These agents
+  are installed by the `release:setup-codex` skill and become available in a
+  new task.
+- If a named agent is not available, use `explorer` for read-only codebase
+  research, `worker` for implementation or file-producing work, and `default`
+  for orchestration or judgment. Give the fallback agent the absolute path to
+  `agents/release-<name>.toml` under `RELEASE_PLUGIN_ROOT` and require it to
+  read and follow the `developer_instructions` before working.
+- For write tasks, assign explicit file ownership and tell every worker that
+  other agents may be editing the repository; it must preserve and integrate
+  others' changes. Parallelize only independent scopes and respect the current
+  session's concurrency limit.
+- Wait for required agents, collect their final results, and keep completion
+  judgment in the parent/orchestrator. A worker never declares the overall
+  workflow complete.
+
+### Models and reasoning
+
+- Ignore source instructions that pin or derive Claude model tiers such as
+  Fable, Opus, Sonnet, or Haiku. Do not pass an explicit model or reasoning
+  effort unless the user requested one. Codex custom agents inherit the
+  parent/session settings by default.
+- Preserve maker-versus-checker independence by using distinct agent turns,
+  not by assuming a particular vendor model hierarchy.
+
+### Invocation vocabulary
+
+- `/release:<name>` in the source is a workflow label retained for
+  compatibility. In Codex Desktop the user selects the `release` plugin or its
+  `release:<name>` skill from the composer.
+- `claude` CLI launch examples map to `codex` in this generated edition.
+
+# /release:tokens — Token Tracker Dashboard
+
+Abre o dashboard de tokens em `http://localhost:47777`.
+
+## Comportamento
+
+1. **Verificar worker**: `curl -sf http://127.0.0.1:47777/api/health` (timeout 1s).
+2. **Spawn se off**: se a porta não responder, lançar daemon detached:
+   ```bash
+   nohup node "$PLUGIN_DIR/bin/release-token-worker.js" \
+     > ${CODEX_HOME:-$HOME/.codex}/release-sdk/token-tracker/worker.log 2>&1 &
+   disown
+   ```
+   Aguardar ~1s e re-checar `/api/health`. Se falhar, reportar log path e abortar.
+3. **Abrir browser**: `open "http://localhost:47777?session_id=$SESSION"` (macOS) ou `xdg-open`
+   (Linux). Passar `session_id` da sessão atual para destacar custo da conversa atual.
+4. **Mensagem resumo**: imprimir 1 linha com KPI agregado da última hora (cost + cache hit).
+
+## Argumentos opcionais
+
+| Arg | Efeito |
+|-----|--------|
+| `--stop` | Mata o worker via PID file `${CODEX_HOME:-$HOME/.codex}/release-sdk/token-tracker/worker.pid`, não abre browser |
+| `--reset` | Apaga `events.jsonl` (pedir confirmação antes — operação destrutiva) |
+| `--port=N` | Override porta (default 47777, usar quando colidir com outro processo) |
+| `--no-browser` | Spawn worker mas não abre browser |
+
+## Localizar PLUGIN_DIR
+
+Plugin pode estar em:
+1. `${CODEX_HOME:-$HOME/.codex}/plugins/cache/release-sdk/release/<version>/`
+2. Repo local em desenvolvimento (raiz do projeto)
+
+Detectar via:
+```bash
+PLUGIN_DIR=$(dirname "$(dirname "$(realpath "$0")")")
+# Ou buscar pelo arquivo:
+WORKER=$(find ${CODEX_HOME:-$HOME/.codex}/plugins/cache/release-sdk -name release-token-worker.js 2>/dev/null | head -1)
+[ -z "$WORKER" ] && WORKER="$(pwd)/bin/release-token-worker.js"
+```
+
+## Custo
+
+Pricing hardcoded no worker (`bin/release-token-worker.js`, const `PRICING`):
+
+| Modelo | Input $/Mtok | Output $/Mtok | Cache read | Cache write |
+|--------|-------------:|--------------:|-----------:|------------:|
+| Opus 4.7 | 15 | 75 | 1.5 | 18.75 |
+| Sonnet 4.6 | 3 | 15 | 0.3 | 3.75 |
+| Haiku 4.5 | 1 | 5 | 0.1 | 1.25 |
+
+Atualizar quando Anthropic mudar preços.
+
+## Métricas de eficiência
+
+- **Cache hit %**: `cache_read / (input + cache_read + cache_create)` — quanto maior, mais barato
+- **tok/turno**: total tokens / turnos — saturação do contexto. Acima de 100k indica conversa longa
+- **$/skill**: identifica skills caros para otimizar prompts
+
+## Privacidade
+
+- Dados ficam **locais** em `${CODEX_HOME:-$HOME/.codex}/release-sdk/token-tracker/events.jsonl`. Worker só escuta `127.0.0.1`
+- Schema do evento: `{ts, session_id, uuid, model, input, output, cache_read, cache_create, cwd, skill}`
+- **Não grava** conteúdo de mensagens — apenas contadores de tokens
+- Para apagar histórico: `/release:tokens --reset`

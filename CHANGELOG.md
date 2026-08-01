@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — isolated Codex Desktop compatibility layer
+
+- Native repo marketplace at `.agents/plugins/marketplace.json` and generated
+  `.codex-plugin/plugin.json` package under `plugins/release/`.
+- Deterministic `codex/build_plugin.py` pipeline that ports all release-sdk
+  skills, hooks, scripts, templates, and 39 subagent personas without changing
+  the Claude Code source package.
+- Codex custom agents named `release-*`, plus an idempotent installer that
+  writes only to `${CODEX_HOME:-$HOME/.codex}/agents/` and preserves unrelated
+  agents.
+- Codex runtime contracts mapping tool names, user-input checkpoints,
+  skill dispatch, model inheritance, and multi-agent orchestration to native
+  Codex behavior.
+- `apply_patch` hook adapter, Codex-scoped context/token state, manifest
+  validation, isolation tests, and a live fallback-subagent smoke test.
+
 ## [0.20.0] — 2026-07-12
 
 ### Added — stack-expert coding skills: the SDK now carries senior-engineer personas for all three Release stacks (Django · React · React Native)
