@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "SubagentResultV1",
+  "title": "SubagentResultV1",
+  "description": "Structured result every release-sdk Codex subagent must return instead of a full transcript. Raw logs stay in a temp file; only path + relevant excerpt + conclusion come back to the parent.",
+  "type": "object",
+  "required": ["status", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["completed", "blocked", "needs_scope_expansion", "failed"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "At most 8 lines. Does not repeat the prompt."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "symbol": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "changes": { "type": "array", "items": { "type": "string" } },
+    "commands": { "type": "array", "items": { "type": "string" } },
+    "tests": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "next_action": { "type": ["string", "null"] },
+    "requested_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Only set when status = needs_scope_expansion — the additional allowed_paths the orchestrator should grant before this agent can finish."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Only set when status = needs_scope_expansion — why the current allowed_paths are insufficient (e.g. a direct import outside scope)."
+    }
+  }
+}

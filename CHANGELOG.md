@@ -5,7 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.21.0] — 2026-08-10
+
+### Added — Codex token-economy policy: per-agent model routing, mandatory AGENTS.md gate, generic role catalog
+
+The Codex compatibility layer previously inherited whatever model tier the parent Codex session
+was running and never required an `AGENTS.md`. This closes both gaps against the release-sdk Codex
+token-economy policy (spawn only when it earns its cost, cheapest sufficient model per role,
+structured output instead of raw transcripts, mandatory project instructions before any write).
+
+- **Per-agent model routing** — every generated `release-*.toml` now carries a pinned `model` /
+  `reasoning_effort` / `output_token_budget` / `role_class`, hand-classified per agent in
+  `codex/build_plugin.py`'s `AGENT_MODEL_OVERRIDES` across three tiers (`gpt-5.6-luna` mechanical,
+  `gpt-5.6-terra` everyday, `gpt-5.6` frontier/security/planning). Deliberately breaks the prior
+  "never pin a model" invariant.
+- **12 generic Codex-only roles** (`release-explorer-fast`, `release-explorer-deep`,
+  `release-planner`, `release-worker-lite/-worker/-worker-complex`, `release-tester`,
+  `release-reviewer`, `release-security-reviewer`, `release-docs-researcher`,
+  `release-handoff-writer`, `release-agents-md-builder`) from new `codex/contracts/roles/*.md`
+  sources, for ad-hoc work with no matching specialized `release-*` agent.
+- **`release-agents-md-guard.js`** — new blocking `PreToolUse` hook (`exit 2`, following the
+  `django-validate-commit.sh` precedent) that refuses Edit/Write/apply_patch in any target project
+  missing a root `AGENTS.md`, except the write that creates it. Mode (`strict`/`bootstrap`) read
+  from the target project's `.codex/config.toml`.
+- **`templates/codex-config.toml`** — routing/budget/context defaults from the policy, offered by
+  `release:setup-codex` to a target project that has none (never overwrites an existing one).
+- **Structured output contract** (`contracts/result-schema.json`, `SubagentResultV1`), complexity
+  self-scoring (`contracts/complexity-rubric.md`, C0–C4), routing/fleet-shape reference
+  (`contracts/routing-policy.md`), retry/scope-expansion rules, and a handoff template — all wired
+  into `agent-contract.md`/`skill-contract.md` via progressive disclosure rather than inlined
+  everywhere.
 
 ### Added — isolated Codex Desktop compatibility layer
 

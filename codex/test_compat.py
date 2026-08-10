@@ -53,13 +53,50 @@ class CodexCompatibilityTests(unittest.TestCase):
 
     def test_all_agents_are_valid_toml(self) -> None:
         source = sorted((REPO_ROOT / "agents").glob("*.md"))
+        roles = sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md"))
         generated = sorted((PLUGIN / "agents").glob("release-*.toml"))
-        self.assertEqual(len(generated), len(source))
+        self.assertEqual(len(generated), len(source) + len(roles))
+        valid_models = {"gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6"}
+        valid_efforts = {"low", "medium", "high", "xhigh"}
         for path in generated:
             data = tomllib.loads(path.read_text())
             self.assertEqual(data["name"], path.stem)
             self.assertIn("codex_runtime_contract", data["developer_instructions"])
-            self.assertNotIn("model", data)
+            self.assertIn(data["model"], valid_models, path)
+            self.assertIn(data["reasoning_effort"], valid_efforts, path)
+            self.assertIsInstance(data["output_token_budget"], int)
+            self.assertGreater(data["output_token_budget"], 0)
+            self.assertTrue(data["role_class"], path)
+
+    def test_generic_roles_present(self) -> None:
+        expected = {
+            "explorer-fast",
+            "explorer-deep",
+            "planner",
+            "worker-lite",
+            "worker",
+            "worker-complex",
+            "tester",
+            "reviewer",
+            "security-reviewer",
+            "docs-researcher",
+            "handoff-writer",
+            "agents-md-builder",
+        }
+        for role in expected:
+            path = PLUGIN / "agents" / f"release-{role}.toml"
+            self.assertTrue(path.exists(), path)
+            data = tomllib.loads(path.read_text())
+            self.assertEqual(data["role_class"], role.replace("-", "_"))
+
+    def test_config_template_shipped(self) -> None:
+        path = PLUGIN / "templates" / "codex-config.toml"
+        self.assertTrue(path.exists())
+        data = tomllib.loads(path.read_text())
+        self.assertEqual(data["agents_md"]["mode"], "strict")
+        self.assertTrue(data["agents_md"]["required"])
+        self.assertEqual(data["routing"]["default_spawn"], False)
+        self.assertIn("worker_output_tokens", data["budgets"])
 
     def test_generated_runtime_has_no_claude_state_paths(self) -> None:
         forbidden = ("$HOME/.claude", "CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR")
@@ -155,6 +192,47 @@ class CodexCompatibilityTests(unittest.TestCase):
             )
             state = Path(temporary) / "context-monitor" / "release-context-monitor-codex-test-session.json"
             self.assertTrue(state.exists())
+
+    def _run_agents_md_guard(self, cwd: Path, file_path: str) -> subprocess.CompletedProcess:
+        payload = {"tool_name": "Write", "tool_input": {"file_path": file_path}, "cwd": str(cwd)}
+        return subprocess.run(
+            ["node", str(PLUGIN / "hooks" / "release-agents-md-guard.js")],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+        )
+
+    def test_agents_md_guard_blocks_when_missing(self) -> None:
+        if not shutil.which("node") or not shutil.which("git"):
+            self.skipTest("node/git unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            result = self._run_agents_md_guard(root, str(root / "app.py"))
+            self.assertEqual(result.returncode, 2, result.stderr)
+            output = json.loads(result.stdout)
+            self.assertEqual(output["decision"], "block")
+            self.assertEqual(output["code"], "AGENTS_MD_REQUIRED")
+
+    def test_agents_md_guard_allows_creating_agents_md_itself(self) -> None:
+        if not shutil.which("node") or not shutil.which("git"):
+            self.skipTest("node/git unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            result = self._run_agents_md_guard(root, str(root / "AGENTS.md"))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
+
+    def test_agents_md_guard_allows_when_agents_md_exists(self) -> None:
+        if not shutil.which("node") or not shutil.which("git"):
+            self.skipTest("node/git unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            (root / "AGENTS.md").write_text("# AGENTS\n")
+            result = self._run_agents_md_guard(root, str(root / "app.py"))
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

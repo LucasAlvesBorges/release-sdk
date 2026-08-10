@@ -47,15 +47,137 @@ def frontmatter_value(frontmatter: str, key: str) -> str:
     raise ValueError(f"missing frontmatter key: {key}")
 
 
-def agent_names() -> list[str]:
+def source_agent_names() -> list[str]:
     names = []
     for path in sorted((REPO_ROOT / "agents").glob("*.md")):
         frontmatter, _ = split_frontmatter(path.read_text(encoding="utf-8"))
         names.append(frontmatter_value(frontmatter, "name"))
-    return sorted(names, key=len, reverse=True)
+    return names
 
 
-AGENT_NAMES = agent_names()
+def role_names() -> list[str]:
+    names = []
+    for path in sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md")):
+        frontmatter, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+        names.append(frontmatter_value(frontmatter, "name"))
+    return names
+
+
+SOURCE_AGENT_NAMES = source_agent_names()
+ROLE_NAMES = role_names()
+AGENT_NAMES = sorted(SOURCE_AGENT_NAMES + ROLE_NAMES, key=len, reverse=True)
+
+
+# ── Codex token-economy model routing (codex/contracts/routing-policy.md) ──
+MODEL_LUNA = "gpt-5.6-luna"
+MODEL_TERRA = "gpt-5.6-terra"
+MODEL_FRONTIER = "gpt-5.6"
+
+# Explicit (model, effort, role_class) per source agent — hand-classified from
+# each agent's actual description/tools rather than inferred, because a
+# regex heuristic can't reliably tell "mechanical but happens to hold Write"
+# (e.g. test-runner saving a result file) apart from a real implementation
+# worker. Agents added later without an entry here fall back to
+# classify_agent()'s heuristic below — add them here once their tier is known.
+AGENT_MODEL_OVERRIDES = {
+    "advanced-threat-auditor": (MODEL_FRONTIER, "high", "security_reviewer"),
+    "ai-researcher": (MODEL_TERRA, "medium", "docs_researcher"),
+    "architecture-reviewer": (MODEL_TERRA, "high", "reviewer"),
+    "assumptions-analyzer": (MODEL_TERRA, "medium", "explorer_deep"),
+    "code-fixer": (MODEL_TERRA, "medium", "worker"),
+    "code-reviewer": (MODEL_TERRA, "high", "reviewer"),
+    "codebase-mapper": (MODEL_TERRA, "medium", "explorer_deep"),
+    "debugger": (MODEL_TERRA, "high", "explorer_deep"),
+    "django-checklist-verifier": (MODEL_LUNA, "low", "tester"),
+    "django-discuss-orchestrator": (MODEL_FRONTIER, "high", "planner"),
+    "django-security-retro": (MODEL_FRONTIER, "high", "security_reviewer"),
+    "doc-classifier": (MODEL_LUNA, "low", "tester"),
+    "doc-verifier": (MODEL_TERRA, "medium", "reviewer"),
+    "doc-writer": (MODEL_TERRA, "medium", "worker"),
+    "eval-auditor": (MODEL_TERRA, "high", "reviewer"),
+    "feature-planner": (MODEL_FRONTIER, "high", "planner"),
+    "feature-researcher": (MODEL_TERRA, "medium", "explorer_deep"),
+    "framework-selector": (MODEL_FRONTIER, "high", "planner"),
+    "import-orchestrator": (MODEL_FRONTIER, "high", "planner"),
+    "integration-checker": (MODEL_TERRA, "medium", "reviewer"),
+    "intel-updater": (MODEL_LUNA, "medium", "explorer_fast"),
+    "loop-goal-verifier": (MODEL_TERRA, "high", "reviewer"),
+    "milestone-auditor": (MODEL_TERRA, "high", "reviewer"),
+    "nyquist-auditor": (MODEL_LUNA, "low", "tester"),
+    "pattern-mapper": (MODEL_LUNA, "medium", "explorer_fast"),
+    "phase-verifier": (MODEL_TERRA, "high", "reviewer"),
+    "plan-checker": (MODEL_TERRA, "high", "reviewer"),
+    "react-security-retro": (MODEL_FRONTIER, "high", "security_reviewer"),
+    "react-ui-auditor": (MODEL_TERRA, "medium", "reviewer"),
+    "react-ui-checker": (MODEL_TERRA, "medium", "reviewer"),
+    "react-ui-researcher": (MODEL_TERRA, "medium", "worker"),
+    "security-auditor": (MODEL_FRONTIER, "high", "security_reviewer"),
+    "spec-clarifier": (MODEL_TERRA, "medium", "worker"),
+    "tdd-executor": (MODEL_TERRA, "medium", "worker"),
+    "test-auditor": (MODEL_TERRA, "medium", "worker"),
+    "test-discover": (MODEL_LUNA, "low", "tester"),
+    "test-runner": (MODEL_LUNA, "low", "tester"),
+    "uat-conductor": (MODEL_TERRA, "medium", "worker"),
+    "wave-executor": (MODEL_FRONTIER, "high", "planner"),
+}
+
+# Output token budget per role_class — codex/contracts/routing-policy.md §9.
+BUDGET_BY_CLASS = {
+    "explorer_fast": 700,
+    "explorer_deep": 1200,
+    "planner": 1500,
+    "worker_lite": 700,
+    "worker": 1200,
+    "worker_complex": 1500,
+    "tester": 700,
+    "reviewer": 1200,
+    "security_reviewer": 1500,
+    "docs_researcher": 700,
+    "handoff_writer": 500,
+    "agents_md_builder": 1200,
+}
+
+# Fixed model/effort for the 12 Codex-only generic roles (codex/contracts/roles/).
+GENERIC_ROLE_SPECS = {
+    "explorer-fast": (MODEL_LUNA, "low"),
+    "explorer-deep": (MODEL_TERRA, "medium"),
+    "planner": (MODEL_FRONTIER, "high"),
+    "worker-lite": (MODEL_LUNA, "low"),
+    "worker": (MODEL_TERRA, "medium"),
+    "worker-complex": (MODEL_FRONTIER, "high"),
+    "tester": (MODEL_LUNA, "low"),
+    "reviewer": (MODEL_TERRA, "high"),
+    "security-reviewer": (MODEL_FRONTIER, "high"),
+    "docs-researcher": (MODEL_LUNA, "medium"),
+    "handoff-writer": (MODEL_LUNA, "low"),
+    "agents-md-builder": (MODEL_TERRA, "medium"),
+}
+
+
+def classify_agent(name: str, frontmatter: str, description: str, body: str) -> tuple[str, str, str]:
+    """Return (model, reasoning_effort, role_class) for a specialized release agent.
+
+    Every agent shipped today has an explicit AGENT_MODEL_OVERRIDES entry —
+    the heuristic below only covers an agent added later without one yet.
+    """
+    if name in AGENT_MODEL_OVERRIDES:
+        return AGENT_MODEL_OVERRIDES[name]
+
+    tools = ""
+    try:
+        tools = frontmatter_value(frontmatter, "tools")
+    except ValueError:
+        pass
+    has_write = "write" in tools.lower() or "edit" in tools.lower()
+    text = f"{description} {body[:1500]}".lower()
+
+    if re.search(r"adversarial|goal-backward|security|threat", text):
+        return (MODEL_FRONTIER, "high", "security_reviewer" if "security" in text or "threat" in text else "reviewer")
+    if re.search(r"review|audit|check|verif", text):
+        return (MODEL_TERRA, "high", "reviewer")
+    if has_write:
+        return (MODEL_TERRA, "medium", "worker")
+    return (MODEL_LUNA, "medium", "explorer_deep")
 
 
 def transform_common(text: str) -> str:
@@ -188,39 +310,74 @@ def transform_skill(path: Path, text: str) -> str:
     return f"---\n{frontmatter}\n---\n\n{contract.rstrip()}\n\n{body.lstrip()}"
 
 
-def fallback_role(frontmatter: str, body: str) -> str:
-    tools = ""
-    try:
-        tools = frontmatter_value(frontmatter, "tools")
-    except ValueError:
-        pass
-    lowered = (frontmatter + body[:2500]).lower()
-    if "write" in tools.lower() or "edit" in tools.lower():
-        return "worker"
-    if any(word in lowered for word in ("orchestrat", "planner", "checker", "verifier", "auditor")):
-        return "default"
-    return "explorer"
+def write_agent_toml(
+    output: Path,
+    contract: str,
+    name: str,
+    description: str,
+    model: str,
+    effort: str,
+    budget: int,
+    role_class: str,
+    body: str,
+    source_label: str,
+) -> dict:
+    instructions = f"{contract}\n\n{transform_common(body).lstrip()}"
+    if "'''" in instructions:
+        raise ValueError(f"{source_label}: TOML literal delimiter collision")
+    toml = (
+        f"name = {json.dumps(name, ensure_ascii=False)}\n"
+        f"description = {json.dumps(description, ensure_ascii=False)}\n"
+        f"model = {json.dumps(model, ensure_ascii=False)}\n"
+        f"reasoning_effort = {json.dumps(effort, ensure_ascii=False)}\n"
+        f"output_token_budget = {budget}\n"
+        f"role_class = {json.dumps(role_class, ensure_ascii=False)}\n"
+        f"developer_instructions = '''\n{instructions.rstrip()}\n'''\n"
+    )
+    write_text(output / "agents" / f"{name}.toml", toml)
+    return {
+        "name": name,
+        "source": source_label,
+        "role_class": role_class,
+        "model": model,
+        "reasoning_effort": effort,
+        "output_token_budget": budget,
+        "description": description,
+    }
 
 
 def build_agents(output: Path) -> None:
+    if set(SOURCE_AGENT_NAMES) & set(ROLE_NAMES):
+        raise ValueError(
+            f"agent/role name collision: {set(SOURCE_AGENT_NAMES) & set(ROLE_NAMES)}"
+        )
+
     contract = (REPO_ROOT / "codex" / "contracts" / "agent-contract.md").read_text(encoding="utf-8").rstrip()
     index = []
+
     for source in sorted((REPO_ROOT / "agents").glob("*.md")):
         frontmatter, body = split_frontmatter(source.read_text(encoding="utf-8"))
         source_name = frontmatter_value(frontmatter, "name")
         description = transform_common(frontmatter_value(frontmatter, "description"))
         name = f"release-{source_name}"
-        role = fallback_role(frontmatter, body)
-        instructions = f"{contract}\n\n{transform_common(body).lstrip()}"
-        if "'''" in instructions:
-            raise ValueError(f"{source}: TOML literal delimiter collision")
-        toml = (
-            f"name = {json.dumps(name, ensure_ascii=False)}\n"
-            f"description = {json.dumps(description, ensure_ascii=False)}\n"
-            f"developer_instructions = '''\n{instructions.rstrip()}\n'''\n"
+        model, effort, role_class = classify_agent(source_name, frontmatter, description, body)
+        budget = BUDGET_BY_CLASS[role_class]
+        index.append(
+            write_agent_toml(output, contract, name, description, model, effort, budget, role_class, body, source.name)
         )
-        write_text(output / "agents" / f"{name}.toml", toml)
-        index.append({"name": name, "source": source.name, "fallback": role, "description": description})
+
+    for source in sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md")):
+        frontmatter, body = split_frontmatter(source.read_text(encoding="utf-8"))
+        source_name = frontmatter_value(frontmatter, "name")
+        description = transform_common(frontmatter_value(frontmatter, "description"))
+        name = f"release-{source_name}"
+        model, effort = GENERIC_ROLE_SPECS[source_name]
+        role_class = source_name.replace("-", "_")
+        budget = BUDGET_BY_CLASS[role_class]
+        index.append(
+            write_agent_toml(output, contract, name, description, model, effort, budget, role_class, body, source.name)
+        )
+
     write_text(output / "agents" / "index.json", json.dumps(index, ensure_ascii=False, indent=2) + "\n")
 
 
@@ -229,7 +386,7 @@ def build_manifest(output: Path) -> None:
     base_version = legacy["version"].split("+", 1)[0]
     manifest = {
         "name": "release",
-        "version": f"{base_version}+codex.1",
+        "version": f"{base_version}+codex.2",
         "description": "Codex-native full-stack delivery workflows for Django, React, and React Native with specialized subagents.",
         "author": {
             "name": legacy["author"]["name"],
@@ -283,6 +440,7 @@ def build(output: Path) -> None:
 
     copy_tree(REPO_ROOT / "hooks", output / "hooks", transform_hook)
     shutil.copy2(REPO_ROOT / "codex" / "runtime" / "codex-edit-adapter.js", output / "hooks" / "codex-edit-adapter.js")
+    shutil.copy2(REPO_ROOT / "codex" / "runtime" / "agents-md-guard.js", output / "hooks" / "release-agents-md-guard.js")
     shutil.copy2(REPO_ROOT / "codex" / "runtime" / "hooks.json", output / "hooks" / "hooks.json")
 
     copy_tree(REPO_ROOT / "bin", output / "bin", transform_bin)
@@ -290,6 +448,10 @@ def build(output: Path) -> None:
     (output / "bin" / "install-codex-agents.py").chmod(0o755)
 
     copy_tree(REPO_ROOT / "templates", output / "templates", lambda _path, text: transform_common(text))
+    write_text(
+        output / "templates" / "codex-config.toml",
+        transform_common((REPO_ROOT / "codex" / "runtime" / "config.toml").read_text(encoding="utf-8")),
+    )
     shutil.copy2(REPO_ROOT / "LICENSE", output / "LICENSE")
 
     readme = """# Release SDK for Codex

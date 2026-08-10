@@ -1,0 +1,51 @@
+# .codex/config.toml — release-sdk token-economy defaults for Codex.
+#
+# Shipped as plugins/release/templates/codex-config.toml by codex/build_plugin.py.
+# `release:setup-codex` copies it into a target project's `.codex/config.toml`
+# only when that file doesn't already exist — it never overwrites a project's
+# own config. Values below are starting points from the release-sdk Codex
+# token-economy policy; tune after measuring real truncation/spend.
+
+model_verbosity = "low"
+tool_output_token_limit = 8000
+project_doc_max_bytes = 32768
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 4
+default_subagent_model = "gpt-5.6-luna"
+default_subagent_reasoning_effort = "low"
+interrupt_message = false
+
+[agents_md]
+# strict: block writes until AGENTS.md exists at the project root.
+# bootstrap: run release-agents-md-builder (read-only except AGENTS.md) to
+# draft one, then require the task to be re-run. Recommended: strict for
+# production repos, bootstrap while onboarding a new one.
+required = true
+mode = "strict"
+
+[routing]
+default_spawn = false
+default_child_model = "gpt-5.6-luna"
+default_child_reasoning = "low"
+max_concurrency = 4
+one_writer_per_path_set = true
+prefer_read_only_parallelism = true
+
+[budgets]
+explorer_fast_output_tokens = 700
+explorer_deep_output_tokens = 1200
+planner_output_tokens = 1500
+worker_output_tokens = 1200
+tester_output_tokens = 700
+reviewer_output_tokens = 1200
+security_reviewer_output_tokens = 1500
+handoff_output_tokens = 500
+max_retry_same_configuration = 1
+
+[context]
+inject_full_agents_md = false
+return_raw_logs_to_parent = false
+use_progressive_disclosure = true
+compact_parent_when_context_pressure_is_high = true
