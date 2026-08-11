@@ -8,7 +8,7 @@ Comandos `/release:*` context-aware roteiam automaticamente para os agents certo
 
 **Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador de 32 regras que despacha pro skill `/release:*` certo, imprime a rota escolhida + razão antes de invocar, faz fallback pra `AskUserQuestion` quando a confiança é baixa.
 
-**Versão atual: v0.20.0** — 3 skills especialistas por stack (`django-expert` · `react-expert` · `react-native-expert`) que auto-disparam pela sua stack; invocação curta `/release:*`; 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+**Versão atual: v0.22.0** — 3 skills especialistas por stack (`django-expert` · `react-expert` · `react-native-expert`) que auto-disparam pela sua stack; invocação curta `/release:*`; 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
 
 ---
 
