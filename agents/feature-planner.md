@@ -77,7 +77,7 @@ Fill task template (stack-aware checklist — see blocks below):
   type: tdd-red | tdd-green | refactor | security | race | memray | a11y | checkpoint
   title: {one-line}
   complexity: simple | standard | complex     # v0.22.0 — REQUIRED (see <task_complexity> below)
-  depends_on: [T01, T04]                      # v0.22.0 — REQUIRED (may be []); REAL task deps,
+  depends_on: [T01, T04]                      # v0.23.0 — REQUIRED (may be []); REAL task deps,
                                               # not "the previous wave". See <task_dependencies>.
   files:
     - path: {create|modify}
@@ -96,7 +96,7 @@ Fill task template (stack-aware checklist — see blocks below):
 
 <task_dependencies>
 
-**v0.22.0 — waves are presentation + checkpoint, NOT a barrier. `depends_on` is the real schedule.**
+**v0.23.0 — waves are presentation + checkpoint, NOT a barrier. `depends_on` is the real schedule.**
 
 `release:wave-executor` schedules by **task readiness**: it starts any task whose `depends_on` are
 already committed and whose `files:` do not collide with a task in flight, up to the concurrency
@@ -180,7 +180,7 @@ waves:
   W4: { deps: [W2,W3], parallel_safe: true, files: [tests/test_X_security.py],   complexity: {T06: complex} }
   W5: { deps: [W4], parallel_safe: false, files: []  }  # no-commit verify gate
 
-# v0.22.0 — the REAL schedule: task-level deps + the resulting critical path.
+# v0.23.0 — the REAL schedule: task-level deps + the resulting critical path.
 task_deps:
   T01: []            # opens immediately
   T02: [T01]
@@ -199,7 +199,7 @@ resolves each spawn's model tier from the manifest alone. Omit it and every task
 `task_deps` mirrors each task's `depends_on:` so the readiness scheduler builds the graph from the
 manifest alone. **`deps:` between waves stays as documentation of the checkpoint order — it is no
 longer a barrier** when `task_deps` is present. Omit `task_deps` and the executor falls back to the
-pre-v0.22.0 wave-barrier scheduling (backwards compatible, and slower).
+pre-v0.23.0 wave-barrier scheduling (backwards compatible, and slower).
 
 Waves com `parallel_safe: true` E sem overlap de files podem ser executados em worktrees disjuntos via release:wave-executor.
 </step>

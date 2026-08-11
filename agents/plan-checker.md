@@ -1,6 +1,6 @@
 ---
 name: plan-checker
-description: Pre-execution plan verifier for release-sdk phases. Stack-dispatched: Django (.py N+1 / raw SQL gates) or React (.tsx type-contract / localStorage BLOCKER) or fullstack (both). Also runs advanced-threat surface gates (A1 SSRF / A2 deserialization / A3 command-injection / A11 SQLi / A12 image-media / A13 AWS-IaC, owned by advanced-threat-auditor): a PLAN that introduces a dangerous surface without its matching test or check_* static gate FAILs. Verifies goal-backward coverage — every task traces to a SPEC goal + a CONTEXT decision or LOCK; every SPEC goal has ≥1 task. v0.22.0: also FAILs when a task is missing or misdeclares `complexity: simple|standard|complex` (the per-task model-routing label) or when the per-task `depends_on` graph is cyclic/dangling, and reports the scheduler shape (depth/width/critical path) with advisory findings when a plan will underuse the readiness scheduler. Pre-v0.22.0 plans carrying no labels/deps get single MED findings, never a FAIL. Read-only. Produces PLAN-CHECK.md with PASS/FAIL verdict. Spawned by /release:plan after planning completes, BEFORE /release:execute. NEVER modifies PLAN.md, never decides to execute.
+description: Pre-execution plan verifier for release-sdk phases. Stack-dispatched: Django (.py N+1 / raw SQL gates) or React (.tsx type-contract / localStorage BLOCKER) or fullstack (both). Also runs advanced-threat surface gates (A1 SSRF / A2 deserialization / A3 command-injection / A11 SQLi / A12 image-media / A13 AWS-IaC, owned by advanced-threat-auditor): a PLAN that introduces a dangerous surface without its matching test or check_* static gate FAILs. Verifies goal-backward coverage — every task traces to a SPEC goal + a CONTEXT decision or LOCK; every SPEC goal has ≥1 task. v0.22.0/v0.23.0: also FAILs when a task is missing or misdeclares `complexity: simple|standard|complex` (the per-task model-routing label) or when the per-task `depends_on` graph is cyclic/dangling, and reports the scheduler shape (depth/width/critical path) with advisory findings when a plan will underuse the readiness scheduler. Pre-v0.22.0 plans carrying no labels/deps get single MED findings, never a FAIL. Read-only. Produces PLAN-CHECK.md with PASS/FAIL verdict. Spawned by /release:plan after planning completes, BEFORE /release:execute. NEVER modifies PLAN.md, never decides to execute.
 tools: Read, Bash, Glob, Grep
 model: sonnet
 color: "#10B981"
@@ -203,7 +203,7 @@ Record per violation: wave id, task id, the value found (or `<absent>`), and the
 
 <step name="task_dependency_audit">
 
-**v0.22.0 — schedulability, not just correctness.** `release:wave-executor` schedules by task
+**v0.23.0 — schedulability, not just correctness.** `release:wave-executor` schedules by task
 readiness (`depends_on` + a dynamic file-collision check). A PLAN that omits per-task deps forces
 the executor back to wave-barrier mode, where one slow task holds a whole wave of ready work
 hostage. That is a *plan* defect the user should see before execute, not a mystery in the timings.
@@ -438,7 +438,7 @@ orphan_count: {N}
 uncovered_count: {N}
 advanced_threat_gate_violations: {N}
 complexity_label_violations: {N}      # v0.22.0 — tasks with a missing/invalid label (BLOCKER each)
-scheduler_shape:                      # v0.22.0 — what the readiness scheduler will be able to do
+scheduler_shape:                      # v0.23.0 — what the readiness scheduler will be able to do
   task_deps_present: true|false       # false ⇒ executor falls back to wave-barrier (MED finding)
   depth: {N}                          # longest dependency chain = wall-clock floor
   width: {N}                          # tasks with depends_on: [] — how wide the phase opens
@@ -492,7 +492,7 @@ wave_budget_violations:
 
 Routing effect: {N} tasks at the worker tier, {N} demoted one rung (`simple`).
 
-## Scheduler Shape (v0.22.0)
+## Scheduler Shape (v0.23.0)
 
 | Metric | Value | Read as |
 |--------|-------|---------|

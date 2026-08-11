@@ -154,7 +154,7 @@ release_execenv_max_parallel() {  # $1 root → live-env cap (configured, else m
   return 0
 }
 
-# The READINESS SCHEDULER's cap (v0.22.0 — wave-executor). Distinct from the env cap above: it
+# The READINESS SCHEDULER's cap (v0.23.0 — wave-executor). Distinct from the env cap above: it
 # bounds concurrent TASK SPAWNS whether or not per-worktree envs are configured, so a repo with no
 # EXEC-ENV.yml gets a sane machine-derived bound instead of "unlimited". An EXPLICIT
 # `test_env_max_parallel` always wins (the user sized their own machine); `0` means "unlimited

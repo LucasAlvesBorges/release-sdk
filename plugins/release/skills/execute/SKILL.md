@@ -12,8 +12,8 @@ description: >
   containerized suites, per-task test invocations are capped at 2 (RED + one combined
   GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary, each task spawn's model tier
   follows the planner's complexity label (demote-only; worker tier is the ceiling), and the
-  wave-executor schedules by per-task readiness (depends_on + dynamic file collision) instead of a
-  wave barrier — waves become checkpoints, not gates.
+  v0.23.0: the wave-executor schedules by per-task readiness (depends_on + dynamic file collision)
+  instead of a wave barrier — waves become checkpoints, not gates.
   Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 

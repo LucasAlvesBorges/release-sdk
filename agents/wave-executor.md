@@ -1,6 +1,6 @@
 ---
 name: wave-executor
-description: Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns tdd-executor concurrently in git worktrees, cherry-picks commits back to feat/{NN}-{slug} branch. v0.22.0: READINESS SCHEDULER — schedules by per-task depends_on + a dynamic file-collision check instead of a wave barrier (waves become presentation/checkpoint), with per-worktree test-env provisioning (.release-planning/EXEC-ENV.yml) so containerized suites can fan out, complexity-based model tiering per spawn, and a parallelism telemetry block. Falls back to wave-barrier mode for PLANs with no task deps. Always invoked by /release:execute (no flag).
+description: Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns tdd-executor concurrently in git worktrees, cherry-picks commits back to feat/{NN}-{slug} branch. v0.23.0: READINESS SCHEDULER — schedules by per-task depends_on + a dynamic file-collision check instead of a wave barrier (waves become presentation/checkpoint), with per-worktree test-env provisioning (.release-planning/EXEC-ENV.yml) so containerized suites can fan out, complexity-based model tiering per spawn, and a parallelism telemetry block. Falls back to wave-barrier mode for PLANs with no task deps. Always invoked by /release:execute (no flag).
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
 model: opus
 color: "#F59E0B"
@@ -191,7 +191,7 @@ echo "→ exec-env: $EXECENV (max_parallel=$ENV_CAP)"
 - `EXECENV=on` → each parallel sub-worktree gets its own provisioned env, and every test command
   the executor runs is prefixed with that env's `test_exec_prefix`.
 
-**Concurrency cap.** When `EXECENV=on`, each env is a real container + database — never keep more
+**Concurrency cap (v0.23.0).** When `EXECENV=on`, each env is a real container + database — never keep more
 than `ENV_CAP` alive at once. Under the readiness scheduler this is enforced at dispatch (a task
 starts only if a slot is free), so envs are provisioned one per dispatched task and torn down as
 each task lands — never a whole wave provisioned up front. In LEGACY MODE the same cap is applied
@@ -232,7 +232,7 @@ Without `--resume`: skip this step (run all tasks).
 
 <step name="build_readiness_graph">
 
-**v0.22.0 — the scheduling unit is the TASK, not the wave.**
+**v0.23.0 — the scheduling unit is the TASK, not the wave.**
 
 The wave barrier was the parallelism ceiling: W4 waited on all of W3 even when its tasks were ready,
 so a 16-core box with a cap of 6 still ran 2 tasks at a time. Waves stay as *presentation +
@@ -267,7 +267,7 @@ When envs ARE provisioned, live envs never exceed `release_execenv_max_parallel`
 tighter of the two at dispatch time.
 
 **LEGACY MODE (backwards compatible).** No `task_deps` in the manifest AND no `depends_on:` in any
-task body → the PLAN predates v0.22.0. Fall back to the wave-barrier scheduling described in
+task body → the PLAN predates v0.23.0. Fall back to the wave-barrier scheduling described in
 `execute_each_wave` (a wave starts only after the previous wave landed). Log one line —
 `SCHEDULER=wave-barrier (legacy PLAN: no task_deps)` — and record it in WAVE-SUMMARY.md so the
 lost parallelism is attributable to the plan, not to the executor. `/release:plan {NN}` re-emits
@@ -333,7 +333,7 @@ loop:
 
 <step name="execute_each_wave">
 
-**v0.22.0:** this step describes the WAVE MECHANICS (slice → worktree → provision → spawn →
+**v0.23.0:** this step describes the WAVE MECHANICS (slice → worktree → provision → spawn →
 cherry-pick → teardown → verify). With a `task_deps` graph present, `readiness_scheduler` above
 decides *when* each task starts and these mechanics are applied per task as it is dispatched. In
 LEGACY MODE (no graph) this step runs as written, wave by wave, with a barrier between waves.
@@ -556,7 +556,7 @@ serial_tasks: {N}      # tasks that fell back to serial
 duration_seconds: {N}
 model_mix: { opus: {N}, sonnet: {N} }   # v0.22.0 — tdd-executor spawns per tier (complexity routing)
 complexity_mix: { simple: {N}, standard: {N}, complex: {N} }   # unlabelled tasks counted as standard
-scheduler: readiness | wave-barrier    # wave-barrier ⇒ legacy PLAN with no task_deps (say so)
+scheduler: readiness | wave-barrier    # v0.23.0 — wave-barrier ⇒ legacy PLAN with no task_deps (say so)
 sched_cap: {N}                         # release_sched_max_parallel actually applied
 parallelism:
   max_concurrent: {N}                  # peak tasks in flight
@@ -586,7 +586,7 @@ env_teardown_failed: []        # task IDs whose env leaked (idempotent teardown 
 - T04: test(...) sha=jkl3456
 - T05: refactor(...) sha=mno7890
 
-## Parallelism (v0.22.0)
+## Parallelism (v0.23.0)
 
 | Metric | Value | Read as |
 |--------|-------|---------|
