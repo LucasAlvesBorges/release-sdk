@@ -253,7 +253,21 @@ else
   git worktree add -b "$BRANCH" "$PHASE_WT" HEAD    # new phase: branch from main's HEAD (read-only on main)
 fi
 
+# --- planning artifacts must TRAVEL (v0.23.0) ---------------------------------------------------
+# `.release-planning/` is untracked, and `git worktree add` materializes only TRACKED files, so the
+# phase worktree is born WITHOUT the PLAN it is supposed to execute. Carry the inputs in.
+find_lib(){ local p="${RELEASE_PLUGIN_ROOT:+$RELEASE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "${CODEX_HOME:-$HOME/.codex}" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+PSYNC_LIB="$(find_lib release-planning-sync-lib.sh)"; [ -f "$PSYNC_LIB" ] && . "$PSYNC_LIB"
+if [ -f "$PSYNC_LIB" ]; then
+  OUT="$(planning_sync_in "$ROOT" "$PHASE_WT" "{NN}-*")"
+  case "$OUT" in
+    *PLANNING_SYNC_IN=failed*) echo "ABORT: could not carry .release-planning into $PHASE_WT"
+                               printf '%s\n' "$OUT"; exit 1 ;;
+  esac
+fi
+
 # Record start SHA (inside the worktree) for rollback / diff
+mkdir -p "$PHASE_WT/.release-planning/phases/{NN}-{slug}"
 git -C "$PHASE_WT" rev-parse HEAD > "$PHASE_WT/.release-planning/phases/{NN}-{slug}/.exec-start-sha"
 ```
 
@@ -398,6 +412,24 @@ else while true:
                                instruction: "operate at maximum rigor; close these goal gaps; add the missing test + impl" }
     continue
     # once per round, if BUDGET_USD set: loop_token_spend "$BUDGET_USD" echoing "reason=budget-tokens" ⇒ STOP; break
+```
+
+**Before ANY teardown or land — carry the produced artifacts back out (v0.23.0).** SUMMARY,
+WAVE-SUMMARY, VERIFICATION and `.progress.json` live only inside `$PHASE_WT`; `land_branch` and the
+EXIT trap both remove it. Copy first, then land — a failed copy-back ABORTS the teardown:
+
+```bash
+if [ -f "$PSYNC_LIB" ]; then
+  OUT="$(planning_sync_out "$PHASE_WT" "$ROOT" "{NN}-*")"
+  case "$OUT" in
+    *PLANNING_SYNC_OUT=failed*)
+      trap - EXIT                       # do NOT let the trap delete the only copy of the artifacts
+      echo "ABORT: could not copy planning artifacts out of $PHASE_WT — NOT tearing it down."
+      printf '%s\n' "$OUT"
+      echo "  Rescue them by hand, then re-run. Worktree kept at: $PHASE_WT"
+      exit 1 ;;
+  esac
+fi
 ```
 
 Then land — only on `VERIFIED=1` AND `LAND=1`; otherwise hold (never clobber, never silently grind):

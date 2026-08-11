@@ -623,6 +623,16 @@ git add "$PHASE_DIR/{NN}-WAVE-SUMMARY.md"
 git commit -m "docs({NN}): wave execution summary"
 ```
 
+**Carry the artifacts out before returning (v0.23.0).** `.release-planning/` is untracked, so the
+committed WAVE-SUMMARY exists only inside `$PHASE_WT` — whoever removes that worktree deletes it.
+Copy back to the main checkout BEFORE returning to `/release:execute`:
+
+```bash
+PSYNC_LIB="$(find_lib release-planning-sync-lib.sh)"; [ -f "$PSYNC_LIB" ] && . "$PSYNC_LIB"
+[ -f "$PSYNC_LIB" ] && planning_sync_out "$PHASE_WT" "$CFG_ROOT" "${PHASE_NUM}-*"
+# PLANNING_SYNC_OUT=failed → report it loudly; NEVER remove a worktree whose artifacts did not copy.
+```
+
 </step>
 
 </execution_flow>
@@ -651,6 +661,7 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 
 - NEVER cherry-pick wave commits with unresolved conflicts → abort + serial fallback
 - NEVER delete a worktree before cherry-pick completes
+- NEVER remove a worktree (or let a trap remove it) before `planning_sync_out` reported ok — `.release-planning/` is untracked, so an uncopied SUMMARY/VERIFICATION dies with the worktree. A failed copy-back ABORTS the teardown; leaving a worktree behind is always cheaper than losing the artifacts
 - NEVER spawn parallel executors when ANY file overlap detected
 - NEVER spawn parallel executors when wave touches Django `models.py` AND any of `admin.py`/`views.py`/`serializers.py`/`urls.py`/`filters.py` — `manage.py check` requires full graph coherence; force `coalesce_into_wave_commit`
 - DETECT pre-commit hook policy: if `.pre-commit-config.yaml` references `manage.py check` OR `django-system-check`, treat any cross-file-touching wave as collision-bound regardless of file-set disjointness
