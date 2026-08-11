@@ -177,6 +177,17 @@ Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, t
 - manifest.md: < 300 linhas, frontmatter + waves table
 - Cada wave file: frontmatter `wave`, `depends_on`, `parallel_safe`, `files_touched`
 
+**Complexity contract (HARD — v0.22.0):**
+- Cada task declara `complexity: simple | standard | complex` (critérios em `release:feature-planner`
+  → `<task_complexity>`). O label escolhe o tier do modelo que executa a task
+  (`simple` = um rung abaixo do worker, piso sonnet; demais = worker tier).
+- `plan-checker` **FALHA** se qualquer task estiver sem o campo ou com valor inválido, e se uma task
+  `security`/`race`/`memray` for marcada `simple` — o risco define o tier.
+- Manifest repete os labels por wave (`complexity: {T01: …}`) para o wave-executor rotear sem abrir
+  cada slice; divergência entre manifest e corpo da task é HIGH.
+- PLAN legado pré-v0.22.0 (nenhuma task com o campo): UMA finding MED, sem FAIL — tudo roda no
+  worker tier, comportamento v0.21.0. Adoção parcial (algumas com, outras sem) é FAIL.
+
 ## Example
 
 ```

@@ -1,6 +1,6 @@
 ---
 name: plan-checker
-description: Pre-execution plan verifier for release-sdk phases. Stack-dispatched: Django (.py N+1 / raw SQL gates) or React (.tsx type-contract / localStorage BLOCKER) or fullstack (both). Also runs advanced-threat surface gates (A1 SSRF / A2 deserialization / A3 command-injection / A11 SQLi / A12 image-media / A13 AWS-IaC, owned by advanced-threat-auditor): a PLAN that introduces a dangerous surface without its matching test or check_* static gate FAILs. Verifies goal-backward coverage — every task traces to a SPEC goal + a CONTEXT decision or LOCK; every SPEC goal has ≥1 task. Read-only. Produces PLAN-CHECK.md with PASS/FAIL verdict. Spawned by /release:plan after planning completes, BEFORE /release:execute. NEVER modifies PLAN.md, never decides to execute.
+description: Pre-execution plan verifier for release-sdk phases. Stack-dispatched: Django (.py N+1 / raw SQL gates) or React (.tsx type-contract / localStorage BLOCKER) or fullstack (both). Also runs advanced-threat surface gates (A1 SSRF / A2 deserialization / A3 command-injection / A11 SQLi / A12 image-media / A13 AWS-IaC, owned by advanced-threat-auditor): a PLAN that introduces a dangerous surface without its matching test or check_* static gate FAILs. Verifies goal-backward coverage — every task traces to a SPEC goal + a CONTEXT decision or LOCK; every SPEC goal has ≥1 task. v0.22.0: also FAILs when a task is missing or misdeclares `complexity: simple|standard|complex` (the per-task model-routing label), with a single MED finding instead of a FAIL for pre-v0.22.0 plans that carry no labels at all. Read-only. Produces PLAN-CHECK.md with PASS/FAIL verdict. Spawned by /release:plan after planning completes, BEFORE /release:execute. NEVER modifies PLAN.md, never decides to execute.
 tools: Read, Bash, Glob, Grep
 model: sonnet
 color: "#10B981"
@@ -159,6 +159,48 @@ For every goal/scope item in SPEC.md:
 A goal mentioned only in PLAN narrative (Objective section) but absent from any task action is UNCOVERED — execution operates on tasks.
 </step>
 
+<step name="complexity_label_audit">
+
+**v0.22.0 — every task MUST declare `complexity: simple | standard | complex`.**
+
+The label drives per-task model routing (`release_worker_model_for` → the tier
+`release:wave-executor` spawns each `tdd-executor` at). A missing label silently routes at the phase
+worker tier, which is *safe* but hides the planner skipping a judgement it was asked to make — and
+an invalid label (`trivial`, `medium`, `hard`, `low`) reads as classified while resolving to the
+same fallback. Both are caught here, at plan time, not discovered as a cost surprise after execute.
+
+Scan every task block in every wave file (or the legacy single-file PLAN):
+
+```bash
+# per wave file: task ids vs. task ids that carry a valid label
+grep -nE '^### T[0-9]+'                       "$WAVE"    # task inventory
+grep -nE '^[[:space:]]*complexity:[[:space:]]*(simple|standard|complex)[[:space:]]*$' "$WAVE"
+```
+
+| Rule | Trigger | Severity |
+|---|---|---|
+| Task with no `complexity:` | task block has no `complexity:` key | **BLOCKER** |
+| Task with an invalid value | value not in `simple\|standard\|complex` | **BLOCKER** |
+| `security` / `race` / `memray` task labelled `simple` | `type:` in that set AND `complexity: simple` | **BLOCKER** (risk defines the tier — see `feature-planner` → `<task_complexity>`) |
+| Manifest `complexity:` map disagrees with a task body | same T-id, different label | HIGH (executor routes from the manifest — the bodies are what humans read) |
+| Manifest wave entry has no `complexity:` map | wave-split layout, map absent | MED (executor falls back to reading slices) |
+| Every task `simple` in a phase with ≥5 tasks | uniform labelling | MED (suspect the planner rubber-stamped the field) |
+
+Record per violation: wave id, task id, the value found (or `<absent>`), and the rule.
+
+**Retro-compatibility — scope of the gate.** It is a *plan-time* gate on a *new* plan-check run:
+
+- A PLAN emitted before v0.22.0 has no `complexity:` anywhere. Detect that shape — **zero** tasks
+  carry the key — and emit ONE finding: `LEGACY_PLAN_NO_COMPLEXITY` at **MED**, not one BLOCKER per
+  task. Verdict is NOT forced to FAIL by it. Note in PLAN-CHECK.md that every task will route at
+  the phase worker tier (v0.21.0 behaviour) and that `/release:plan {NN}` re-emits with labels.
+- **Partial** adoption (≥1 task labelled, ≥1 not) is NOT legacy — it is a planner that started the
+  job and dropped it. Every unlabelled task is a BLOCKER. This is the case the gate exists for.
+- An already-executed phase is never re-checked: plan-check runs before `/release:execute`, and
+  nothing re-runs it over `SUMMARY.md`-bearing phases. No back-fill, no retro-FAIL.
+
+</step>
+
 <step name="apply_stack_gates">
 Run stack-specific gate scans (see `<django-stack>` / `<react-stack>` / `<fullstack-stack>` blocks below).
 Each gate violation records: task id, file, rule, severity (BLOCKER | HIGH | MEDIUM).
@@ -171,10 +213,10 @@ Each violation records: task id (the surface-introducing task), surface, missing
 </step>
 
 <step name="classify_verdict">
-- `PASS` — zero ORPHAN tasks, zero UNCOVERED goals, zero BLOCKER stack-gate violations, AND zero advanced-threat-gate violations (every declared dangerous surface has its required test/check)
-- `FAIL` — any BLOCKER finding (orphan, uncovered, stack-gate BLOCKER, or advanced-threat-gate BLOCKER — a dangerous surface introduced without its matching A1/A2/A3/A11/A12/A13 test or `check_*` static gate)
+- `PASS` — zero ORPHAN tasks, zero UNCOVERED goals, zero BLOCKER stack-gate violations, zero advanced-threat-gate violations (every declared dangerous surface has its required test/check), AND zero complexity-label BLOCKERs
+- `FAIL` — any BLOCKER finding (orphan, uncovered, stack-gate BLOCKER, advanced-threat-gate BLOCKER — a dangerous surface introduced without its matching A1/A2/A3/A11/A12/A13 test or `check_*` static gate — or a task missing/misdeclaring `complexity:`)
 
-HIGH and MEDIUM stack-gate findings are reported but do NOT force FAIL — the user/orchestrator decides whether to revise. Advanced-threat-gate violations are always BLOCKER (a dangerous surface without its proof cannot pass plan-check).
+HIGH and MEDIUM stack-gate findings are reported but do NOT force FAIL — the user/orchestrator decides whether to revise. Advanced-threat-gate violations are always BLOCKER (a dangerous surface without its proof cannot pass plan-check). The single `LEGACY_PLAN_NO_COMPLEXITY` finding (a pre-v0.22.0 PLAN where NO task carries the key) is MED and never forces FAIL — partial adoption does.
 </step>
 
 <step name="write_plan_check_md">
@@ -332,7 +374,9 @@ When raising an advanced-threat gate, cite the PLAN task line that introduces th
 - NEVER modify PLAN.md, SPEC.md, CONTEXT.md, or RELEASE-LOCKS.md — read-only verification only
 - NEVER decide whether `/release:execute` proceeds — surface evidence, orchestrator/user decides
 - NEVER mark a task TRACED when its decision citation contradicts CONTEXT.md text — read the source
-- ALWAYS run every audit step (forward + backward + stack gates) even after first BLOCKER — surface all gaps
+- ALWAYS run every audit step (forward + backward + stack gates + complexity labels) even after first BLOCKER — surface all gaps
+- NEVER invent a `complexity:` value for an unlabelled task — report `<absent>` as a BLOCKER; assigning the label is the planner's job, and this agent is read-only
+- NEVER FAIL a pre-v0.22.0 PLAN (NO task carries `complexity:`) on labels alone — that is one MED `LEGACY_PLAN_NO_COMPLEXITY` finding. Partial adoption (some labelled, some not) IS a FAIL
 - ALWAYS cite path:line for SPEC goals and explicit D-XX/LOCK-XX ids for decisions
 - ALWAYS produce PLAN-CHECK.md even when verdict is FAIL — the report IS the deliverable
 - DO NOT spawn other agents
@@ -363,6 +407,9 @@ lock_count: {N}
 orphan_count: {N}
 uncovered_count: {N}
 advanced_threat_gate_violations: {N}
+complexity_label_violations: {N}      # v0.22.0 — tasks with a missing/invalid label (BLOCKER each)
+complexity_mix: { simple: {N}, standard: {N}, complex: {N}, unlabelled: {N} }
+legacy_plan_no_complexity: true|false # pre-v0.22.0 PLAN — one MED finding, never a FAIL
 blocker_count: {N}
 high_count: {N}
 medium_count: {N}
@@ -396,6 +443,18 @@ wave_budget_violations:
 |------|-----------|--------------|--------|
 | {goal text} | SPEC.md:42 | T01, T03 | COVERED |
 | {goal text} | SPEC.md:67 | — | UNCOVERED |
+
+## Complexity Labels (v0.22.0)
+
+| Wave | Task | type | complexity | Status |
+|------|------|------|-----------|--------|
+| W1 | T01 | tdd-red | standard | OK |
+| W2 | T02 | tdd-green | complex | OK |
+| W3 | T04 | tdd-green | `<absent>` | **BLOCKER — no complexity:** |
+| W4 | T06 | security | simple | **BLOCKER — security task cannot be simple** |
+
+Routing effect: {N} tasks at the worker tier, {N} demoted one rung (`simple`).
+_Legacy PLAN (no labels anywhere) → one MED finding, no FAIL; every task routes at the worker tier._
 
 ## Blockers
 

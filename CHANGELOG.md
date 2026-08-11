@@ -86,6 +86,25 @@ serializer cost the same as writing a concurrency guard.
 
 A PLAN with no `complexity:` field routes every task at the worker tier — identical to 0.21.0.
 
+### Changed — plan-checker FAILs on a missing or invalid `complexity:` label
+
+The label was a planner success-criterion with nothing enforcing it, so a planner under context
+pressure could silently drop the judgement and every task would quietly route at the phase worker
+tier — a cost surprise discovered only after execute.
+
+- **`agents/plan-checker.md`** — new `complexity_label_audit` step, run before the stack gates:
+  a task with no `complexity:` or a value outside `simple|standard|complex` is a **BLOCKER**; a
+  `security`/`race`/`memray` task labelled `simple` is a **BLOCKER**; a manifest map that disagrees
+  with a task body is HIGH; a missing manifest map or an all-`simple` phase with ≥5 tasks is MED.
+  PLAN-CHECK.md gains `complexity_label_violations`, `complexity_mix`, `legacy_plan_no_complexity`
+  and a Complexity Labels table showing the routing effect.
+- **Retro-compatibility:** a pre-0.22.0 PLAN (NO task carries the key) produces ONE MED
+  `LEGACY_PLAN_NO_COMPLEXITY` finding and never FAILs. *Partial* adoption — some tasks labelled,
+  some not — is exactly the drift the gate exists for and does FAIL. Already-executed phases are
+  never re-checked: plan-check runs only before `/release:execute`.
+- The checker never invents a label for an unlabelled task — it is read-only; assigning it is the
+  planner's job.
+
 ## [0.21.0] — 2026-08-10
 
 ### Added — Codex token-economy policy: per-agent model routing, mandatory AGENTS.md gate, generic role catalog
