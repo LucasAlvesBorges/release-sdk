@@ -550,8 +550,9 @@ The executor agents must respect `task_filter`, `cwd`, `skip_sweep`, `is_slice`,
 for TASK_ID in "${WAVE_TASKS[@]}"; do
   WAVE_BRANCH="wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}"
   # Cherry-pick all commits from wave branch ahead of phase branch
-  COMMITS=$(G log --format=%H "${BRANCH}..${WAVE_BRANCH}")
-  for SHA in $(echo "$COMMITS" | tac); do
+  # --reverse, NOT `| tac`: macOS has no `tac`, so the pipeline expanded to nothing, the loop body
+  # never ran, and the wave's commits were silently dropped before the worktree was removed.
+  for SHA in $(G log --reverse --format=%H "${BRANCH}..${WAVE_BRANCH}"); do
     G cherry-pick "$SHA" || {
       G cherry-pick --abort
       echo "CHERRY-PICK CONFLICT in ${WAVE_BRANCH} ${SHA}"

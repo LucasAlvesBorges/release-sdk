@@ -16,12 +16,18 @@
 # noise. The baseline turns "is the suite green?" (unanswerable) into "did WE break anything?"
 # (answerable, and the only question a phase gate should ask).
 #
-# THE FILE — .release-planning/test-baselines.json (committed or not, project's choice):
+# THE FILE — .release-planning/test-baselines.json (committed or not, project's choice).
+#
+# THE SUITE KEY MUST BE THE VERIFY-GATE STEP NAME. `run_gate` looks the baseline up by the name of
+# the step it just ran, so a file keyed `backend` while the gate step is called `test` matches
+# nothing and the whole feature is silently inert — the failure mode is "it just stays RED", with
+# no error to explain why. If VERIFY-GATE.yml says `test:` and `fe-test:`, the suites are `test`
+# and `fe-test`.
 #   {
 #     "captured_at": "2026-08-11T10:00:00Z",
 #     "captured_on": "main@a1b2c3d",
 #     "suites": {
-#       "backend": {
+#       "test": {                                   ← the VERIFY-GATE step name, not a stack label
 #         "cmd": "pytest backend/apps -q",
 #         "failures": [
 #           {"id": "backend/apps/financeiro/tests/test_x.py::test_y", "error": "AssertionError"},

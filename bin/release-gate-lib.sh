@@ -34,6 +34,10 @@
 #   '#' comments are ignored. Split is on the FIRST colon only, so a command may itself contain
 #   colons (e.g. `unit: pytest -k "parse:edge"` is fine). No config + unknown stack ⇒ empty verdict.
 #
+#   Baseline lookups are keyed by the STEP NAME: the `test:` step reads `suites.test` from
+#   .release-planning/test-baselines.json. Keep the two in sync — a mismatch makes the baseline
+#   silently inert (the gate simply stays RED with nothing to explain it).
+#
 #   PASS_BASELINE (v0.23.0) = the step exited non-zero but EVERY failing test is recorded in
 #   .release-planning/test-baselines.json (see release-baseline-lib.sh). It does not turn the gate
 #   RED — inherited failures are not this phase's regressions — but it is echoed so the run is
