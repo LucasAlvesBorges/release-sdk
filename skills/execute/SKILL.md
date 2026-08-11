@@ -9,8 +9,9 @@ description: >
   independent checker via release:phase-verifier → release:code-fixer on the real evidence → re-verify)
   until GATE=GREEN AND checker PASS, then auto-lands. `--once` = legacy single-pass.
   v0.22.0: optional per-worktree test envs (.release-planning/EXEC-ENV.yml) unlock fan-out for
-  containerized suites, and per-task test invocations are capped at 2 (RED + one combined
-  GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary.
+  containerized suites, per-task test invocations are capped at 2 (RED + one combined
+  GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary, and each task spawn's model
+  tier follows the planner's complexity label (demote-only; worker tier is the ceiling).
   Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 
@@ -196,6 +197,13 @@ MECH_MODEL="$(  [ -f "$MODEL_LIB" ] && release_mechanical_model || echo haiku )"
 Every agent spawn below carries an explicit `model:` from these — the fan-out coordinator + checker on
 the orchestrator tier, the makers/fixers one rung below. Never omit `model:` (an unset worker would
 inherit the orchestrator tier). Every worker spawn's prompt also says "operate at maximum rigor / max effort".
+
+**v0.22.0 — `$WORKER_MODEL` is the phase CEILING, not a flat rate.** `release:wave-executor` resolves
+each `tdd-executor` spawn's tier from that task's planner-assigned `complexity:` label via
+`release_worker_model_for` (`simple` → one rung down, floor sonnet; `standard`/`complex`/unlabelled →
+`$WORKER_MODEL`). **`release:code-fixer` stays at `$WORKER_MODEL` unconditionally** — a fix is
+diagnosis on evidence the maker already failed to satisfy, and is never demoted by a task label.
+Same for `release:phase-verifier` (checker tier) and `release:test-discover` (`$MECH_MODEL`).
 
 The loop (`iter` 1 = the build that just finished). `run_gate` falls back to GREEN when no gate-lib /
 no gate resolvable, so a repo with no `VERIFY-GATE.yml` and an unknown stack behaves like pre-v0.18.0:
@@ -402,6 +410,28 @@ hard budget of **≤2 runner invocations per task** (≤3 for the task that also
 only when the task itself touched models or a shared type contract). TDD discipline is unchanged —
 the RED proof is still mandatory and never merged into another run; what changed is run *scope*.
 Each SUMMARY.md reports `test_runs:` so a regression in this budget is visible.
+
+### 3. Model tier per task, not per phase
+
+One tier for the whole phase overpays on mechanical work. The planner labels every task
+`complexity: simple | standard | complex` (criteria in `release:feature-planner` →
+`<task_complexity>`), and wave-executor resolves each spawn's `model:` from it:
+
+| Label | Tier | Examples |
+|---|---|---|
+| `simple` | one rung below `$WORKER_MODEL`, **floor sonnet** | serializer/URL wiring, factory or fixture, copied test matrix, config value, docs |
+| `standard` (default) | `$WORKER_MODEL` | a normal viewset + tests, a component + RTL tests |
+| `complex` | `$WORKER_MODEL` | new algorithm, backfill migration, concurrency/Q5, new security surface, cross-app refactor |
+
+- **Demote-only.** A label can never route a spawn above `$WORKER_MODEL`; a PLAN cannot promote
+  itself past the tier this skill handed down. Haiku is never used for code — it stays on
+  collection-only agents.
+- `security` / `race` / `memray` tasks are forced to at least `standard` even if the PLAN says
+  `simple` — the risk defines the tier.
+- A PLAN with no `complexity:` (anything planned before v0.22.0) routes everything at
+  `$WORKER_MODEL` — identical to v0.21.0.
+- Visibility: `model_mix` + `complexity_mix` in WAVE-SUMMARY.md, `model_mix` and
+  `complexity_misclassified` in SUMMARY.md. Cross-check real spend with `/release:tokens`.
 
 ## Output
 

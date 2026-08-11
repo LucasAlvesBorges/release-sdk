@@ -70,6 +70,13 @@ echo "→ models: $(release_model_summary)"    # transparency: prints the active
 | Fan-out sub-orchestrator + checker/verifier | `wave-executor`, `phase-verifier`, `loop-goal-verifier` | `$CHECKER_MODEL` |
 | Collection-only (the ONE effort exception) | `test-discover` | `$MECH_MODEL` |
 
+**Per-task refinement (v0.22.0).** `$WORKER_MODEL` is the **ceiling** for makers, not a flat rate.
+When a PLAN task carries a `complexity:` label, `release:wave-executor` resolves that spawn's tier
+with `release_worker_model_for <complexity>`: `simple` → one rung below `$WORKER_MODEL` with a hard
+floor at sonnet, `standard`/`complex`/unlabelled → `$WORKER_MODEL`. It can only **demote** — no label
+routes a spawn above the tier this session handed down, and haiku never authors code. `code-fixer`
+is exempt (a fix is diagnosis on failed evidence): always `$WORKER_MODEL`.
+
 Also instruct every worker spawn to "operate at maximum rigor / max effort" in its prompt (subagent effort is not yet a spawnable param; `$CLAUDE_EFFORT` on this session is already `max`). If the lib is unreachable, fall back to the frontmatter defaults (worker→sonnet, checker→opus) and say so.
 
 ---

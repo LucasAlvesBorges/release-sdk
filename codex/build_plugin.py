@@ -73,6 +73,15 @@ MODEL_LUNA = "gpt-5.6-luna"
 MODEL_TERRA = "gpt-5.6-terra"
 MODEL_FRONTIER = "gpt-5.6"
 
+# These pins are a CEILING, not a flat rate. release-sdk PLANs label each task
+# `complexity: simple|standard|complex` and the Claude runtime resolves the
+# per-spawn tier from it (release_worker_model_for in bin/release-model-lib.sh).
+# A label may only DEMOTE from the pin below — never promote past it — and code
+# never falls to MODEL_LUNA (that tier is for mechanical/collection agents only).
+# tdd-executor is pinned at MODEL_TERRA, which is already the code floor, so the
+# label is informational under Codex: it changes no model here, only telemetry.
+# See codex/contracts/routing-policy.md § "Per-task complexity routing".
+#
 # Explicit (model, effort, role_class) per source agent — hand-classified from
 # each agent's actual description/tools rather than inferred, because a
 # regex heuristic can't reliably tell "mechanical but happens to hold Write"

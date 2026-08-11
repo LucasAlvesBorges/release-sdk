@@ -64,6 +64,24 @@ reasoning effort for a specific call when the complexity level demands it
   merge plan. No destructive change ships without described
   validation+rollback.
 
+## Per-task complexity routing (release-sdk PLAN tasks, v0.22.0)
+
+A release-sdk PLAN labels every task `complexity: simple|standard|complex`, and the Claude runtime
+resolves each `tdd-executor` spawn's tier from it (`release_worker_model_for` in
+`bin/release-model-lib.sh`). Two invariants carry over here unchanged:
+
+- **The agent's pinned model is the CEILING.** A task label may only DEMOTE from it. `complex`
+  never promotes a spawn above `AGENT_MODEL_OVERRIDES[<agent>]` — that pin is the policy decision,
+  the label is only a per-call discount.
+- **Code never drops to the mechanical tier.** `simple` steps ONE rung down with a floor at the
+  code tier (Sonnet on Claude, **Terra** here). Luna stays reserved for mechanical/collection roles
+  (`test-discover`, `doc-classifier`, `nyquist-auditor`, …), never for authoring code.
+
+`tdd-executor` is pinned at Terra, which is already that floor — so under Codex the per-task label
+is informational: it neither promotes to Frontier nor demotes to Luna. It still travels in the
+spawn payload and still lands in `SUMMARY.md` (`model_mix`) so the two runtimes report the same
+telemetry.
+
 ## Risk floors (override the computed score)
 
 Auth, authorization, payments, crypto, secrets, privacy → minimum **C3**.
