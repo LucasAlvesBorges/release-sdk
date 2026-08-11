@@ -57,6 +57,35 @@ Django suite pays 30-60s of setup *per invocation*, and each task was paying it 
 TDD discipline is unchanged: the RED proof is still mandatory and never merged into another run.
 What changed is the *scope and count* of the runs.
 
+### Added — per-task model tier by complexity
+
+`release_worker_model()` handed ONE tier to every `tdd-executor` spawn of a phase, so wiring a
+serializer cost the same as writing a concurrency guard.
+
+- **`release_worker_model_for <complexity>`** in `bin/release-model-lib.sh`: `complex`/`standard`/
+  unknown/absent → `release_worker_model` (unchanged); `simple` → one rung below the worker with a
+  **hard floor at sonnet** (haiku stays reserved for mechanical/collection agents, never for code).
+  **Demote-only** — the worker tier is the ceiling; a PLAN cannot promote itself past the tier
+  `/release:execute` handed down. `test-model-lib.sh`: 23 → 38 assertions.
+- **`agents/feature-planner.md`** — new required `complexity: simple|standard|complex` per task plus
+  a `<task_complexity>` criteria table (simple = mechanical 1:1 pattern change, no design decision,
+  ≤2 files, RED test is a copy · complex = new algorithm, data-backfill migration, concurrency,
+  new security surface, cross-app refactor, RED test needing domain reasoning · standard = the rest
+  and the default). Security/race/memray tasks may never be `simple`. The wave manifest repeats the
+  labels so the executor routes without opening every slice.
+- **`agents/wave-executor.md`** — resolves each spawn's `model:` through `release_worker_model_for`,
+  forces risky task types back to `standard`, records `model_mix` + `complexity_mix`.
+- **`agents/tdd-executor.md`** — accepts `complexity`, reports `model_mix` and
+  `complexity_misclassified`, and must not lower rigor because a task was labelled `simple`.
+- **`skills/auto/SKILL.md` (LOCKED doctrine) + `skills/execute/SKILL.md`** — `$WORKER_MODEL` is
+  documented as a ceiling; `code-fixer` is explicitly exempt (a fix is diagnosis on evidence the
+  maker already failed) and `phase-verifier` stays on the checker tier.
+- **Codex parity** — `codex/contracts/routing-policy.md` + `codex/build_plugin.py`:
+  `AGENT_MODEL_OVERRIDES` is the ceiling a label may only demote from, and `tdd-executor`'s Terra
+  pin is already the code floor, so the label is telemetry-only under Codex.
+
+A PLAN with no `complexity:` field routes every task at the worker tier — identical to 0.21.0.
+
 ## [0.21.0] — 2026-08-10
 
 ### Added — Codex token-economy policy: per-agent model routing, mandatory AGENTS.md gate, generic role catalog

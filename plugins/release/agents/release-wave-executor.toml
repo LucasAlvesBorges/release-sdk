@@ -66,6 +66,25 @@ If these are unset (invoked outside the wired path), resolve them yourself from 
 (`release_worker_model` / `release_mechanical_model`); if the lib is unreachable, default `worker_model=sonnet`,
 `mechanical_model=haiku`. NEVER omit `model:` on a spawn — an unset worker inherits YOUR (orchestrator) tier,
 which defeats the maker≠checker hierarchy. Every worker spawn's prompt also says "operate at maximum rigor / max effort".
+
+**Per-task tier (v0.22.0).** `worker_model` is the phase CEILING, not a flat rate. Each task carries a
+`complexity:` label (planner-assigned; manifest repeats them per wave as `complexity: {T01: …}`).
+Resolve each `tdd-executor` spawn's tier from that label:
+
+```bash
+MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
+task_model() {  # $1 complexity → concrete tier for THIS task's spawn
+  if [ -f "$MODEL_LIB" ]; then release_worker_model_for "$1"; else printf '%s' "${worker_model:-sonnet}"; fi
+}
+```
+
+- `complex` / `standard` / **missing** / unrecognized → the phase `worker_model` (unchanged).
+- `simple` → one rung below, floored at sonnet. Mechanical wiring does not improve with a bigger model.
+- **Demote-only**: never route a task ABOVE `worker_model`, whatever the label says. A PLAN cannot
+  promote itself past the tier `/release:execute` handed down.
+- Legacy PLAN with no `complexity:` anywhere → every task `standard` → byte-identical to v0.21.0.
+- The tier is per SPAWN, not per wave: one wave may hold a `simple` and a `complex` task side by side.
+- Count the tiers actually used and report them as `model_mix` in WAVE-SUMMARY.md.
 </model_tiers>
 
 <execution_flow>
@@ -350,7 +369,8 @@ done
 
 ```yaml
 agent: release-tdd-executor
-model: <worker_model>               # maker tier handed down by /release:execute (opus | sonnet). NEVER omit.
+model: <task_model(complexity of THIS task)>   # v0.22.0 — worker_model for complex/standard/unlabelled,
+                                               # one rung down (floor sonnet) for simple. NEVER omit.
 config:
   plan_path: "<worktree>/.release-planning/phases/{NN}-{slug}/PLAN-SLICE-{TASK_ID}.md"
   task_filter: ["T02"]              # only this task (defensive — slice already contains only this)
@@ -360,6 +380,7 @@ config:
   skip_sweep: true                  # intermediate wave — terminal sweep runs at end-of-phase
   is_slice: true                    # signal that plan_path is a slice (full-read OK, no offset gymnastics)
   test_exec_prefix: "<TASK_PREFIX[TASK_ID]>"   # v0.22.0 — "" when EXECENV=off (host-local exec)
+  complexity: "<simple|standard|complex>"      # v0.22.0 — the label this spawn's model: was resolved from
   instruction_suffix: "operate at maximum rigor / max effort"
 ```
 
@@ -468,6 +489,8 @@ total_tasks: {N}
 parallel_tasks: {N}    # tasks that ran in worktrees
 serial_tasks: {N}      # tasks that fell back to serial
 duration_seconds: {N}
+model_mix: { opus: {N}, sonnet: {N} }   # v0.22.0 — tdd-executor spawns per tier (complexity routing)
+complexity_mix: { simple: {N}, standard: {N}, complex: {N} }   # unlabelled tasks counted as standard
 exec_env: on | off             # .release-planning/EXEC-ENV.yml present + provisioning ran
 env_max_parallel: {N}          # concurrency cap actually applied (0 = unlimited)
 env_provision_failed: []       # task IDs whose env failed → executed serially in the phase worktree
@@ -518,6 +541,7 @@ For wave executor to work, `release-tdd-executor` must accept (v0.12.0):
 - `skip_sweep: true` — skip parallel_test_sweep (intermediate wave only; terminal wave still runs full sweep)
 - `is_slice: true` — plan_path is a per-task slice; executor full-reads (no offset gymnastics) and skips manifest re-load
 - `test_exec_prefix: "<string>"` — v0.22.0; prefix prepended to EVERY pytest/manage.py/vitest command the executor runs (`docker exec app-w1_t02` …). Empty/unset ⇒ host-local exec (pre-v0.22.0 behaviour)
+- `complexity: simple|standard|complex` — v0.22.0; the label this spawn's `model:` was resolved from. Informational for the executor (it reports it in SUMMARY.md `model_mix`); the routing decision is the wave-executor's
 
 Executor reads these from Agent spawn config. If unset, default behavior (all tasks/waves, branch-per-phase, current cwd, full sweep, no slice, host-local exec).
 
@@ -546,6 +570,8 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 - NEVER let a failed provision silently drop a task — surface the evidence path, fall back to serial in `$PHASE_WT`, and record `env_provision_failed` in WAVE-SUMMARY.md
 - NEVER treat a failed teardown as fatal — log it, keep going (a leaked container must not cost the commits)
 - With `EXECENV=off` (no `.release-planning/EXEC-ENV.yml`) NOTHING above changes behaviour: no provisioning, empty prefix, exactly the pre-v0.22.0 flow
+- NEVER spawn a task ABOVE `worker_model` — the complexity label may only DEMOTE (a PLAN cannot promote itself past the tier `/release:execute` handed down)
+- NEVER route a `security` / `race` / `memray` task to the `simple` tier even if the PLAN says so — the risk defines the tier; treat it as `standard` and note the override in WAVE-SUMMARY.md
 - NEVER run an app-wide / suite-wide test command as part of a task spawn — suite-level runs belong to the wave boundary (intermediate) or the terminal sweep. That is the per-task cost the executor's `test_invocation_budget` exists to bound.
 
 </safety_rules>
@@ -599,6 +625,8 @@ def has_django_system_check_precommit():
 - [ ] Terminal wave: full parallel_test_sweep via release-test-discover + 5x release-test-runner
 - [ ] `EXECENV=on`: every parallel spawn got a provisioned env + its `test_exec_prefix`; every env torn down before its worktree was removed; live envs never exceeded `test_env_max_parallel`
 - [ ] `EXECENV=off`: no provisioning attempted, `test_exec_prefix` empty on every spawn (behaviour identical to pre-v0.22.0)
+- [ ] Every `tdd-executor` spawn's `model:` resolved via `release_worker_model_for <complexity>`; no spawn above `worker_model`; unlabelled tasks ran at the worker tier
+- [ ] `model_mix` + `complexity_mix` recorded in WAVE-SUMMARY.md
 - [ ] No task spawn ran a suite-wide test command (per-task runs are task-scoped; suite runs live at wave boundary / terminal sweep)
 - [ ] Monolithic PLAN.md > 600 lines → refused with re-split hint (no execution attempted)
 - [ ] `--resume` skips tasks already committed (grep T-ID in `git log`)

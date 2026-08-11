@@ -36,6 +36,11 @@
 #   release_model_profile               → `fable-opus` | `opus-sonnet`
 #   release_orchestrator_model          → `fable` | `opus`     (the main-loop driver + fan-out coordinator)
 #   release_worker_model                → `opus`  | `sonnet`   (makers, fixers, auditors, debuggers)
+#   release_worker_model_for <complexity>
+#                                       → per-TASK maker tier (v0.22.0). `complex`/`standard`/unknown/
+#                                         absent ⇒ release_worker_model (unchanged); `simple` ⇒ one
+#                                         rung below the worker with a HARD FLOOR at sonnet.
+#                                         Classification can only DEMOTE, never promote.
 #   release_checker_model               → = orchestrator tier  (Fable evaluates Opus; Opus evaluates Sonnet)
 #   release_mechanical_model            → `haiku`              (collection-only agents; the ONE effort exception)
 #   release_model_effort                → `max` (or $CODEX_REASONING_EFFORT) — every role runs at maximum effort
@@ -77,6 +82,31 @@ release_worker_model() {
   return 0
 }
 
+# ── public: per-TASK maker tier (v0.22.0 — complexity-aware routing) ─────────────────────────────
+# One tier for a whole phase overpays on mechanical work: wiring a serializer, copying a test matrix
+# or touching config does not improve with a bigger model, while a new algorithm, a data-backfill
+# migration or a concurrency guard does. The PLANNER classifies each task (`complexity:` in the task
+# block); this resolves that label to a concrete tier.
+#
+# DEMOTE-ONLY invariant: the worker tier is the CEILING. `simple` steps ONE rung down and stops at
+# sonnet — haiku stays reserved for mechanical/collection agents (release_mechanical_model), never
+# for code. So under opus-sonnet (worker=sonnet) `simple` is already at the floor ⇒ no change. A
+# missing / unknown label resolves to the worker tier, so a legacy PLAN behaves exactly as before.
+release_worker_model_for() {  # [complexity: simple|standard|complex]
+  local c="${1:-}" worker; worker="$(release_worker_model)"
+  case "$c" in
+    simple)
+      case "$worker" in
+        fable)  printf 'opus'   ;;   # defensive: workers are never fable today
+        opus)   printf 'sonnet' ;;   # fable-opus profile — the real saving
+        *)      printf 'sonnet' ;;   # opus-sonnet profile — already at the floor
+      esac
+      ;;
+    *) printf '%s' "$worker" ;;      # complex | standard | unknown | absent → unchanged
+  esac
+  return 0
+}
+
 # The checker is the orchestrator tier by design: a model ABOVE the maker evaluates the maker's work.
 # This is both "Fable loops to evaluate Opus" (the user's intent) and the maker≠checker invariant.
 release_checker_model() { release_orchestrator_model; }
@@ -90,9 +120,10 @@ release_model_effort() { printf '%s' "${CODEX_REASONING_EFFORT:-max}"; return 0;
 
 # ── public: human-readable one-liner for skill preambles + /release:models ────────────────────────
 release_model_summary() {
-  local prof orch work
+  local prof orch work simple
   prof="$(release_model_profile)"; orch="$(release_orchestrator_model)"; work="$(release_worker_model)"
-  printf 'profile=%s  orchestrator/checker=%s  worker=%s  effort=%s' \
-    "$prof" "$orch" "$work" "$(release_model_effort)"
+  simple="$(release_worker_model_for simple)"
+  printf 'profile=%s  orchestrator/checker=%s  worker=%s  worker[simple]=%s  effort=%s' \
+    "$prof" "$orch" "$work" "$simple" "$(release_model_effort)"
   return 0
 }
