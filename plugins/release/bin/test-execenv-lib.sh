@@ -26,7 +26,9 @@
 # Run: bash bin/test-execenv-lib.sh
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ${BASH_SOURCE[0]:-$0}: this suite must be runnable under zsh too — the libs are
+# SOURCED by a zsh harness in production, and bash-only path resolution hid a real bug.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # shellcheck source=release-execenv-lib.sh
 source "$HERE/release-execenv-lib.sh"
 
@@ -207,6 +209,12 @@ printf 'test_env_provision: true\ntest_timeout: 1\n' > "$ROOT/.release-planning/
 OUT="$(run_test_bounded "$ROOT" 'printf "ok\n"' "$ROOT")"
 has "fast command → not hung" "$OUT" "TEST_HUNG=false"
 has "rc reported" "$OUT" "TEST_RC=0"
+has "boundedness is reported honestly" "$OUT" "TEST_BOUNDED="
+if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+  has "a timeout binary exists → bounded true" "$OUT" "TEST_BOUNDED=true"
+else
+  has "no timeout binary → bounded FALSE (never claim a bound that was not applied)" "$OUT" "TEST_BOUNDED=false"
+fi
 OUTF="$(printf '%s\n' "$OUT" | sed -n 's/^TEST_OUTPUT=//p')"
 eq "output captured to a file that survives the subshell" "ok" "$(cat "$OUTF")"
 OUT="$(run_test_bounded "$ROOT" 'exit 3' "$ROOT")"

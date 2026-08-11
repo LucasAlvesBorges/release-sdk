@@ -52,8 +52,12 @@
 #                                              `TEST_OUTPUT=<file>` (captured stdout+stderr — a file,
 #                                              because callers use `$( )` and a variable would not
 #                                              survive the subshell), `TEST_HUNG=<true|false>`,
-#                                              `TEST_ELAPSED=<s>`, `TEST_RC=<n>`, plus `TEST_TIMEOUT`
-#                                              and `TEST_CMD` on a hang. A hang is rc 124/137.
+#                                              `TEST_ELAPSED=<s>`, `TEST_RC=<n>`, `TEST_BOUNDED=
+#                                              <true|false>` (false ⇒ no timeout binary, the run was
+#                                              NOT bounded), plus `TEST_TIMEOUT`/`TEST_CMD` on a
+#                                              hang. rc 124 = expiry; rc 137 = SIGKILL, which is
+#                                              ambiguous (timeout's -k, OOM killer, external kill) —
+#                                              reported with `TEST_KILLED=true` and a `TEST_NOTE`.
 #   execenv_migrate_cmd <root> <wt> <label>  → rendered `test_env_migrate` (empty when unset) — run
 #                                              by a task that CREATED a migration, before its tests
 #   release_execenv_reuse <root>             → `EXECENV_REUSE=on|off` (`test_env_reuse: true`) —
@@ -66,8 +70,9 @@
 # Config format — .release-planning/EXEC-ENV.yml — an ORDERED flat map, one `key: value` per line,
 # split on the FIRST colon only (values routinely contain colons: `-v {worktree}/backend:/app`):
 #
-#       test_env_provision:    docker run -d --name app-{label} -v {worktree}/backend:/app app:test
-#                              && docker exec app-{label} createdb-from-template test_{label}
+#       test_env_provision:    docker run -d --name app-{label} -v {worktree}/backend:/app app:test && docker exec app-{label} createdb-from-template test_{label}
+#       (ONE line per key — the parser is a flat first-colon split; a continuation line is silently
+#        dropped, so chain with && or call a script instead of wrapping)
 #       test_env_teardown:     docker rm -f app-{label} >/dev/null 2>&1 || true
 #       test_exec_prefix:      docker exec app-{label}
 #       test_env_max_parallel: 4
@@ -217,10 +222,19 @@ run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → sets _TEST_OUT; echoes
   # shell variable set in the subshell would be lost. Same contract as GATE_EVIDENCE.
   local outf; outf="$(mktemp -t release-test-XXXXXX)"; printf '%s\n' "$_TEST_OUT" > "$outf"
   echo "TEST_OUTPUT=$outf"
+  # Whether the run was actually bounded is part of the verdict: with no timeout binary the command
+  # ran unbounded, and a caller that reports `bounded: true` would be lying.
+  [ -n "$runner" ] && echo "TEST_BOUNDED=true" || echo "TEST_BOUNDED=false"
   case "$rc" in
-    124|137) echo "TEST_HUNG=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
-             echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc" ;;
-    *)       echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc" ;;
+    124) echo "TEST_HUNG=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+         echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc" ;;
+    137) # SIGKILL: the timeout's -k follow-up, OR an OOM kill / an external `kill -9`. Ambiguous by
+         # nature — reported as a hang only when a bound was actually in force, and flagged either way.
+         if [ -n "$runner" ]; then echo "TEST_HUNG=true"; else echo "TEST_HUNG=false"; fi
+         echo "TEST_KILLED=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+         echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc"
+         echo "TEST_NOTE=rc137 is SIGKILL — timeout follow-up, OOM killer, or external kill; check dmesg/docker events before assuming a hang" ;;
+    *)   echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc" ;;
   esac
   return 0
 }

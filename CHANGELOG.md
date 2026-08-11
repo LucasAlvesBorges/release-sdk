@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1] — 2026-08-11
+
+Fixes from an independent adversarial audit of v0.22.0..v0.24.0. The transversal finding: the suites
+run under `bash`, but the harness SOURCES these libs under **zsh** on macOS — two shipped bugs were
+invisible to every existing test.
+
+### Fixed — BLOCKER: the baseline turned every inherited red into a RED gate under zsh
+
+- `baseline_parse_failures` used `local id err` (declaration without assignment), which in zsh
+  PRINTS the previous values. From the second failure onward the parser emitted `id=…` / `err=…`
+  lines as bogus signatures: one inherited failure worked, two or more forced `GATE=RED` — the exact
+  many-inherited-reds scenario the feature exists for. Parser rewritten in awk; every `local` in the
+  lib declared once, with an assignment.
+- Same family, found by the new suite: `run_gate` located its sibling baseline lib via
+  `${BASH_SOURCE[0]}`, which does not exist in zsh, so `PASS_BASELINE` could never fire there. The
+  lib dir is captured at source time from `${BASH_SOURCE[0]:-$0}` (`RELEASE_LIB_DIR` overrides).
+- **New `bin/test-zsh-compat.sh`** (46 assertions): every stdout-contract function — baseline, gate,
+  loop, model, execenv, progress, planning-sync round trip, `land_branch` — runs in BOTH shells and
+  must produce byte-identical output with no leaked locals. Every existing suite also resolves its
+  own path with `${BASH_SOURCE[0]:-$0}` so it can be invoked with `zsh` as well.
+  `bin/test-session-merge.sh` remains a bash-only harness (bash arrays throughout); the merge lib
+  itself is covered in both shells by the probes above.
+
+### Fixed — BLOCKER-adjacent: the planning sync was also broken under zsh
+
+Found by running the suites under zsh for the first time. `planning_sync_in` iterated a shell glob
+(`phases/12-*`), and an unmatched glob is an **error** in zsh (nomatch) — the loop aborted and the
+phase worktree was born WITHOUT its PLAN, which is the exact failure the lib exists to prevent.
+`planning_sync_out` then dropped every phase-scoped artifact because `case "$dir" in $glob)` does
+not re-parse an unquoted variable as a pattern in zsh (bash does). Both now match with `find` plus
+an exact-membership test. The cross-shell suite covers a full round trip (in → produce → out).
+
+### Fixed — HIGH
+
+- **Slot lifecycle vs the scheduler.** The harvest step tore down the env and worktree while the
+  slot section said slots live to end-of-phase; nothing defined when a slot becomes free; the merge
+  recipe named a per-task branch that does not exist in slot mode; `SCHED_CAP` was used before the
+  step that defines it. A slot released before its cherry-pick would be `reset --hard` by the next
+  task — silent commit loss. REUSE MODE is now an explicit scheduler branch with a stated
+  lifecycle (acquire → spawn → pick from the SLOT branch → verify → release), teardown at
+  end-of-phase only, and five NEVER rules.
+- **Baseline suite key.** `run_gate` looks up by VERIFY-GATE STEP NAME, but every example used stack
+  labels (`backend`) — capturing by example produced a file that could never match, leaving the
+  feature silently inert. Examples corrected, rule stated in three places, `capture` verifies keys.
+- **Hostile test ids.** The recorded-signature reader split on commas (dropping `test_x[1,2]`) and
+  the parser truncated at the first ` - ` (mangling `test_x[a - b]`). Both are now bracket- and
+  quote-aware.
+- **Progress was invisible while it mattered.** The writer lives in the worktree, the reader in the
+  main checkout, and the sync only ran at the end — so the 30-minute heartbeat could never be seen
+  during a build. `RELEASE_PROGRESS_MIRROR` mirrors every write into the main checkout atomically.
+- **`tac` does not exist on macOS.** The wave cherry-pick loop piped `git log` through it, so the
+  loop body never ran and the wave's commits were dropped before the worktree was removed — with no
+  error. Replaced with `git log --reverse`.
+
+### Fixed — MED
+
+- A bare-assert failure (`- assert 1 == 2`) embeds a volatile repr, so it normalizes to `Failure`
+  instead of a signature that can never match twice.
+- `run_gate` detects the runner from the OUTPUT, not the step name — a step called `tests` matched a
+  naive `*ts*` rule and was parsed as vitest.
+- `test_env_migrate` under reuse is now actually wireable: `env_label` + `cfg_root` are part of the
+  spawn config (the executor referenced variables nobody passed).
+- `run_test_bounded` echoes `TEST_BOUNDED=true|false` (no timeout binary ⇒ the run was NOT bounded,
+  and the JSON must not claim otherwise), and rc 137 is reported as ambiguous — SIGKILL is also what
+  an OOM kill looks like.
+- A task with no `files:` declaration has an unknown footprint: it collides with everything and runs
+  alone. Under PARTIAL `depends_on` adoption an undeclared task inherits the wave barrier instead of
+  being treated as ready at t=0.
+- The cherry-pick conflict fallback re-applies the resume skip filter, so already-landed tasks are
+  not executed twice.
+- **Trap semantics**: each ```bash block in a skill is its own shell, so `trap … EXIT` fires at the
+  end of that block (it would have deleted the worktree it just created) and `trap - EXIT` later is
+  a no-op. Replaced by an explicit per-stage Cleanup contract, plus a note to re-export
+  `RELEASE_EXEC_PREFIX` in every block that calls `run_gate`.
+- The EXEC-ENV header showed a multi-line example the one-line parser silently drops.
+
+### Fixed — LOW
+
+- A value with a leading zero (`phase=07`) was emitted as a bare number, which is invalid JSON — it
+  now stays a string. `progress_heartbeat` can actually report `HEARTBEAT=failed`.
+- `feature-planner` now EMITS `execution_order:` in fullstack manifests — `/release:execute
+  --fullstack` reads it, but nothing produced it.
+
+### Note — behaviour change carried over from 0.23.0
+
+A repo with **no** `EXEC-ENV.yml` now gets a concurrency cap of `min(8, cores/2)` where task spawns
+were previously unbounded. Set `test_env_max_parallel` to override.
+
 ## [0.24.0] — 2026-08-11
 
 Everything in this release comes from measured friction in one real fullstack phase, not from

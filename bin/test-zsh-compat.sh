@@ -15,12 +15,15 @@
 # Run: bash bin/test-zsh-compat.sh
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ${BASH_SOURCE[0]:-$0}: this suite must be runnable under zsh too — the libs are
+# SOURCED by a zsh harness in production, and bash-only path resolution hid a real bug.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 PASS=0; FAIL=0; SKIP=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 no() { printf '  \033[31m✗ %s\033[0m\n      %s\n' "$1" "${2:-}"; FAIL=$((FAIL+1)); }
 eq() { [ "$2" = "$3" ] && ok "$1" || no "$1" "bash=[$2] zsh=[$3]"; }
+has() { case "$2" in *"$3"*) ok "$1";; *) no "$1" "missing [$3] in: $2";; esac; }
 # A leak looks like a bare `varname=value` LINE (zsh echoing a re-declared local), not like a
 # verdict line such as `LOOP=continue` or `profile=fable-opus` — those are the contract.
 noleak() {
@@ -102,6 +105,69 @@ mkdir -p "$TMP/pd"
 both "progress write+read"  release-progress-lib.sh \
      "progress_write '$TMP/pd' task=T01 tasks_total=9 >/dev/null; progress_get '$TMP/pd' task; progress_get '$TMP/pd' tasks_total"
 both "artifact globs"       release-planning-sync-lib.sh 'planning_artifact_globs'
+
+# The real thing, not just the glob list: a phase-scoped round trip. Two zsh-only defects lived
+# here — an unmatched glob ABORTS a loop in zsh (the worktree was born without its PLAN), and an
+# unquoted variable in a `case` pattern is NOT re-parsed as a glob in zsh (every phase-scoped
+# artifact was silently skipped on the way out).
+sync_probe() {
+  cat <<PROBE
+M="\$(mktemp -d)"; W="\$(mktemp -d)"
+mkdir -p "\$M/.release-planning/phases/12-inv" "\$M/.release-planning/phases/13-other"
+printf 'plan\n'    > "\$M/.release-planning/phases/12-inv/12-PLAN.md"
+printf 'locks\n'   > "\$M/.release-planning/RELEASE-LOCKS.md"
+planning_sync_in "\$M" "\$W" '12-*' | grep FILES
+printf 'summary\n' > "\$W/.release-planning/phases/12-inv/12-SUMMARY.md"
+printf 'slice\n'   > "\$W/.release-planning/phases/12-inv/PLAN-SLICE-T1.md"
+planning_sync_out "\$W" "\$M" '12-*' | grep FILES
+find "\$M/.release-planning/phases" -type f | sed "s|\$M||" | sort
+PROBE
+}
+both "phase-scoped round trip (in → produce → out)" release-planning-sync-lib.sh "$(sync_probe)"
+Z="$(run_in zsh release-planning-sync-lib.sh "$(sync_probe)")"
+has "zsh: the PLAN reached the worktree"      "$Z" "12-PLAN.md"
+has "zsh: the SUMMARY came back to main"      "$Z" "12-SUMMARY.md"
+case "$Z" in *PLAN-SLICE*) no "zsh: scratch stayed in the worktree" "PLAN-SLICE leaked to main";;
+             *) ok "zsh: scratch stayed in the worktree";; esac
+
+echo "── merge lib (land_branch runs under zsh in production) ──"
+# bin/test-session-merge.sh is a bash harness (arrays, bash-only idioms) and is NOT run under zsh;
+# these probes cover the LIB itself in both shells, which is what production sources. They also
+# cover the lock lifecycle, because the zsh run of that harness reported `locked` where bash
+# reported `merged` — a cascade from its own earlier failures, not a lib divergence.
+merge_probe() {
+  cat <<PROBE
+D="\$(mktemp -d)"; cd "\$D" || exit 1
+git init -q -b main . >/dev/null 2>&1
+git config user.email t@t; git config user.name t
+printf 'a\n' > f; git add .; git commit -qm init
+git branch -q feat/x; git worktree add -q wt feat/x >/dev/null 2>&1
+( cd wt && printf 'b\n' > g && git add . && git commit -qm work ) >/dev/null 2>&1
+land_branch feat/x "\$D/wt" main | tail -1
+git -C "\$D" log --oneline main | wc -l | tr -d ' '
+PROBE
+}
+both "land_branch happy path + resulting history" release-merge-lib.sh "$(merge_probe)"
+Z="$(run_in zsh release-merge-lib.sh "$(merge_probe)")"
+has "zsh: the branch actually landed" "$Z" "RESULT=merged"
+
+dirty_probe() {
+  cat <<PROBE
+D="\$(mktemp -d)"; cd "\$D" || exit 1
+git init -q -b main . >/dev/null 2>&1
+git config user.email t@t; git config user.name t
+printf 'a\n' > f; git add .; git commit -qm init
+git branch -q feat/y; git worktree add -q wt feat/y >/dev/null 2>&1
+( cd wt && printf 'b\n' > g && git add . && git commit -qm work ) >/dev/null 2>&1
+printf 'uncommitted\n' > f            # base is dirty ⇒ must HOLD, never clobber
+land_branch feat/y "\$D/wt" main | tail -1
+cat f
+PROBE
+}
+both "land_branch holds on a dirty base (never clobbers)" release-merge-lib.sh "$(dirty_probe)"
+Z="$(run_in zsh release-merge-lib.sh "$(dirty_probe)")"
+has "zsh: held rather than merged" "$Z" "RESULT=held-dirty"
+has "zsh: the user's uncommitted work is intact" "$Z" "uncommitted"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

@@ -25,7 +25,9 @@
 set -euo pipefail
 
 # ── source the REAL engine (single source of truth — no faithful-slice drift) ──────────────────────
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ${BASH_SOURCE[0]:-$0}: this suite must be runnable under zsh too — the libs are
+# SOURCED by a zsh harness in production, and bash-only path resolution hid a real bug.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # shellcheck source=release-merge-lib.sh
 source "$HERE/release-merge-lib.sh"
 

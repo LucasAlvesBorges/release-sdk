@@ -242,7 +242,11 @@ if ! ( set -o noclobber; printf '%s %s\n' "$SESSION_ID" "$(date +%s)" > "$LOCK" 
   fi
   printf '%s %s\n' "$SESSION_ID" "$(date +%s)" > "$LOCK"   # holder worktree gone → reclaim stale lock
 fi
-trap 'rm -f "$LOCK"; git worktree remove --force "$WT_ROOT/$SESSION_ID/phase" 2>/dev/null' EXIT
+# NOTE (v0.24.1): each ```bash block in this skill is a SEPARATE shell invocation, so an `EXIT`
+# trap fires at the end of THIS block — it would delete the worktree you just created, and a later
+# `trap - EXIT` in another block is a no-op. Cleanup is therefore EXPLICIT and per-stage; see
+# "Cleanup contract" below. Set a trap only inside a block that must not leave a half-made thing
+# behind, and have it undo only what that same block created.
 
 # --- session-scoped phase worktree (Camada 1): main checkout is NEVER touched ---
 PHASE_WT="$WT_ROOT/$SESSION_ID/phase"
@@ -291,9 +295,10 @@ if [ -f "$ENV_LIB" ] && [ "$(release_execenv_active "$ROOT")" = "EXECENV=on" ]; 
        echo "  fix .release-planning/EXEC-ENV.yml (or RELEASE_EXECENV_DISABLE=1 to run host-local)."
        exit 1 ;;
   esac
-  # tear the phase env down on ANY exit path, alongside the lock + worktree cleanup
-  trap 'execenv_teardown "$ROOT" "$PHASE_WT" "$PHASE_LABEL" >/dev/null 2>&1; rm -f "$LOCK"; git worktree remove --force "$PHASE_WT" 2>/dev/null' EXIT
 fi
+# The phase env is torn down EXPLICITLY at the end of the run (see "Cleanup contract"), not by an
+# EXIT trap: this block ends within seconds, and a trap here would tear the env down before the
+# first task ever ran.
 ```
 
 No `EXEC-ENV.yml` ⇒ `EXECENV=off`, `PHASE_PREFIX=""` ⇒ everything below runs host-locally, exactly
@@ -312,6 +317,14 @@ test: $RELEASE_EXEC_PREFIX pytest backend/apps -q
 
 Then spawn the wave-executor handing down the isolation context:
 
+The executor's progress file must be visible from the MAIN checkout while the build runs (the
+artifact sync only happens at the end), so hand down the mirror target:
+
+```bash
+export RELEASE_PROGRESS_MIRROR="$ROOT/.release-planning/phases/{NN}-{slug}"
+mkdir -p "$RELEASE_PROGRESS_MIRROR"
+```
+
 ```yaml
 agent: release-wave-executor
 model: $CHECKER_MODEL          # fan-out sub-orchestrator → orchestrator tier (Fable | Opus)
@@ -322,6 +335,8 @@ config:
   branch_already_set: true    # phase worktree already on the branch → skip its ensure_branch checkout
   worker_model: $WORKER_MODEL  # wave-executor tags EVERY tdd-executor spawn with this (maker tier: Opus | Sonnet)
   mechanical_model: $MECH_MODEL # test-discover collection tier (haiku); test-runner uses worker_model
+  progress_mirror: "$RELEASE_PROGRESS_MIRROR"   # v0.24.1 — .progress.json also lands in the main
+                              #            checkout, so /release:status sees the build IN FLIGHT
   cfg_root: "$ROOT"           # v0.22.0 — where .release-planning/EXEC-ENV.yml lives
   phase_prefix: "$PHASE_PREFIX" # v0.22.0 — exec prefix of the PHASE env (serial path + wave verify + terminal sweep)
 ```
@@ -423,7 +438,7 @@ if [ -f "$PSYNC_LIB" ]; then
   OUT="$(planning_sync_out "$PHASE_WT" "$ROOT" "{NN}-*")"
   case "$OUT" in
     *PLANNING_SYNC_OUT=failed*)
-      trap - EXIT                       # do NOT let the trap delete the only copy of the artifacts
+      # STOP HERE. Do not run any cleanup step below — the artifacts exist only inside $PHASE_WT.
       echo "ABORT: could not copy planning artifacts out of $PHASE_WT — NOT tearing it down."
       printf '%s\n' "$OUT"
       echo "  Rescue them by hand, then re-run. Worktree kept at: $PHASE_WT"
@@ -467,6 +482,25 @@ fi
 With `--no-merge` or `--pr`, `feat/{NN}-{slug}` survives as a shared ref — `verify`/push/PR reach it
 without re-checkout: `git push -u origin feat/{NN}-{slug}` works from the main checkout regardless of
 its current branch; open the PR from `feat/{NN}-{slug}` after `/release:verify {NN}` PASS.
+
+## Cleanup contract (v0.24.1)
+
+Every ```bash block in this skill runs as its own shell. `trap … EXIT` therefore fires when the
+BLOCK ends, not when the phase ends — a trap registered next to `git worktree add` would delete
+that worktree seconds later, and `trap - EXIT` in a later block cancels nothing. So cleanup is
+explicit, ordered, and owned by the stage that reaches it:
+
+| Reached | Do, in this order |
+|---|---|
+| Loop finished, artifacts synced OUT ok | `execenv_teardown` (phase env) → `land_branch` (which removes `$PHASE_WT`) → `rm -f "$LOCK"` → `git worktree prune` |
+| Verified but not landing (in-session / `--no-merge` / `--pr`) | `execenv_teardown` → `git worktree remove --force "$PHASE_WT"` → `rm -f "$LOCK"` → prune |
+| Circuit breaker (gate/checker never green) | `rm -f "$LOCK"` ONLY — keep `$PHASE_WT` and its env; the work and the evidence live there |
+| `planning_sync_out` FAILED | **nothing** — no teardown, no lock release. The artifacts exist only in the worktree |
+| Provisioning failed at setup | `execenv_teardown` (best effort) → remove `$PHASE_WT` → `rm -f "$LOCK"` |
+
+Also, because each block is a fresh shell: **re-export `RELEASE_EXEC_PREFIX` (and re-source the
+libs) in every block that calls `run_gate`, `planning_sync_*` or an exec-env helper.** An export
+from an earlier block is gone.
 
 ## Workflow by stack
 

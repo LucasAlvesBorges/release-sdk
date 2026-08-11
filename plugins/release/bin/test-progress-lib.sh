@@ -16,11 +16,15 @@
 #   #8  stale_seconds reports age; clear removes the file
 #   #9  a bad phase_dir reports failed instead of exploding
 #   #10 realistic wave-executor sequence keeps a coherent picture throughout
+#   #11 mirror: a write lands in BOTH the worktree and the main checkout (visible DURING the build)
+#   #12 leading-zero values stay strings (valid JSON); heartbeat reports a real failure
 #
 # Run: bash bin/test-progress-lib.sh
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ${BASH_SOURCE[0]:-$0}: this suite must be runnable under zsh too — the libs are
+# SOURCED by a zsh harness in production, and bash-only path resolution hid a real bug.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # shellcheck source=release-progress-lib.sh
 source "$HERE/release-progress-lib.sh"
 
@@ -130,6 +134,30 @@ eq "progress counter"    "11"         "$(progress_get "$R" tasks_done)"
 eq "total intact"        "19"         "$(progress_get "$R" tasks_total)"
 eq "last commit carried" "a1b2c3d"    "$(progress_get "$R" last_commit)"
 eq "envs active"         "1"          "$(progress_get "$R" envs_active)"
+
+echo "── #11 mirror — observable while the build runs, not only after it ──"
+WT="$TMP/wt/phases/110-fin"; MAIN="$TMP/main/phases/110-fin"; mkdir -p "$WT" "$MAIN"
+OUT="$(RELEASE_PROGRESS_MIRROR="$MAIN" progress_write "$WT" phase=110 task=T07 tasks_done=3)"
+eq "write reports success" "PROGRESS=written" "$OUT"
+eq "worktree copy"      "T07" "$(progress_get "$WT" task)"
+eq "main-checkout copy" "T07" "$(progress_get "$MAIN" task)"
+RELEASE_PROGRESS_MIRROR="$MAIN" progress_write "$WT" task=T09 >/dev/null
+eq "mirror keeps up with subsequent writes" "T09" "$(progress_get "$MAIN" task)"
+eq "mirror carries merged keys too" "110" "$(progress_get "$MAIN" phase)"
+OUT="$(RELEASE_PROGRESS_MIRROR="$TMP/no-such-dir" progress_write "$WT" task=T10)"
+has "unwritable mirror still writes the primary" "$OUT" "PROGRESS=written"
+eq "primary updated despite the bad mirror" "T10" "$(progress_get "$WT" task)"
+OUT="$(RELEASE_PROGRESS_MIRROR="$WT" progress_write "$WT" task=T11)"
+eq "mirror == primary is a no-op, not a double write" "PROGRESS=written" "$OUT"
+
+echo "── #12 JSON validity + honest heartbeat verdict ──"
+Z="$TMP/zero"; mkdir -p "$Z"
+progress_write "$Z" phase=07 tasks_done=0 >/dev/null
+has "leading zero stays a STRING (bare 07 is invalid JSON)" "$(cat "$Z/.progress.json")" '"phase":"07"'
+has "plain zero stays a number" "$(cat "$Z/.progress.json")" '"tasks_done":0'
+eq "leading-zero value still reads back" "07" "$(progress_get "$Z" phase)"
+eq "heartbeat on an unwritable dir reports failure, not success" "HEARTBEAT=failed" \
+   "$(progress_heartbeat "$TMP/definitely-not-there" 'note' 0)"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

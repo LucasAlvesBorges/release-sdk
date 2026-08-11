@@ -262,6 +262,15 @@ Waves com `parallel_safe: true` E sem overlap de files podem ser executados em w
 
 Para fullstack: `{NN}-PLAN-BACKEND/` E `{NN}-PLAN-FRONTEND/` (dois diretórios paralelos).
 
+**Cada manifest fullstack DECLARA `execution_order:` no frontmatter** (`backend_then_frontend` no
+caso normal — o frontend consome o endpoint). `/release:execute --fullstack` lê esse campo para
+ordenar as duas legs; sem ele o executor assume backend→frontend e avisa que está adivinhando.
+Emita nos DOIS manifests, com o mesmo valor:
+
+```yaml
+execution_order: backend_then_frontend   # ou frontend_then_backend, quando o backend consome um contrato já desenhado no front
+```
+
 **Hard rules:**
 - Cada wave file: 200-600 linhas. Se exceder, split em sub-wave (`W2a-models.md`, `W2b-migration.md`).
 - Cada wave: frontmatter `wave: WN`, `depends_on: [W?, W?]`, `parallel_safe: bool`, `task_count: N`, `files_touched: [...]`.

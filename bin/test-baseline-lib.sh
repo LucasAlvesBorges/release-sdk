@@ -21,7 +21,9 @@
 # Run: bash bin/test-baseline-lib.sh
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ${BASH_SOURCE[0]:-$0}: this suite must be runnable under zsh too — the libs are
+# SOURCED by a zsh harness in production, and bash-only path resolution hid a real bug.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # shellcheck source=release-baseline-lib.sh
 source "$HERE/release-baseline-lib.sh"
 

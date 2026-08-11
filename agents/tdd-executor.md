@@ -20,6 +20,11 @@ color: "#EAB308"
 - skip_sweep: bool (default false) — v0.12.0; when true, skip parallel_test_sweep (intermediate wave; terminal-wave sweep runs in wave-executor)
 - is_slice: bool (default false) — v0.12.0; when true, plan_path is a per-task slice — full-read OK, skip parent PLAN/manifest re-load
 - test_exec_prefix: optional string (default "") — v0.22.0; prepend to EVERY pytest / manage.py / vitest / tsc invocation (e.g. `docker exec app-w1_t02`). Empty ⇒ run host-locally, exactly as before. Referred to below as `$TP`.
+- env_label: optional string — v0.24.1; the label of the test env this spawn runs against (set by
+  wave-executor whenever `test_exec_prefix` is). Needed to render `test_env_migrate`.
+- cfg_root: optional path — v0.24.1; where `.release-planning/EXEC-ENV.yml` lives (the MAIN checkout,
+  not the worktree). Pair of `env_label`; without both, the migration hook cannot be rendered and a
+  task that creates a migration would test against an unmigrated database.
 - complexity: simple | standard | complex (default standard) — v0.22.0; the planner's label that the
   wave-executor resolved this spawn's model tier from. You do NOT re-route on it (the tier is already
   fixed by the time you run); record it, with the model you are running as, in SUMMARY.md `model_mix`.
@@ -369,7 +374,9 @@ $TP python manage.py makemigrations <app>
 # v0.23.0 — a task that CREATED a migration MUST apply it before its tests: `--reuse-db` does not
 # pick up a new migration, and in a containerized env it has to run against THAT env's DB clone.
 # The command comes from EXEC-ENV `test_env_migrate` (rendered with this worktree's label):
-#   MIGRATE="$(execenv_migrate_cmd "$CFG_ROOT" "$PWD" "$LABEL")"; [ -n "$MIGRATE" ] && eval "$MIGRATE"
+#   MIGRATE="$(execenv_migrate_cmd "$cfg_root" "$PWD" "$env_label")"; [ -n "$MIGRATE" ] && eval "$MIGRATE"
+# (`cfg_root` / `env_label` come from the spawn config. If `test_exec_prefix` is set but they are
+#  NOT, stop and say so — silently skipping the migration produces a failure that reads as a code bug.)
 # Unset (host-local project) ⇒ run `$TP python manage.py migrate` directly.
 # Commit migration SEPARATELY from impl when feasible
 

@@ -174,7 +174,8 @@ Shows cursor, recent activity, next action. Full-stack aware.
 ## What it shows
 
 1. **Current cursor** — from STATE.md: active phase, active stage (discuss/plan/execute/verify)
-2. **Build in flight (v0.23.0)** — read `.release-planning/phases/{NN}-*/.progress.json` BEFORE
+2. **Build in flight (v0.23.0)** — read `.release-planning/phases/{NN}-*/.progress.json` in THIS
+   checkout BEFORE
    falling back to git-log archaeology. A running `/release:execute` maintains it on every dispatch,
    land and checkpoint, so this is the difference between "the phase is doing T12 of 19, 2 envs up,
    last commit 4 minutes ago" and a blind grep:

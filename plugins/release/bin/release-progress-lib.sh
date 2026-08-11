@@ -29,6 +29,12 @@
 #                                                 Echoes `HEARTBEAT=written|not-needed|failed`.
 #   progress_clear <phase_dir>                  → removes the file (end of phase)
 #
+# MIRRORING (v0.24.1): the writer lives in the phase WORKTREE; the reader (`/release:status`) looks
+# at the MAIN checkout. Artifacts are only synced out at the end of the run, so a heartbeat written
+# during the build was invisible exactly when it mattered. Set `RELEASE_PROGRESS_MIRROR=<dir>` (the
+# executor sets it to the corresponding phase dir under the main checkout) and every write lands in
+# both places, atomically. Unset ⇒ single-file behaviour, unchanged.
+#
 # The shape (all optional — writers set what they know):
 #   {"phase":"110","stage":"execute","scheduler":"readiness","wave":"W3","task":"T12",
 #    "tasks_done":7,"tasks_total":19,"in_flight":"T12,T14","envs_active":2,
@@ -92,8 +98,10 @@ EOF
   out="{"
   emit() {  # $1 key, $2 value
     case "$2" in
-      ''|*[!0-9]*) out="$out$( [ "$first" = 1 ] || printf ',' )\"$1\":\"$(_progress_escape "$2")\"" ;;
-      *)           out="$out$( [ "$first" = 1 ] || printf ',' )\"$1\":$2" ;;
+      # A leading zero ("07") is NOT valid JSON as a bare number — phase ids are routinely written
+      # that way, so anything with one stays a string.
+      ''|*[!0-9]*|0?*) out="$out$( [ "$first" = 1 ] || printf ',' )\"$1\":\"$(_progress_escape "$2")\"" ;;
+      *)               out="$out$( [ "$first" = 1 ] || printf ',' )\"$1\":$2" ;;
     esac
     first=0
   }
@@ -114,6 +122,17 @@ EOF
   tmp="$(mktemp "$dir/.progress.XXXXXX" 2>/dev/null)" || { echo "PROGRESS=failed"; return 0; }
   printf '%s\n' "$out" > "$tmp" 2>/dev/null || { rm -f "$tmp"; echo "PROGRESS=failed"; return 0; }
   mv -f "$tmp" "$f" 2>/dev/null || { rm -f "$tmp"; echo "PROGRESS=failed"; return 0; }
+
+  # Mirror into the main checkout so the run is observable WHILE it runs, not only after the
+  # end-of-phase artifact sync. Same atomic dance; a mirror failure is reported but never fatal —
+  # losing observability must not stop the build.
+  local mdir="${RELEASE_PROGRESS_MIRROR:-}" mtmp
+  if [ -n "$mdir" ] && [ -d "$mdir" ] && [ "$mdir" != "$dir" ]; then
+    mtmp="$(mktemp "$mdir/.progress.XXXXXX" 2>/dev/null)" \
+      && printf '%s\n' "$out" > "$mtmp" 2>/dev/null \
+      && mv -f "$mtmp" "$(progress_path "$mdir")" 2>/dev/null \
+      || { rm -f "$mtmp" 2>/dev/null; echo "PROGRESS=mirror-failed"; }
+  fi
   echo "PROGRESS=written"
   return 0
 }
@@ -130,13 +149,11 @@ progress_stale_seconds() {  # $1 phase_dir → seconds since updated_at (empty w
 progress_heartbeat() {  # $1 phase_dir, $2 note, [$3 max_quiet_seconds]
   local dir="${1:-.}" note="${2:-working}" max="${3:-1800}" age
   age="$(progress_stale_seconds "$dir")"
-  if [ -z "$age" ]; then
-    # no file yet ⇒ this IS the first signal; write it
-    progress_write "$dir" "note=$note" "heartbeat=1" >/dev/null && echo "HEARTBEAT=written"
-    return 0
-  fi
-  if [ "$age" -ge "$max" ] 2>/dev/null; then
-    progress_write "$dir" "note=$note" "heartbeat=1" >/dev/null && echo "HEARTBEAT=written"
+  local w
+  if [ -z "$age" ] || { [ "$age" -ge "$max" ] 2>/dev/null; }; then
+    # no file yet ⇒ this IS the first signal; otherwise the quiet window has elapsed
+    w="$(progress_write "$dir" "note=$note" "heartbeat=1")"
+    case "$w" in *PROGRESS=written*) echo "HEARTBEAT=written" ;; *) echo "HEARTBEAT=failed" ;; esac
   else
     echo "HEARTBEAT=not-needed"
   fi

@@ -412,6 +412,10 @@ never see a torn file):
 ```bash
 PROG_LIB="$(find_lib release-progress-lib.sh)"; [ -f "$PROG_LIB" ] && . "$PROG_LIB"
 PD="$PHASE_WT/.release-planning/phases/${PHASE_NUM}-${PHASE_SLUG}"
+# Mirror into the MAIN checkout: the reader (/release:status) looks there, and the artifact sync
+# only runs at the end — without this the heartbeat is invisible exactly while it matters.
+export RELEASE_PROGRESS_MIRROR="${progress_mirror:-$CFG_ROOT/.release-planning/phases/${PHASE_NUM}-${PHASE_SLUG}}"
+mkdir -p "$RELEASE_PROGRESS_MIRROR"
 progress_write "$PD" phase="$PHASE_NUM" stage=execute scheduler="$SCHED_MODE" \
                started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" tasks_total="$TOTAL" tasks_done=0
 ```
@@ -423,8 +427,10 @@ Update it — never batch, never skip:
 - **at the end**: `progress_clear "$PD"` after the artifacts are synced out — a stale progress file
   claiming an in-flight task is worse than none.
 
-It is carried back to the main checkout by `planning_sync_out` (it is in the artifact list), so
-`/release:status` can read it while the build runs.
+Every write also lands in `$RELEASE_PROGRESS_MIRROR` (the same phase dir under the MAIN checkout),
+atomically, so `/release:status` sees the run **while it is running** — `planning_sync_out` at the
+end is the backstop, not the delivery mechanism. A mirror failure is reported (`PROGRESS=mirror-failed`)
+and never stops the build.
 
 **Heartbeat (v0.23.0).** If no dispatch, land or checkpoint has happened for **30 minutes**, write
 one anyway with what you are waiting on:
@@ -625,6 +631,8 @@ config:
   skip_sweep: true                  # intermediate wave — terminal sweep runs at end-of-phase
   is_slice: true                    # signal that plan_path is a slice (full-read OK, no offset gymnastics)
   test_exec_prefix: "<TASK_PREFIX[TASK_ID]>"   # v0.22.0 — "" when EXECENV=off (host-local exec)
+  env_label: "<TASK_LABEL[TASK_ID]>"           # v0.24.1 — this task's env label; the executor needs it
+  cfg_root: "$CFG_ROOT"                        #            to render test_env_migrate. Empty ⇒ host-local
   complexity: "<simple|standard|complex>"      # v0.22.0 — the label this spawn's model: was resolved from
   instruction_suffix: "operate at maximum rigor / max effort"
 ```
@@ -822,6 +830,7 @@ For wave executor to work, `release-tdd-executor` must accept (v0.12.0):
 - `skip_sweep: true` — skip parallel_test_sweep (intermediate wave only; terminal wave still runs full sweep)
 - `is_slice: true` — plan_path is a per-task slice; executor full-reads (no offset gymnastics) and skips manifest re-load
 - `test_exec_prefix: "<string>"` — v0.22.0; prefix prepended to EVERY pytest/manage.py/vitest command the executor runs (`docker exec app-w1_t02` …). Empty/unset ⇒ host-local exec (pre-v0.22.0 behaviour)
+- `env_label: "<label>"` + `cfg_root: "<path>"` — v0.24.1; REQUIRED whenever `test_exec_prefix` is set. Without them the executor cannot render `test_env_migrate` and a task that creates a migration runs its tests against an unmigrated database — a failure that looks like a code bug
 - `complexity: simple|standard|complex` — v0.22.0; the label this spawn's `model:` was resolved from. Informational for the executor (it reports it in SUMMARY.md `model_mix`); the routing decision is the wave-executor's
 
 Executor reads these from Agent spawn config. If unset, default behavior (all tasks/waves, branch-per-phase, current cwd, full sweep, no slice, host-local exec).
