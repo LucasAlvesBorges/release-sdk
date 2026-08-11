@@ -391,6 +391,11 @@ $TP pytest <task_test_files> -q --tb=short && ruff check <touched_files>
 
 # Only when THIS task changed models (needed to produce the migration file):
 $TP python manage.py makemigrations <app>
+# v0.23.0 — a task that CREATED a migration MUST apply it before its tests: `--reuse-db` does not
+# pick up a new migration, and in a containerized env it has to run against THAT env's DB clone.
+# The command comes from EXEC-ENV `test_env_migrate` (rendered with this worktree's label):
+#   MIGRATE="$(execenv_migrate_cmd "$CFG_ROOT" "$PWD" "$LABEL")"; [ -n "$MIGRATE" ] && eval "$MIGRATE"
+# Unset (host-local project) ⇒ run `$TP python manage.py migrate` directly.
 # Commit migration SEPARATELY from impl when feasible
 
 # Drift check `makemigrations --check --dry-run` is a WAVE-BOUNDARY check (wave-executor),
@@ -544,6 +549,7 @@ Cross-stack tasks (API contract change):
 - NEVER exceed the per-task test budget: ≤2 runner invocations per task (≤3 with security tests). Extra invocations only to diagnose a real failure
 - NEVER run a suite-wide/app-wide test command inside a task — `pytest backend/apps`, bare `pytest`, `vitest run` without a file list are all forbidden here (wave boundary owns them)
 - NEVER run `makemigrations --check --dry-run` / `tsc --noEmit` per task unless this task itself changed models / a shared type contract
+- ALWAYS apply a migration this task created BEFORE running its tests (`test_env_migrate`, else `manage.py migrate`) — `--reuse-db` will not do it for you, and the resulting failure looks like a code bug
 - ALWAYS prefix every pytest / manage.py / vitest invocation with `test_exec_prefix` when set (containerized test env); when unset, run host-locally exactly as before
 - NEVER squash test commit with implementation commit
 - NEVER amend commits — always new commits

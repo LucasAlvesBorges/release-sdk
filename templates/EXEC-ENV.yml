@@ -36,6 +36,13 @@
 #     The same value caps the readiness scheduler's concurrent task spawns, with or without envs;
 #     set it explicitly (above or below the machine default) when you have sized your own box.
 #
+#   - test_env_migrate (v0.23.0) runs when a task CREATED a migration, before that task's tests.
+#     `--reuse-db` does not apply a new migration, and in a containerized env it must hit that env's
+#     database clone. Unset ⇒ the executor runs `manage.py migrate` host-locally.
+#   - test_timeout (v0.23.0) bounds EVERY test invocation in seconds (default 900, `0` = unbounded).
+#     On expiry the process is killed and the runner reports `hung: true` with the command and
+#     elapsed time instead of going silent. Raise it for a legitimately slow suite; do not disable it.
+#
 # Env overrides: RELEASE_EXECENV_TIMEOUT (seconds per provision/teardown, default 600; 0 = none),
 #                RELEASE_EXECENV_DISABLE=1 (kill switch — forces host-local exec everywhere).
 
@@ -50,6 +57,10 @@
 # test_exec_prefix: docker exec -w /app myapp-{label}
 #
 # test_env_max_parallel: 4
+#
+# test_env_migrate: docker exec -w /app myapp-{label} python manage.py migrate --noinput
+#
+# test_timeout: 900
 
 # ── Example: host-local venv per worktree (no container) ────────────────────────────────────────
 # test_env_provision: python -m venv {worktree}/.venv && {worktree}/.venv/bin/pip install -q -r {worktree}/backend/requirements-dev.txt

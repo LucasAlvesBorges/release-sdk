@@ -45,6 +45,17 @@
 #                                              a teardown failure must not lose the commits.
 #   execenv_prefix <root> <worktree> <label> → echoes the rendered test_exec_prefix (empty when
 #                                              unset ⇒ caller runs tests host-locally, as before)
+#   release_test_timeout <root>              → per-invocation test timeout in seconds (`test_timeout`,
+#                                              default 900; 0 = unbounded)
+#   release_timeout_cmd <seconds>            → `timeout`/`gtimeout` prefix, empty when unavailable
+#   run_test_bounded <root> <cmd> [cwd]      → runs a test command under that bound. Echoes
+#                                              `TEST_OUTPUT=<file>` (captured stdout+stderr — a file,
+#                                              because callers use `$( )` and a variable would not
+#                                              survive the subshell), `TEST_HUNG=<true|false>`,
+#                                              `TEST_ELAPSED=<s>`, `TEST_RC=<n>`, plus `TEST_TIMEOUT`
+#                                              and `TEST_CMD` on a hang. A hang is rc 124/137.
+#   execenv_migrate_cmd <root> <wt> <label>  → rendered `test_env_migrate` (empty when unset) — run
+#                                              by a task that CREATED a migration, before its tests
 #
 # Config format — .release-planning/EXEC-ENV.yml — an ORDERED flat map, one `key: value` per line,
 # split on the FIRST colon only (values routinely contain colons: `-v {worktree}/backend:/app`):
@@ -165,6 +176,57 @@ release_sched_max_parallel() {  # $1 root → concurrent task-spawn cap (≥1)
     ''|*[!0-9]*|0) release_default_max_parallel ;;   # unset / junk / "unlimited envs" → machine default
     *)             printf '%s' "$cfg" ;;             # explicit config wins, above or below the default
   esac
+  return 0
+}
+
+# ── test timeout + hang detection (v0.23.0) ──────────────────────────────────────────────────────
+# A hung test process is worse than a failing one: the runner produces no output, the orchestrator
+# has no signal, and a phase can sit dead for hours before anyone notices. Every test invocation
+# gets a wall-clock bound and a structured verdict.
+release_test_timeout() {  # $1 root → seconds (config `test_timeout`, default 900, 0 = unbounded)
+  local v; v="$(release_execenv_get "${1:-.}" test_timeout)"
+  case "$v" in ''|*[!0-9]*) echo 900 ;; *) echo "$v" ;; esac
+  return 0
+}
+
+release_timeout_cmd() {  # $1 seconds → the timeout runner prefix, or empty when unavailable/0
+  local t="${1:-0}"
+  [ "$t" != 0 ] || return 0
+  if   command -v timeout  >/dev/null 2>&1; then printf 'timeout -k 10 %s' "$t"
+  elif command -v gtimeout >/dev/null 2>&1; then printf 'gtimeout -k 10 %s' "$t"
+  fi
+  return 0
+}
+
+# Run a test command under the timeout and echo a structured verdict the caller can act on.
+# `timeout` exits 124 on expiry (137 when the KILL follow-up was needed) — that is the hang signal.
+run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → sets _TEST_OUT; echoes TEST_* verdict lines
+  local root="${1:-.}" cmd="${2:-}" cwd="${3:-.}" t runner rc start end elapsed
+  t="$(release_test_timeout "$root")"; runner="$(release_timeout_cmd "$t")"
+  start="$(date +%s 2>/dev/null)"; : "${start:=0}"
+  _TEST_OUT="$( ( cd "$cwd" 2>/dev/null && eval "$runner $cmd" ) </dev/null 2>&1 )"; rc=$?
+  end="$(date +%s 2>/dev/null)"; : "${end:=$start}"
+  elapsed=$(( end - start ))
+  # The captured output goes to a FILE, not just a variable: callers run this inside `$( )`, where a
+  # shell variable set in the subshell would be lost. Same contract as GATE_EVIDENCE.
+  local outf; outf="$(mktemp -t release-test-XXXXXX)"; printf '%s\n' "$_TEST_OUT" > "$outf"
+  echo "TEST_OUTPUT=$outf"
+  case "$rc" in
+    124|137) echo "TEST_HUNG=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+             echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc" ;;
+    *)       echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc" ;;
+  esac
+  return 0
+}
+
+# ── migration hook (v0.23.0) ─────────────────────────────────────────────────────────────────────
+# `--reuse-db` does not apply a migration the task just created, and in a containerized env the
+# migration must run against THAT env's database clone. A task that generated a migration runs this
+# before its tests.
+execenv_migrate_cmd() {  # $1 root, $2 worktree, $3 label → rendered command (empty when unset)
+  local tpl; tpl="$(release_execenv_get "${1:-.}" test_env_migrate)"
+  [ -n "$tpl" ] || return 0
+  release_execenv_render "$tpl" "${2:-}" "${3:-}" "${1:-.}"
   return 0
 }
 

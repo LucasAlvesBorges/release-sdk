@@ -94,7 +94,27 @@ $TP npx vitest run <space-separated test_files> --reporter=verbose $extra_args 2
 
 Capture stdout + stderr. Capture exit code.
 
-**Long buckets**: if expected runtime >2 min, run with `run_in_background=true` then poll output. Otherwise foreground.
+**Every invocation is BOUNDED (v0.23.0).** A hung runner produces no output and no signal — a phase
+can sit dead for hours. Source `bin/release-execenv-lib.sh` and run through `run_test_bounded`,
+which applies `test_timeout` from EXEC-ENV (default 900s, `0` = unbounded), kills the process on
+expiry (`timeout -k 10`) and echoes a structured verdict:
+
+```bash
+ENV_LIB="$(find_lib release-execenv-lib.sh)"; [ -f "$ENV_LIB" ] && . "$ENV_LIB"
+OUT="$(run_test_bounded "$root" "$TP pytest <files> --tb=short -q --no-header $extra_args" "$cwd")"
+# TEST_OUTPUT=<file>  TEST_HUNG=<true|false>  TEST_ELAPSED=<s>  TEST_RC=<n>  [TEST_TIMEOUT= TEST_CMD=]
+```
+
+- `TEST_HUNG=true` → **retry at most twice**, then stop and write the bucket JSON with
+  `status: "timeout"`, `hung: true`, the exact `cmd` and `elapsed`. NEVER report silence, and never
+  leave the caller to discover a hang by wall-clock intuition.
+- A hang is NOT a test failure: do not classify it against the baseline and do not invent failures
+  for the tests that never ran — report what is true (the bucket did not complete).
+- No `timeout`/`gtimeout` binary on the host → the prefix is empty and the run is unbounded; say so
+  in the JSON (`bounded: false`) rather than pretending it was bounded.
+
+**Long buckets**: prefer raising `test_timeout` over running unbounded. If a bucket legitimately
+needs >2 min, run with `run_in_background=true` and poll — still under the bound.
 </step>
 
 <step name="parse_results">
@@ -143,6 +163,9 @@ Parse with simple regex. If parse fails → keep raw_summary + set `parse_failed
   "skipped": 0,
   "duration_seconds": 12.34,
   "exit_code": 0,
+  "hung": false,
+  "bounded": true,
+  "timeout_seconds": 900,
   "failures": [],
   "raw_summary": "41 passed in 12.34s"
 }
@@ -187,7 +210,7 @@ BUCKET B1: 39/41 passed, 2 failed → {output_path}
 | Scenario | Action |
 |----------|--------|
 | Test file in `test_files` doesn't exist | Skip silently, note in JSON `missing_files[]` |
-| Test command times out (>10 min) | Kill, write JSON `status: "timeout"`, `duration_seconds: 600` |
+| Test command exceeds `test_timeout` | `run_test_bounded` kills it; retry ≤2x, then JSON `status: "timeout"`, `hung: true`, with `cmd` + `elapsed` |
 | Pytest collection error (import fail) | Capture, write `status: "error"`, list errors in `failures[]` |
 | Empty test_files input | Write `status: "empty"`, exit fast |
 | `cwd` doesn't exist | Write JSON `status: "error"`, `error: "cwd not found"`, exit |

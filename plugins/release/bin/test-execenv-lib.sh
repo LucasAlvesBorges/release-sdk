@@ -18,6 +18,9 @@
 #   #11 RELEASE_EXECENV_DISABLE=1 forces the whole lib back to no-op
 #   #12 machine-derived cap: min(8, max(1, cores/2)), clamped both ends
 #   #13 scheduler cap is env-independent and never unlimited; explicit config wins
+#   #14 test timeout: default 900, config override, timeout runner resolution
+#   #15 run_test_bounded reports a hang structurally instead of silence
+#   #16 migration hook renders (or stays empty when unconfigured)
 #
 # Run: bash bin/test-execenv-lib.sh
 set -euo pipefail
@@ -180,6 +183,50 @@ eq "0 = unlimited ENVS is not unlimited AGENTS → machine default" "2" \
 SC="$(RELEASE_EXEC_CORES=1 release_sched_max_parallel "$BARE")"
 [ "$SC" -ge 1 ] && ok "scheduler cap is always >=1 (never stalls the scheduler)" \
   || no "scheduler cap is always >=1" "got [$SC]"
+
+echo "── #14 test timeout ──"
+printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "unset → 900s default" "900" "$(release_test_timeout "$ROOT")"
+printf 'test_env_provision: true\ntest_timeout: 120\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "config honored" "120" "$(release_test_timeout "$ROOT")"
+printf 'test_env_provision: true\ntest_timeout: forever\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "junk → safe default" "900" "$(release_test_timeout "$ROOT")"
+eq "no config at all → default" "900" "$(release_test_timeout "$BARE")"
+eq "0 → no timeout runner" "" "$(release_timeout_cmd 0)"
+if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+  has "runner prefix carries the bound + a KILL follow-up" "$(release_timeout_cmd 30)" "30"
+  has "kill-after is set (a SIGTERM-ignoring runner still dies)" "$(release_timeout_cmd 30)" "-k 10"
+else
+  eq "no timeout binary → empty prefix (degrades, never breaks)" "" "$(release_timeout_cmd 30)"
+fi
+
+echo "── #15 run_test_bounded: a hang is reported, not silent ──"
+printf 'test_env_provision: true\ntest_timeout: 1\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+OUT="$(run_test_bounded "$ROOT" 'printf "ok\n"' "$ROOT")"
+has "fast command → not hung" "$OUT" "TEST_HUNG=false"
+has "rc reported" "$OUT" "TEST_RC=0"
+OUTF="$(printf '%s\n' "$OUT" | sed -n 's/^TEST_OUTPUT=//p')"
+eq "output captured to a file that survives the subshell" "ok" "$(cat "$OUTF")"
+OUT="$(run_test_bounded "$ROOT" 'exit 3' "$ROOT")"
+has "plain failure is NOT a hang" "$OUT" "TEST_HUNG=false"
+has "failure rc surfaced" "$OUT" "TEST_RC=3"
+if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+  OUT="$(run_test_bounded "$ROOT" 'sleep 5' "$ROOT")"
+  has "hung command flagged" "$OUT" "TEST_HUNG=true"
+  has "the command is named (so the report is actionable)" "$OUT" "TEST_CMD=sleep 5"
+  has "the bound that was exceeded is reported" "$OUT" "TEST_TIMEOUT=1"
+  has "elapsed reported" "$OUT" "TEST_ELAPSED="
+else
+  ok "hang path skipped (no timeout binary on this host)"
+fi
+
+echo "── #16 migration hook ──"
+printf 'test_env_provision: true\ntest_env_migrate: docker exec app-{label} python {worktree}/backend/manage.py migrate\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "rendered with label + worktree" "docker exec app-w1_t02 python $WT/backend/manage.py migrate" \
+   "$(execenv_migrate_cmd "$ROOT" "$WT" w1_t02)"
+printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "unset → empty (host-local projects run manage.py directly)" "" "$(execenv_migrate_cmd "$ROOT" "$WT" l)"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
