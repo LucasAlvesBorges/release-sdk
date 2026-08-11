@@ -310,6 +310,23 @@ Additionally verify API contract integrity:
 
 ---
 
+<baseline_awareness>
+
+**v0.23.0 — inherited failures are not phase gaps.** Before reporting any failing test as evidence
+that the phase goal is unmet, classify it against `.release-planning/test-baselines.json` via
+`bin/release-baseline-lib.sh` (`baseline_parse_failures` → `baseline_classify`):
+
+- `NEW` → real evidence. Report it, cite it, block on it.
+- `BASELINE` → pre-existing breakage this phase did not cause. Mention it in a `Known pre-existing
+  failures` note (so it is visible, never silently swallowed) and do NOT count it as a gap.
+- No baseline file, or an unparseable output → treat every failure as `NEW`. Absence must never
+  hide a regression.
+
+A verifier that re-litigates 44 inherited reds on every iteration makes the loop unusable and buries
+the one failure that IS the phase's fault.
+
+</baseline_awareness>
+
 <critical_rules>
 - NEVER trust SUMMARY.md claims — verify against codebase
 - NEVER mark FAILED as UNCERTAIN to avoid hard verdict

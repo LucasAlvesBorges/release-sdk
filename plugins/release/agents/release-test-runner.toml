@@ -106,7 +106,11 @@ Extract:
 - `errors`: count (collection errors, import errors)
 - `skipped`: count
 - `duration_seconds`: wall time
-- `failures[]`: array of `{file, test_name, traceback_head_10_lines}`
+- `failures[]`: array of `{file, test_name, traceback_head_10_lines, classification}`
+  - **v0.23.0 — classification**: source `bin/release-baseline-lib.sh`, pipe the runner output
+    through `baseline_parse_failures <stack>` then `baseline_classify <root> <suite>`. Each failure
+    is `BASELINE` (recorded in `.release-planning/test-baselines.json` — inherited, not yours) or
+    `NEW` (yours). No baseline file ⇒ everything `NEW` (fail-safe).
 
 Pytest summary line format:
 ```
@@ -133,6 +137,8 @@ Parse with simple regex. If parse fails → keep raw_summary + set `parse_failed
   "total_run": 41,
   "passed": 41,
   "failed": 0,
+  "failed_new": 0,
+  "failed_baseline": 0,
   "errors": 0,
   "skipped": 0,
   "duration_seconds": 12.34,
@@ -170,6 +176,8 @@ BUCKET B1: 39/41 passed, 2 failed → {output_path}
 - NEVER amend git commits, NEVER stage files, NEVER commit
 - NEVER spawn other agents
 - NEVER attempt to "fix" a failing test — just report it
+- NEVER report a BASELINE failure as if this run caused it, and NEVER hide one either — both counts go in the JSON
+- NEVER treat an absent baseline file as "no failures matter" — absent ⇒ every failure is NEW
 - NEVER skip tests via `-k` / `--deselect` unless caller passed it via `extra_args`
 - If pytest/vitest binary missing → write JSON with `status: "error"`, `error: "<binary> not found"`, exit
 - Honor `cwd` strictly — all commands inside the worktree

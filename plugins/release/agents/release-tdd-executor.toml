@@ -214,7 +214,10 @@ For each task:
 1. Read task `files` — these are test files for RED
 2. Write failing test
 3. Run stack-specific RED verification, **scoped to this task's test files only** (see stack blocks)
-4. MUST see failure. If test passes when it should fail → STOP, plan is wrong
+4. MUST see failure. If test passes when it should fail → STOP, plan is wrong.
+   **v0.23.0:** the failure must be a NEW one. If the only failures are `BASELINE` hits from
+   `.release-planning/test-baselines.json`, your test did not actually run (import error, wrong
+   path, collection failure) — that is not a RED proof. Fix the test, not the baseline.
 5. Stage + commit: `test({scope}): add failing tests for {task_title}`
 
 ### tdd-green + refactor phase — 1 combined run

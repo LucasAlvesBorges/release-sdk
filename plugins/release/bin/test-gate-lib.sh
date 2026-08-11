@@ -115,6 +115,44 @@ echo "── #9 unknown stack + no config → empty verdict ──"
 OUT="$(run_gate "$UN")"
 eq "empty verdict when nothing resolves" "" "$(verdict "$OUT")"
 
+echo "── #11 baseline bridge: inherited failures do not turn the gate RED (v0.23.0) ──"
+BR="$SBX/baseline-proj"; mkdir -p "$BR/.release-planning"
+cat > "$BR/.release-planning/test-baselines.json" <<'JSON'
+{ "suites": { "test": { "failures": [
+  {"id": "apps/financeiro/tests/test_dre.py::test_saldo", "error": "AssertionError"}
+] } } }
+JSON
+# a step that fails with ONLY the known failure
+cat > "$BR/.release-planning/VERIFY-GATE.yml" <<'YML'
+test: printf 'FAILED apps/financeiro/tests/test_dre.py::test_saldo - AssertionError: 1 != 2\n1 failed\n'; exit 1
+YML
+OUT="$(run_gate "$BR")"
+has "known-only failure → PASS_BASELINE" "$OUT" "GATE_STEP=test PASS_BASELINE"
+eq  "gate stays GREEN (inherited reds are not this phase's regressions)" "GATE=GREEN" "$(printf '%s\n' "$OUT" | grep '^GATE=')"
+
+# same step, plus ONE unknown failure
+cat > "$BR/.release-planning/VERIFY-GATE.yml" <<'YML'
+test: printf 'FAILED apps/financeiro/tests/test_dre.py::test_saldo - AssertionError: 1 != 2\nFAILED apps/novo/tests/test_new.py::test_regression - TypeError: boom\n2 failed\n'; exit 1
+YML
+OUT="$(run_gate "$BR")"
+has "one unknown failure → plain FAIL" "$OUT" "GATE_STEP=test FAIL"
+eq  "gate RED" "GATE=RED" "$(printf '%s\n' "$OUT" | grep '^GATE=')"
+has "evidence still captured for the maker" "$OUT" "GATE_EVIDENCE="
+
+# same known failure, but a DIFFERENT error type → not the same signature
+cat > "$BR/.release-planning/VERIFY-GATE.yml" <<'YML'
+test: printf 'FAILED apps/financeiro/tests/test_dre.py::test_saldo - IntegrityError: dup\n1 failed\n'; exit 1
+YML
+eq "same test, different error → RED (a new bug behind an old red)" "GATE=RED" \
+   "$(run_gate "$BR" | grep '^GATE=')"
+
+# no baseline file at all → never soften a RED
+rm -f "$BR/.release-planning/test-baselines.json"
+cat > "$BR/.release-planning/VERIFY-GATE.yml" <<'YML'
+test: printf 'FAILED apps/financeiro/tests/test_dre.py::test_saldo - AssertionError: 1 != 2\n'; exit 1
+YML
+eq "no baseline file → RED (fail-safe)" "GATE=RED" "$(run_gate "$BR" | grep '^GATE=')"
+
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

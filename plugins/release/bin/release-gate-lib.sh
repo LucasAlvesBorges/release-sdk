@@ -18,7 +18,7 @@
 #   run_gate [root] [phase]
 #       Runs the project's verify-gate commands IN ORDER against <root> (default: repo top-level).
 #       Resolves commands from <root>/.release-planning/VERIFY-GATE.yml, else a stack default.
-#       Echoes one `GATE_STEP=<name> <PASS|FAIL>` line per step run, and on the FIRST failure a
+#       Echoes one `GATE_STEP=<name> <PASS|PASS_BASELINE|FAIL>` line per step run, and on the FIRST failure a
 #       `GATE_EVIDENCE=<file>` line (captured stdout+stderr), then exactly one terminal
 #       `GATE=<GREEN|RED>` (or empty `GATE=` when nothing could be resolved). ALWAYS returns 0 —
 #       the verdict lives in the echo, exactly like land_branch in release-merge-lib.sh, so
@@ -33,6 +33,11 @@
 #   Lines run top-to-bottom (order = priority; put the cheapest/fastest first). Blank lines and
 #   '#' comments are ignored. Split is on the FIRST colon only, so a command may itself contain
 #   colons (e.g. `unit: pytest -k "parse:edge"` is fine). No config + unknown stack ⇒ empty verdict.
+#
+#   PASS_BASELINE (v0.23.0) = the step exited non-zero but EVERY failing test is recorded in
+#   .release-planning/test-baselines.json (see release-baseline-lib.sh). It does not turn the gate
+#   RED — inherited failures are not this phase's regressions — but it is echoed so the run is
+#   auditable. No baseline file, unparseable output, or one unknown failure ⇒ plain FAIL.
 
 # ── helpers ─────────────────────────────────────────────────────────────────────────────────────
 release_gate_root() {  # resolve a sane repo root from an optional arg, else cwd's top-level
@@ -92,6 +97,27 @@ release_resolve_gate() {  # $1 root → the resolved `name: command` lines (conf
   fi
 }
 
+# ── baseline bridge (v0.23.0) ────────────────────────────────────────────────────────────────────
+# A failing step whose failures are ALL recorded in .release-planning/test-baselines.json is not
+# THIS run's problem. Without this, a repo with long-standing reds can never reach GATE=GREEN and
+# every loop iteration re-triages the same inherited failures. Fail-safe by construction: no
+# baseline file, an unparseable output, or a single unrecognized failure ⇒ the step stays RED.
+_gate_all_failures_are_baseline() {  # $1 root, $2 step name, $3 output → 0 when fully baseline
+  local root="$1" name="$2" out="$3" lib verdict stack=django
+  command -v awk >/dev/null 2>&1 || return 1
+  if ! command -v baseline_classify >/dev/null 2>&1; then
+    lib="$(dirname "${BASH_SOURCE[0]}")/release-baseline-lib.sh"
+    [ -f "$lib" ] || return 1
+    # shellcheck source=release-baseline-lib.sh
+    . "$lib"
+  fi
+  [ -n "$(baseline_file "$root")" ] || return 1          # no baseline ⇒ never soften a RED
+  case "$name" in *fe*|*front*|*vitest*|*js*|*ts*) stack=react ;; esac
+  verdict="$(printf '%s\n' "$out" | baseline_parse_failures "$stack" \
+             | baseline_classify "$root" "$name" | sed -n 's/^BASELINE_VERDICT=//p')"
+  [ "$verdict" = "baseline-only" ]
+}
+
 # ── public: run the gate ─────────────────────────────────────────────────────────────────────────
 run_gate() {  # [root] [phase]
   local root failfast="${GATE_FAILFAST:-1}" steps line name cmd out rc verdict="" any=0 red=0 ev=""
@@ -109,6 +135,11 @@ run_gate() {  # [root] [phase]
     out="$( ( cd "$root" && eval "$cmd" ) </dev/null 2>&1 )"; rc=$?   # </dev/null: never block on a prompt
     if [ "$rc" = 0 ]; then
       echo "GATE_STEP=$name PASS"
+    elif _gate_all_failures_are_baseline "$root" "$name" "$out"; then
+      # Every failing test in this step is a KNOWN pre-existing failure (release-baseline-lib.sh).
+      # A repo that inherits 44 reds would otherwise be RED forever and the loop would burn its
+      # iterations "fixing" code this phase never touched. Reported, never silently swallowed.
+      echo "GATE_STEP=$name PASS_BASELINE"
     else
       echo "GATE_STEP=$name FAIL"; red=1
       if [ -z "$ev" ]; then                          # capture only the FIRST failure as feedback evidence
