@@ -91,6 +91,17 @@ task_model() {  # $1 complexity → concrete tier for THIS task's spawn
 
 <step name="load_plan">
 
+**Fullstack leg (v0.23.0).** `/release:execute --fullstack` spawns this agent TWICE against the same
+worktree and branch, with `half: backend` then `half: frontend`. When `half` is set:
+- Load ONLY `{NN}-PLAN-BACKEND/` or `{NN}-PLAN-FRONTEND/` (manifest + waves of that leg).
+- Honor the manifest's `execution_order:` — you are leg N of that order, never re-order it yourself.
+- `no_branch: true` and `cwd` are always handed down: both legs commit onto the SAME phase branch in
+  the SAME worktree. Do NOT create a branch, do NOT land, do NOT tear the worktree down — the
+  caller runs one loop and one land after BOTH legs return.
+- Write `{NN}-WAVE-SUMMARY-{HALF}.md` (not the unified name) so the second leg cannot clobber the
+  first leg's audit trail.
+- A leg that fails returns the failure; the caller will not start the next leg.
+
 **Detect layout:**
 - `$PLAN_PATH` = `.release-planning/phases/{NN}-{slug}/{NN}-PLAN/manifest.md` → **wave-split dir** (v0.11.0+, preferred)
 - `$PLAN_PATH` = `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` → **legacy single-file** (back-compat only)

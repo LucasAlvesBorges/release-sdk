@@ -11,9 +11,10 @@ description: >
   v0.22.0: optional per-worktree test envs (.release-planning/EXEC-ENV.yml) unlock fan-out for
   containerized suites, per-task test invocations are capped at 2 (RED + one combined
   GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary, each task spawn's model tier
-  follows the planner's complexity label (demote-only; worker tier is the ceiling), and the
+  follows the planner's complexity label (demote-only; worker tier is the ceiling).
   v0.23.0: the wave-executor schedules by per-task readiness (depends_on + dynamic file collision)
-  instead of a wave barrier — waves become checkpoints, not gates.
+  instead of a wave barrier — waves become checkpoints, not gates — and `--fullstack` runs the
+  backend and frontend legs back-to-back in ONE worktree with a single loop and a single land.
   Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 
@@ -26,6 +27,7 @@ serial path removed. Single-worktree falls out naturally for waves with 1 task /
 
 ```
 /release:execute 01                  # auto-detect, branch-per-phase, waves-parallel
+/release:execute 01 --fullstack      # BOTH legs (backend then frontend) — one worktree, one loop, one land
 /release:execute 01 --backend        # force Django planner+executor (waves-parallel)
 /release:execute 01 --frontend       # force React planner+executor (waves-parallel)
 /release:execute 01 --resume         # skip tasks already committed on phase branch
@@ -44,8 +46,10 @@ serial path removed. Single-worktree falls out naturally for waves with 1 task /
 1. Read `.release-planning/phases/{NN}-{slug}/{NN}-PLAN.md` frontmatter.
    - `stack: django` → backend
    - `stack: react-tsx` → frontend
-2. If both `{NN}-PLAN-BACKEND.md` and `{NN}-PLAN-FRONTEND.md` exist → fullstack (require `--backend` or `--frontend` flag).
-3. `--backend` / `--frontend` flags override auto-detect.
+2. If both `{NN}-PLAN-BACKEND.md` and `{NN}-PLAN-FRONTEND.md` exist → fullstack: run `--fullstack`
+   (both legs, one land) or pick a single leg with `--backend` / `--frontend`. With no flag, offer
+   the three options (see "fullstack" below) — never guess.
+3. `--fullstack` / `--backend` / `--frontend` flags override auto-detect.
 
 ## Branch-per-phase (default ON) — session-isolated (v0.13.1)
 
@@ -161,7 +165,9 @@ config:
 - `--resume` and branch exists → `git worktree add $PHASE_WT feat/{NN}-{slug}` (attach in isolation) + wave-executor skips tasks already committed (greps `T{NN}` in `git log`).
 - Same phase already running in another session → **lock refuses** with a clean message (no silent corruption). Stale lock (holder worktree gone) auto-reclaims.
 - `--no-branch` → skip lock + worktree entirely, commit to current branch in the main checkout (legacy, single-session responsibility on the user).
-- Fullstack: same branch holds both `--backend` and `--frontend` commits (no split).
+- Fullstack: same branch holds both legs' commits (no split). `--fullstack` runs them back-to-back in
+  ONE worktree under ONE lock, with a single loop + land at the end; two separate invocations still
+  work and each lands on its own.
 - Wave-executor creates short-lived `wave/{SESSION_ID}/w{N}-{TXX}` branches per worktree, deleted after cherry-pick back to phase branch.
 - After the build, the phase runs the closed loop (gate → checker → fix) and **auto-lands on `$BASE`** only when GATE=GREEN **and** `release:phase-verifier` PASSES, via the shared `land_branch` engine: the phase worktree + `feat/{NN}-{slug}` branch are torn down and the work appears on your trunk (live). With `--no-merge`/`--pr` (or in-session), a verified phase keeps the branch as a dangling ref for manual push/PR / session `finish` instead of landing.
 
@@ -303,18 +309,57 @@ its current branch; open the PR from `feat/{NN}-{slug}` after `/release:verify {
 - Verification per-wave: `tsc --noEmit`, RC6 grep. Full vitest sweep ONLY after terminal wave.
 - Produces: `{NN}-SUMMARY.md` + `{NN}-WAVE-SUMMARY.md`
 
-### fullstack
-Requires explicit flag. When both plans exist and no flag given:
+### fullstack — `--fullstack` runs BOTH legs in one phase (v0.23.0)
+
+Before v0.23.0 a fullstack phase required two separate invocations, each with its own worktree,
+lock, loop and land — and a human stitching them together: run backend, wait, run frontend, hope
+the frontend's land did not race the backend's. `--fullstack` makes that one operation.
+
+```
+/release:execute 01 --fullstack     # backend leg → frontend leg → ONE loop → ONE land
+/release:execute 01 --backend       # single leg (unchanged)
+/release:execute 01 --frontend      # single leg (unchanged)
+```
+
+**One worktree, one branch, one land.** The phase worktree, the per-phase lock, the exec-env, the
+gate→verifier→fixer loop and `land_branch` are created ONCE and shared by both legs. A half-phase
+never reaches base — that is the whole point of folding the legs together.
+
+```
+acquire lock → create $PHASE_WT → sync planning in (see below) → provision phase env
+  ├─ leg 1: spawn release:wave-executor { half: backend,  cwd: $PHASE_WT, no_branch: true }
+  │         → waits for completion; its commits are already on $BRANCH
+  ├─ leg 2: spawn release:wave-executor { half: frontend, cwd: $PHASE_WT, no_branch: true }
+  └─ THEN the closed loop over the union: run_gate → release:phase-verifier (stack: fullstack)
+     → release:code-fixer → re-verify → land ONCE on $BASE
+```
+
+**Order is the plan's to declare, not the flag's.** Read `execution_order:` from the frontmatter of
+each PLAN manifest (`backend_then_frontend` is the common one — the frontend consumes the endpoint).
+Honor it. Only when neither manifest declares an order, default to backend → frontend and say so.
+
+**Rules**
+- Leg 2 starts ONLY after leg 1's wave-executor returns and its commits are on `$BRANCH`. The legs
+  are sequential *between* themselves; parallelism lives inside each leg's readiness scheduler.
+- Leg 1 failing (gate red it cannot fix, or the executor aborting) ⇒ do NOT start leg 2. Report
+  which leg failed, keep `$PHASE_WT`, land nothing.
+- ONE gate run and ONE verifier run, both over the union of the two legs: the verifier is spawned
+  with `stack: fullstack` so it checks the Django truths AND the React truths against the phase SPEC.
+  A backend that passes while the frontend half is unverified is not a phase.
+- `--once`, `--resume`, `--max-iters`, `--budget-usd`, `--no-merge`, `--pr` all apply to the combined
+  run. `--resume` skips tasks already committed in either leg.
+- SUMMARY: each leg writes `{NN}-SUMMARY-BACKEND.md` / `{NN}-SUMMARY-FRONTEND.md`; the unified
+  `{NN}-SUMMARY.md` aggregates both with `status: SUCCESS` only when BOTH legs completed.
+- Without any flag and with both plans present, still ask — but offer `--fullstack` first:
+
 ```
 Phase {NN} is fullstack. Two plans found:
-  - {NN}-PLAN-BACKEND.md  (Django)
+  - {NN}-PLAN-BACKEND.md  (Django)    execution_order: backend_then_frontend
   - {NN}-PLAN-FRONTEND.md (React)
 
-Recommended order:
-  1. /release:execute 01 --backend   (API first — frontend needs the endpoint)
-  2. /release:execute 01 --frontend  (component second)
-
-Which do you want to execute first?
+  1. /release:execute 01 --fullstack  ← both legs, one loop, one land (recommended)
+  2. /release:execute 01 --backend    ← API only
+  3. /release:execute 01 --frontend   ← UI only (needs the API already landed)
 ```
 
 ## Verification after execute
