@@ -1,5 +1,5 @@
 name = "release-wave-executor"
-description = "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. v0.22.0: optional per-worktree test-env provisioning (.release-planning/EXEC-ENV.yml) so containerized test suites can fan out instead of being forced serial. Always invoked by /release:execute (no flag)."
+description = "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns tdd-executor concurrently in git worktrees, cherry-picks commits back to feat/{NN}-{slug} branch. v0.22.0: READINESS SCHEDULER — schedules by per-task depends_on + a dynamic file-collision check instead of a wave barrier (waves become presentation/checkpoint), with per-worktree test-env provisioning (.release-planning/EXEC-ENV.yml) so containerized suites can fan out, complexity-based model tiering per spawn, and a parallelism telemetry block. Falls back to wave-barrier mode for PLANs with no task deps. Always invoked by /release:execute (no flag)."
 model = "gpt-5.6"
 reasoning_effort = "high"
 output_token_budget = 1500
@@ -233,10 +233,11 @@ echo "→ exec-env: $EXECENV (max_parallel=$ENV_CAP)"
 - `EXECENV=on` → each parallel sub-worktree gets its own provisioned env, and every test command
   the executor runs is prefixed with that env's `test_exec_prefix`.
 
-**Concurrency cap.** When `EXECENV=on`, each env is a real container + database. Run at most
-`ENV_CAP` task worktrees at a time: split the wave's parallel groups into batches of `ENV_CAP`
-(`0` = no cap) and process batches sequentially — provision batch → spawn batch → cherry-pick →
-teardown batch → next batch. Never provision the whole wave up front.
+**Concurrency cap.** When `EXECENV=on`, each env is a real container + database — never keep more
+than `ENV_CAP` alive at once. Under the readiness scheduler this is enforced at dispatch (a task
+starts only if a slot is free), so envs are provisioned one per dispatched task and torn down as
+each task lands — never a whole wave provisioned up front. In LEGACY MODE the same cap is applied
+by batching the wave's parallel groups: provision batch → spawn → cherry-pick → teardown → next.
 
 </step>
 
@@ -271,7 +272,113 @@ Without `--resume`: skip this step (run all tasks).
 
 </step>
 
+<step name="build_readiness_graph">
+
+**v0.22.0 — the scheduling unit is the TASK, not the wave.**
+
+The wave barrier was the parallelism ceiling: W4 waited on all of W3 even when its tasks were ready,
+so a 16-core box with a cap of 6 still ran 2 tasks at a time. Waves stay as *presentation +
+checkpoint* grouping; what gates a start is **readiness**.
+
+Build the graph ONCE, from the manifest when possible:
+
+```bash
+# Preferred: manifest `task_deps:` map (planner-emitted, v0.22.0)
+#   task_deps: { T01: [], T02: [T01], T04: [], ... }
+# Fallback:   each task body's `depends_on:` in its wave file
+# Neither present anywhere → LEGACY MODE (see below)
+```
+
+- `READY(T)` ⟺ every id in `deps[T]` has a commit on `$BRANCH` (same grep the resume filter uses)
+  AND `T` is not already done/in-flight.
+- `SCHEDULABLE(T)` ⟺ `READY(T)` AND `files[T]` is disjoint from the files of every task **currently
+  in flight** (dynamic collision check — recomputed at each dispatch, never precomputed per wave).
+- Ignore `deps:` between WAVES for scheduling when `task_deps` exists — it is documentation of the
+  checkpoint order, not a barrier.
+- **Cycle detection:** if a non-empty remaining set has no `READY` member and nothing is in flight,
+  the graph is cyclic (or depends on a task that will never run) → ABORT with the offending ids.
+  Never "just run them in file order".
+
+**Concurrency cap:**
+```bash
+SCHED_CAP="$( [ -f "$ENV_LIB" ] && release_sched_max_parallel "$CFG_ROOT" || echo 4 )"
+```
+`release_sched_max_parallel` = explicit `test_env_max_parallel` when configured, else
+`min(8, max(1, cores/2))`. Env-independent: a repo with no `EXEC-ENV.yml` still gets a real bound.
+When envs ARE provisioned, live envs never exceed `release_execenv_max_parallel` either — take the
+tighter of the two at dispatch time.
+
+**LEGACY MODE (backwards compatible).** No `task_deps` in the manifest AND no `depends_on:` in any
+task body → the PLAN predates v0.22.0. Fall back to the wave-barrier scheduling described in
+`execute_each_wave` (a wave starts only after the previous wave landed). Log one line —
+`SCHEDULER=wave-barrier (legacy PLAN: no task_deps)` — and record it in WAVE-SUMMARY.md so the
+lost parallelism is attributable to the plan, not to the executor. `/release:plan {NN}` re-emits
+with `task_deps`.
+
+</step>
+
+<step name="readiness_scheduler">
+
+**Applies whenever the graph exists (non-legacy).** Replaces the per-wave batching loop; the wave
+mechanics below (slice, worktree, provision, spawn, cherry-pick, teardown) are unchanged — only
+*when* a task starts is different.
+
+```
+in_flight = {}                      # task_id → {worktree, branch, label, wave, started_at}
+done      = set(resume_skip)
+frozen    = false                   # set by a failed wave-boundary verification
+loop:
+    # 1. DISPATCH — fill the cap with schedulable tasks, cheapest-blocking first
+    while not frozen and len(in_flight) < SCHED_CAP:
+        cand = [T for T in remaining if READY(T) and files-disjoint from in_flight]
+        if not cand: break
+        # Tie-break, in order: (a) on the critical_path, (b) unblocks the most tasks,
+        # (c) declared order. The critical path is the wall-clock floor — never let it wait
+        # behind an off-path task when both are schedulable.
+        T = pick(cand)
+        create worktree + slice + provision env (unchanged mechanics)
+        spawn release-tdd-executor  { model: task_model(complexity[T]), ... }
+        in_flight[T] = {...}
+    if not in_flight: break         # nothing running and nothing schedulable → done or cyclic
+
+    # 2. HARVEST — wait for the FIRST completion, not for all of them.
+    #    (Waiting for the whole batch is the barrier we just removed; do not reintroduce it.)
+    T = wait_any(in_flight)
+    cherry-pick T's commits onto $BRANCH        # SERIALIZED — one at a time, always
+    teardown T's env; remove T's worktree
+    done.add(T); del in_flight[T]
+
+    # 3. WAVE CHECKPOINT — when every task of wave W is in `done`, run W's boundary verification.
+    #    It does NOT block dispatch of already-ready downstream tasks.
+    if wave_complete(W):
+        run wave-boundary verification for W (wave-scoped tests + cheap gates)
+        if failed:
+            frozen = true                      # stop starting NEW tasks
+            let in-flight tasks finish and cherry-pick normally (their work is not lost)
+            fix the failure (or STOP and report with the last good SHA)
+            frozen = false                     # resume dispatch after green
+```
+
+**Invariants**
+- Cherry-picks stay **serialized** — never two at once, never out of dependency order.
+- A task starts only when its deps are **committed on `$BRANCH`**, not merely "finished" — the
+  slice's worktree branches from `$BRANCH`, so an uncommitted dep is invisible to it.
+- The dynamic collision check uses the files of the tasks **in flight**, not the wave's union — two
+  tasks from the same wave touching different files run together; two tasks from *different* waves
+  touching the same file never do.
+- Migration-generating tasks and lockfile tasks are mutually exclusive with each other at dispatch
+  (the existing `collision_detection` rules apply to the in-flight set, not to a wave).
+- A frozen scheduler never abandons in-flight work — it stops *starting*, then drains.
+- Everything else (slice, provisioning, model tier, teardown order, terminal sweep) is unchanged.
+
+</step>
+
 <step name="execute_each_wave">
+
+**v0.22.0:** this step describes the WAVE MECHANICS (slice → worktree → provision → spawn →
+cherry-pick → teardown → verify). With a `task_deps` graph present, `readiness_scheduler` above
+decides *when* each task starts and these mechanics are applied per task as it is dispatched. In
+LEGACY MODE (no graph) this step runs as written, wave by wave, with a barrier between waves.
 
 **Wave-split layout extra:** waves no mesmo depth do DAG marcadas `parallel_safe: true` com `files_touched` disjuntos podem rodar **em paralelo entre si** — spawn N `release-tdd-executor` (uma por wave) com `plan_path={NN}-PLAN/W{X}-*.md` em worktrees isolados. Cherry-pick back após todos completarem.
 
@@ -491,6 +598,17 @@ serial_tasks: {N}      # tasks that fell back to serial
 duration_seconds: {N}
 model_mix: { opus: {N}, sonnet: {N} }   # v0.22.0 — tdd-executor spawns per tier (complexity routing)
 complexity_mix: { simple: {N}, standard: {N}, complex: {N} }   # unlabelled tasks counted as standard
+scheduler: readiness | wave-barrier    # wave-barrier ⇒ legacy PLAN with no task_deps (say so)
+sched_cap: {N}                         # release_sched_max_parallel actually applied
+parallelism:
+  max_concurrent: {N}                  # peak tasks in flight
+  avg_concurrent: {N.N}                # total_task_time / wall_clock — the real fan-out achieved
+  critical_path: [T01, T05, T12]       # from the manifest (or computed when absent)
+  critical_path_wall: {N}              # seconds spent on the critical-path tasks — the floor
+  total_task_time: {N}                 # sum of every task's duration (serial equivalent)
+  wall_clock: {N}                      # actual phase wall time
+  speedup: {total_task_time / wall_clock}x
+  idle_blocked: {N}                    # seconds a slot sat empty with tasks remaining but none ready
 exec_env: on | off             # .release-planning/EXEC-ENV.yml present + provisioning ran
 env_max_parallel: {N}          # concurrency cap actually applied (0 = unlimited)
 env_provision_failed: []       # task IDs whose env failed → executed serially in the phase worktree
@@ -509,6 +627,17 @@ env_teardown_failed: []        # task IDs whose env leaked (idempotent teardown 
 ## Wave 2 (serial, file collision detected: serializers.py)
 - T04: test(...) sha=jkl3456
 - T05: refactor(...) sha=mno7890
+
+## Parallelism (v0.22.0)
+
+| Metric | Value | Read as |
+|--------|-------|---------|
+| scheduler | readiness | `wave-barrier` ⇒ the PLAN has no `task_deps` — re-plan to unlock fan-out |
+| cap applied | {N} | `release_sched_max_parallel` (explicit config, else min(8, cores/2)) |
+| max / avg concurrent | {N} / {N.N} | avg well below the cap ⇒ the graph is narrow, not the machine |
+| critical path | T01 → T05 → T12 ({N}s) | the wall-clock floor; shorten it in planning, not here |
+| total task time / wall clock | {N}s / {N}s = **{N}x** | the actual speedup this phase got |
+| idle blocked | {N}s | slot-seconds wasted with tasks left but none ready — chain too deep |
 
 ## Cherry-pick conflicts
 None  (or list per-task)
@@ -570,6 +699,12 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 - NEVER let a failed provision silently drop a task — surface the evidence path, fall back to serial in `$PHASE_WT`, and record `env_provision_failed` in WAVE-SUMMARY.md
 - NEVER treat a failed teardown as fatal — log it, keep going (a leaked container must not cost the commits)
 - With `EXECENV=off` (no `.release-planning/EXEC-ENV.yml`) NOTHING above changes behaviour: no provisioning, empty prefix, exactly the pre-v0.22.0 flow
+- NEVER start a task whose `depends_on` are not yet COMMITTED on `$BRANCH` — a finished-but-uncommitted dep is invisible to the new worktree
+- NEVER run two cherry-picks concurrently, and never out of dependency order — the readiness scheduler parallelizes MAKING, never LANDING
+- NEVER let a wave-boundary verification block the dispatch of already-ready downstream tasks; on failure FREEZE new spawns, let in-flight tasks drain and land, fix, then resume
+- NEVER exceed `release_sched_max_parallel` in-flight tasks (and, when envs are on, never exceed the live-env cap either — take the tighter)
+- NEVER fall back to "run them in declaration order" when no task is READY and nothing is in flight — that state is a dependency cycle: ABORT and name the ids
+- NEVER treat wave `deps:` as a barrier once `task_deps` exists — it documents checkpoint order only
 - NEVER spawn a task ABOVE `worker_model` — the complexity label may only DEMOTE (a PLAN cannot promote itself past the tier `/release:execute` handed down)
 - NEVER route a `security` / `race` / `memray` task to the `simple` tier even if the PLAN says so — the risk defines the tier; treat it as `standard` and note the override in WAVE-SUMMARY.md
 - NEVER run an app-wide / suite-wide test command as part of a task spawn — suite-level runs belong to the wave boundary (intermediate) or the terminal sweep. That is the per-task cost the executor's `test_invocation_budget` exists to bound.
@@ -627,6 +762,11 @@ def has_django_system_check_precommit():
 - [ ] `EXECENV=off`: no provisioning attempted, `test_exec_prefix` empty on every spawn (behaviour identical to pre-v0.22.0)
 - [ ] Every `tdd-executor` spawn's `model:` resolved via `release_worker_model_for <complexity>`; no spawn above `worker_model`; unlabelled tasks ran at the worker tier
 - [ ] `model_mix` + `complexity_mix` recorded in WAVE-SUMMARY.md
+- [ ] Graph built from `task_deps` (or per-task `depends_on`); every task started only after its deps were committed; no cycle left undetected
+- [ ] Dispatch filled the cap whenever schedulable tasks existed (no slot idle while a ready, non-colliding task waited)
+- [ ] Cherry-picks serialized and in dependency order; a failed wave checkpoint froze dispatch instead of abandoning in-flight work
+- [ ] Legacy PLAN (no deps anywhere) ran wave-barrier mode and SAID SO in WAVE-SUMMARY.md
+- [ ] `parallelism` block (max/avg concurrent, critical path + wall, total task time, speedup, idle_blocked) recorded
 - [ ] No task spawn ran a suite-wide test command (per-task runs are task-scoped; suite runs live at wave boundary / terminal sweep)
 - [ ] Monolithic PLAN.md > 600 lines → refused with re-split hint (no execution attempted)
 - [ ] `--resume` skips tasks already committed (grep T-ID in `git log`)

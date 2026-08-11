@@ -120,6 +120,8 @@ Fill task template (stack-aware checklist — see blocks below):
   type: tdd-red | tdd-green | refactor | security | race | memray | a11y | checkpoint
   title: {one-line}
   complexity: simple | standard | complex     # v0.22.0 — REQUIRED (see <task_complexity> below)
+  depends_on: [T01, T04]                      # v0.22.0 — REQUIRED (may be []); REAL task deps,
+                                              # not "the previous wave". See <task_dependencies>.
   files:
     - path: {create|modify}
   action: |
@@ -134,6 +136,49 @@ Fill task template (stack-aware checklist — see blocks below):
     - {observable assertion 1}
     - {observable assertion 2}
 ```
+
+<task_dependencies>
+
+**v0.22.0 — waves are presentation + checkpoint, NOT a barrier. `depends_on` is the real schedule.**
+
+`release-wave-executor` schedules by **task readiness**: it starts any task whose `depends_on` are
+already committed and whose `files:` do not collide with a task in flight, up to the concurrency
+cap. Wave membership no longer gates a start. So a wave-level dependency you did not actually need
+is pure idle time — under the old wave barrier, one slow task in W2 held every W3 task hostage.
+
+**How to fill it**
+- List ONLY the tasks whose *output this task reads*: the model it imports, the endpoint it calls,
+  the type it consumes, the fixture it uses. `[]` is the correct and common answer for the first
+  tasks of independent subsystems — **emit several `depends_on: []` tasks so the phase opens wide**.
+- NEVER write "depends on the previous wave" as a proxy. NEVER list a task just because it is
+  earlier in the file, or because both touch the same app.
+- File collisions are handled by the executor (dynamic collision check) — do NOT encode "same file"
+  as a dependency. Two tasks touching one file are serialized automatically; declaring the dep just
+  hides the real graph.
+- RED→GREEN of the SAME unit is a real dependency (`T02 depends_on [T01]`). RED of unit A and RED of
+  unit B are not.
+- A cycle is a planning bug — the executor refuses to start a cyclic set.
+
+**Tail waves are the other half of the ceiling.** A terminal REFACTOR / SECURITY / VERIFY wave that
+lists every file of the phase is `parallel_safe: false` by construction and becomes a serial tail no
+fan-out can help — historically ~40% of phase wall-clock. It is also largely redundant:
+`release-tdd-executor` already runs RED → GREEN+REFACTOR → SECURITY **per task**.
+
+- Work scoped to ONE task's files belongs to THAT task, never to a terminal wave. The executor
+  already applies Q1-Q7 / RC1-RC7 inside the GREEN edit and writes that task's security tests.
+- A terminal wave is justified ONLY for genuinely cross-cutting work that cannot be attributed to a
+  single task: a project-wide grep gate (Q6 `.delay(`, RC6 `localStorage`), an integrated 9-category
+  matrix spanning several endpoints, a cross-module race test, the final no-commit verify gate.
+- When you do emit one, state in its `action:` WHY it cannot be split. "Refactor everything at the
+  end" is not a reason.
+
+**Critical path.** After wiring `depends_on`, compute the longest dependency chain and record it in
+the manifest as `critical_path: [T01, T05, T12, …]` plus `critical_path_length: N`. That chain is
+the phase's wall-clock floor — no cap and no machine makes it shorter. **Minimizing it is a planning
+goal**: if the critical path is most of the phase, split the chain (extract an independent slice,
+stub a contract so the consumer can start early) rather than accepting it.
+
+</task_dependencies>
 
 <task_complexity>
 
@@ -177,11 +222,27 @@ waves:
   W3: { deps: [W2], parallel_safe: false, files: [serializers.py, views.py],     complexity: {T04: simple, T05: standard} }
   W4: { deps: [W2,W3], parallel_safe: true, files: [tests/test_X_security.py],   complexity: {T06: complex} }
   W5: { deps: [W4], parallel_safe: false, files: []  }  # no-commit verify gate
+
+# v0.22.0 — the REAL schedule: task-level deps + the resulting critical path.
+task_deps:
+  T01: []            # opens immediately
+  T02: [T01]
+  T03: [T02]
+  T04: []            # independent subsystem — starts alongside T01, NOT after W2
+  T05: [T04]
+  T06: [T03, T05]
+critical_path: [T01, T02, T03, T06]
+critical_path_length: 4
 ```
 
 The per-wave `complexity:` map mirrors the labels in the task bodies — it exists so `wave-executor`
 resolves each spawn's model tier from the manifest alone. Omit it and every task falls back to
 `standard` (the pre-v0.22.0 tier).
+
+`task_deps` mirrors each task's `depends_on:` so the readiness scheduler builds the graph from the
+manifest alone. **`deps:` between waves stays as documentation of the checkpoint order — it is no
+longer a barrier** when `task_deps` is present. Omit `task_deps` and the executor falls back to the
+pre-v0.22.0 wave-barrier scheduling (backwards compatible, and slower).
 
 Waves com `parallel_safe: true` E sem overlap de files podem ser executados em worktrees disjuntos via release-wave-executor.
 </step>
@@ -516,6 +577,10 @@ cross_stack_lockstep: false
 - [ ] Cada task: files, action, author_checklist (Q1-Q7 OR RC1-RC7), done_when
 - [ ] Cada task: `complexity: simple|standard|complex` justificável pelos critérios de `<task_complexity>` — nenhuma task de security/race/memray marcada `simple`
 - [ ] Manifest repete os labels por wave (`complexity: {T01: …}`) para o wave-executor rotear sem abrir cada slice
+- [ ] Cada task: `depends_on:` com dependências REAIS de task (pode ser `[]`), nunca "a wave anterior"; sem ciclos; colisão de arquivo NÃO declarada como dep
+- [ ] ≥1 task com `depends_on: []` por subsistema independente — a fase precisa abrir larga, não em fila
+- [ ] Manifest traz `task_deps`, `critical_path` e `critical_path_length`
+- [ ] Nenhuma wave terminal REFACTOR/SECURITY cobrindo os arquivos de várias tasks sem justificativa cross-cutting explícita no `action:` — o que é escopado a uma task mora na task
 - [ ] Security matrix com 9 categorias mapeadas (no manifest)
 - [ ] Wave Map table no manifest mostra cada wave com linhas + tasks
 - [ ] NENHUM wave file > 600 linhas

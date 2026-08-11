@@ -86,6 +86,46 @@ serializer cost the same as writing a concurrency guard.
 
 A PLAN with no `complexity:` field routes every task at the worker tier — identical to 0.21.0.
 
+### Changed — the wave barrier is gone: wave-executor schedules by task readiness
+
+Field evidence from a phase running under the earlier 0.22.0 work: fan-out happened, but observed
+concurrency stalled at **2** on a 16-core machine with a cap of 4-6. Three structural ceilings, none
+of them the cap: the DAG was wave-granular *with a barrier* (a whole wave waited on the previous
+one, ready tasks idling), plans emitted terminal REFACTOR/SECURITY/VERIFY waves spanning every file
+of the phase (`parallel_safe: false` by construction — ~40% of wall-clock, and largely redundant
+with the per-task RED→GREEN+REFACTOR→SECURITY the executor already runs), and fan-out inside a wave
+was opt-in.
+
+- **`agents/feature-planner.md`** — tasks declare `depends_on: [T-IDs]` (real data/contract
+  dependencies, `[]` when none); the manifest carries `task_deps`, `critical_path`,
+  `critical_path_length`. Explicit non-dependencies documented: wave order, file collisions (the
+  executor serializes those dynamically), declaration order. Terminal REFACTOR/SECURITY waves now
+  require a cross-cutting justification in their `action:` — task-scoped work belongs to the task.
+  Minimizing the critical path is a stated planning goal.
+- **`agents/wave-executor.md`** — new `build_readiness_graph` + `readiness_scheduler`: dispatch any
+  task whose deps are **committed on the phase branch** and whose files are disjoint from the tasks
+  *currently in flight* (dynamic check, not a precomputed per-wave partition), up to the cap;
+  harvest the FIRST completion rather than a batch. Cherry-picks stay serialized and in dependency
+  order — the scheduler parallelizes making, never landing. A wave checkpoint runs when its tasks
+  have landed and does NOT block ready downstream tasks; on failure it freezes dispatch, drains
+  in-flight work, then resumes. No ready task with nothing in flight ⇒ dependency cycle ⇒ abort
+  naming the ids.
+- **`bin/release-execenv-lib.sh`** — `release_default_max_parallel` = `min(8, max(1, cores/2))`
+  replaces the flat 4, and `release_sched_max_parallel` bounds concurrent task spawns even with no
+  `EXEC-ENV.yml` (previously unlimited). Explicit `test_env_max_parallel` always wins; `0`
+  (unlimited envs) is not read as unlimited agents. `RELEASE_EXEC_CORES` overrides detection.
+  `test-execenv-lib.sh`: 40 → 53 assertions.
+- **`agents/plan-checker.md`** — `task_dependency_audit`: no deps anywhere → MED
+  (`NO_TASK_DEPS_WAVE_BARRIER`); partial adoption / manifest-body disagreement → HIGH; **cycle or
+  dangling T-id → BLOCKER**. Advisory MEDs for a file collision encoded as a dependency, a
+  serial-tail wave, and a critical path covering ≥80% of the phase. Reports `scheduler_shape`
+  (depth, width, max theoretical concurrency).
+- **Telemetry** — WAVE-SUMMARY.md gains `scheduler`, `sched_cap` and a `parallelism` block
+  (max/avg concurrent, critical path + wall, total task time, speedup, `idle_blocked` seconds).
+
+Backwards compatible: a PLAN with no task deps runs the old wave-barrier path and records
+`scheduler: wave-barrier` so the lost parallelism is attributed to the plan, not the executor.
+
 ### Changed — plan-checker FAILs on a missing or invalid `complexity:` label
 
 The label was a planner success-criterion with nothing enforcing it, so a planner under context

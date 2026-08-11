@@ -329,6 +329,21 @@ Report: "Phase {NN} is fullstack. Use `/release:execute {NN} --backend` first, t
 - manifest.md: < 300 linhas, frontmatter + waves table
 - Cada wave file: frontmatter `wave`, `depends_on`, `parallel_safe`, `files_touched`
 
+**Readiness contract (v0.22.0 — o que determina a velocidade da fase):**
+- Cada task declara `depends_on: [T-IDs]` — dependências REAIS (o model que importa, o endpoint que
+  chama, a fixture que usa), `[]` quando não há. NUNCA "a wave anterior", NUNCA colisão de arquivo
+  (o executor serializa isso sozinho, dinamicamente).
+- Waves viram agrupamento de apresentação/checkpoint. O `wave-executor` despacha qualquer task cujas
+  deps estejam **commitadas** e cujos arquivos não colidam com as tasks em voo, até o cap
+  `min(8, cores/2)` (ou `test_env_max_parallel` explícito).
+- Manifest traz `task_deps`, `critical_path` e `critical_path_length`. O critical path é o piso de
+  wall-clock — encurtá-lo é meta de planejamento, não de execução.
+- Wave terminal REFACTOR/SECURITY cobrindo os arquivos de várias tasks é cauda serial (~40% do
+  wall-clock) e em boa parte redundante: o `tdd-executor` já faz RED→GREEN+REFACTOR→SECURITY por
+  task. Só sobrevive com justificativa cross-cutting explícita no `action:`.
+- `plan-checker`: sem deps em lugar nenhum → MED (roda em wave-barrier, mais lento); adoção parcial
+  → HIGH; **ciclo ou T-id inexistente → BLOCKER** (plano não é escalonável).
+
 **Complexity contract (HARD — v0.22.0):**
 - Cada task declara `complexity: simple | standard | complex` (critérios em `release-feature-planner`
   → `<task_complexity>`). O label escolhe o tier do modelo que executa a task

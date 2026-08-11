@@ -10,8 +10,10 @@ description: >
   until GATE=GREEN AND checker PASS, then auto-lands. `--once` = legacy single-pass.
   v0.22.0: optional per-worktree test envs (.release-planning/EXEC-ENV.yml) unlock fan-out for
   containerized suites, per-task test invocations are capped at 2 (RED + one combined
-  GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary, and each task spawn's model
-  tier follows the planner's complexity label (demote-only; worker tier is the ceiling).
+  GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary, each task spawn's model tier
+  follows the planner's complexity label (demote-only; worker tier is the ceiling), and the
+  wave-executor schedules by per-task readiness (depends_on + dynamic file collision) instead of a
+  wave barrier — waves become checkpoints, not gates.
   Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 
@@ -432,7 +434,7 @@ its current branch; open the PR from `feat/{NN}-{slug}` after `/release:verify {
 
 `/release:execute` ALWAYS spawns `release-wave-executor`. Wave-executor:
 1. Parses PLAN (`{NN}-PLAN/manifest.md` wave-split dir, OR legacy `{NN}-PLAN.md`)
-2. Auto-derives `parallel_groups` per wave when frontmatter omits them (via `files:` per task disjoint analysis)
+2. Builds the readiness graph from the manifest `task_deps` (or per-task `depends_on`) and dispatches by task readiness + a dynamic file-collision check; falls back to per-wave `parallel_groups` derivation when the PLAN carries no task deps
 3. Slices PLAN per task into worktree-local `PLAN-SLICE.md` (~3KB) to drop redundant context cost
 4. Spawns N `release-tdd-executor` concurrently in `git worktree`-isolated branches when disjoint files detected
 5. Falls back serial-in-main-tree when files collide (Django graph coherence, migrations, lockfiles)
@@ -506,7 +508,7 @@ Wave-executor handles everything — no flag required.
 - ≤ 600 lines → executes as single wave (still uses 1 worktree + slice-per-task)
 
 **Disjointness rules (collision_detection automatic):**
-- Same file in 2+ tasks → serial-in-main-tree (no worktree)
+- Same file in 2+ tasks → never in flight together (checked dynamically against the running set, so the two tasks still run — just not at the same time)
 - Migration files in 2+ tasks → serial (numbering collision)
 - Lockfiles touched → serial
 - Django `models.py` + downstream (`admin/views/serializers/urls/filters.py`) when pre-commit runs `manage.py check` → coalesce_into_wave_commit (graph coherence)
@@ -563,7 +565,40 @@ only when the task itself touched models or a shared type contract). TDD discipl
 the RED proof is still mandatory and never merged into another run; what changed is run *scope*.
 Each SUMMARY.md reports `test_runs:` so a regression in this budget is visible.
 
-### 3. Model tier per task, not per phase
+### 3. Readiness scheduling instead of a wave barrier
+
+Waves used to be a barrier: W4 started only after every task of W3 landed, so ready tasks idled and
+real concurrency stayed around 2 even on a 16-core box with a cap of 6. Waves are now
+**presentation + checkpoint** grouping; what gates a start is readiness.
+
+- The planner emits per-task `depends_on: [T-IDs]` (real data/contract deps, `[]` when none) and the
+  manifest carries `task_deps`, `critical_path`, `critical_path_length`.
+- `release-wave-executor` dispatches ANY task whose deps are **committed on the phase branch** and
+  whose `files:` are disjoint from the tasks **currently in flight** (dynamic collision check), up to
+  `release_sched_max_parallel`. It harvests the first completion rather than waiting for a batch.
+- **Cherry-picks stay serialized** and in dependency order — the scheduler parallelizes *making*,
+  never *landing*.
+- A wave checkpoint runs once that wave's tasks have landed and does **not** block already-ready
+  downstream tasks. If it fails, dispatch FREEZES, in-flight work drains and lands, the failure is
+  fixed, then dispatch resumes — no abandoned work.
+- No ready task with nothing in flight = a dependency cycle → abort naming the ids.
+- **Cap:** `min(8, max(1, cores/2))` by default (half the cores because each slot is an agent + a
+  runner + maybe a container; 8 because past that the serialized cherry-pick is the bottleneck).
+  An explicit `test_env_max_parallel` in `EXEC-ENV.yml` always wins, above or below that.
+  `RELEASE_EXEC_CORES` overrides detection.
+- **The serial tail matters as much as the scheduler.** A terminal REFACTOR/SECURITY wave spanning
+  every file of the phase is `parallel_safe: false` by construction and no fan-out helps it. The
+  planner now pushes task-scoped refactor/security back into the task (`tdd-executor` already runs
+  RED → GREEN+REFACTOR → SECURITY per task) and keeps terminal waves for genuinely cross-cutting
+  work only.
+- **Backwards compatible:** a PLAN with no task deps runs the old wave-barrier path and says so in
+  WAVE-SUMMARY.md (`scheduler: wave-barrier`), so the lost parallelism is attributed to the plan.
+  `/release:plan {NN}` re-emits with `task_deps`.
+- **Visibility:** the `parallelism` block in WAVE-SUMMARY.md — max/avg concurrent, critical path and
+  its wall time, total task time, speedup, and `idle_blocked` seconds (slots empty while tasks
+  remained but none were ready — that number is a planning problem, not an executor problem).
+
+### 4. Model tier per task, not per phase
 
 One tier for the whole phase overpays on mechanical work. The planner labels every task
 `complexity: simple | standard | complex` (criteria in `release-feature-planner` →
