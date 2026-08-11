@@ -34,10 +34,21 @@
 #   '#' comments are ignored. Split is on the FIRST colon only, so a command may itself contain
 #   colons (e.g. `unit: pytest -k "parse:edge"` is fine). No config + unknown stack ⇒ empty verdict.
 #
+#   Baseline lookups are keyed by the STEP NAME: the `test:` step reads `suites.test` from
+#   .release-planning/test-baselines.json. Keep the two in sync — a mismatch makes the baseline
+#   silently inert (the gate simply stays RED with nothing to explain it).
+#
 #   PASS_BASELINE (v0.23.0) = the step exited non-zero but EVERY failing test is recorded in
 #   .release-planning/test-baselines.json (see release-baseline-lib.sh). It does not turn the gate
 #   RED — inherited failures are not this phase's regressions — but it is echoed so the run is
 #   auditable. No baseline file, unparseable output, or one unknown failure ⇒ plain FAIL.
+
+# Resolved AT SOURCE TIME, and deliberately not with `${BASH_SOURCE[0]}` alone: under zsh — which is
+# what the agent harness actually sources these libs from on macOS — BASH_SOURCE does not exist, so
+# the sibling-lib lookup silently failed and every inherited-red repo went RED instead of
+# PASS_BASELINE. In zsh `$0` is the sourced file at top level (it is the FUNCTION name inside a
+# function, which is why this must be captured here and not lazily).
+_RELEASE_GATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
 
 # ── helpers ─────────────────────────────────────────────────────────────────────────────────────
 release_gate_root() {  # resolve a sane repo root from an optional arg, else cwd's top-level
@@ -106,13 +117,20 @@ _gate_all_failures_are_baseline() {  # $1 root, $2 step name, $3 output → 0 wh
   local root="$1" name="$2" out="$3" lib verdict stack=django
   command -v awk >/dev/null 2>&1 || return 1
   if ! command -v baseline_classify >/dev/null 2>&1; then
-    lib="$(dirname "${BASH_SOURCE[0]}")/release-baseline-lib.sh"
+    lib="${RELEASE_LIB_DIR:-$_RELEASE_GATE_LIB_DIR}/release-baseline-lib.sh"
     [ -f "$lib" ] || return 1
     # shellcheck source=release-baseline-lib.sh
     . "$lib"
   fi
   [ -n "$(baseline_file "$root")" ] || return 1          # no baseline ⇒ never soften a RED
-  case "$name" in *fe*|*front*|*vitest*|*js*|*ts*) stack=react ;; esac
+  # Detect the runner from the OUTPUT, never from the step name: a step called `tests` matches any
+  # naive `*ts*` rule and would be parsed as vitest, yielding zero signatures, a `clean` verdict and
+  # a RED that should have been PASS_BASELINE.
+  case "$out" in
+    *"short test summary"*|*"FAILED "*|*"ERROR "*) stack=django ;;
+    *"Test Files"*|*"×"*|*"FAIL src/"*|*"FAIL  "*)  stack=react  ;;
+    *) return 1 ;;                                       # unrecognized output ⇒ do not soften
+  esac
   verdict="$(printf '%s\n' "$out" | baseline_parse_failures "$stack" \
              | baseline_classify "$root" "$name" | sed -n 's/^BASELINE_VERDICT=//p')"
   [ "$verdict" = "baseline-only" ]

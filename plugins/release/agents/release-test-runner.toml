@@ -128,7 +128,9 @@ Extract:
 - `duration_seconds`: wall time
 - `failures[]`: array of `{file, test_name, traceback_head_10_lines, classification}`
   - **v0.23.0 — classification**: source `bin/release-baseline-lib.sh`, pipe the runner output
-    through `baseline_parse_failures <stack>` then `baseline_classify <root> <suite>`. Each failure
+    through `baseline_parse_failures <stack>` then `baseline_classify <root> <suite>`, where **`<suite>` is the VERIFY-GATE step name** this
+    bucket belongs to (the same key `run_gate` uses) — a mismatched key matches nothing and every
+    inherited failure silently reads as NEW. Each failure
     is `BASELINE` (recorded in `.release-planning/test-baselines.json` — inherited, not yours) or
     `NEW` (yours). No baseline file ⇒ everything `NEW` (fail-safe).
 

@@ -165,7 +165,7 @@ normal end-of-task summary.
 
 ```
 /release:baseline capture            # run the suites, record every current failure as known
-/release:baseline capture --suite backend
+/release:baseline capture --suite test    # one VERIFY-GATE step (the suite key IS the step name)
 /release:baseline show               # what is currently excused, and since when
 /release:baseline diff               # run the suites now and compare against the recorded baseline
 /release:baseline clear              # delete the file (everything becomes NEW again)
@@ -187,7 +187,7 @@ to the only one a phase gate should ask: **did WE break anything?**
   "captured_at": "2026-08-11T10:00:00Z",
   "captured_on": "main@a1b2c3d",
   "suites": {
-    "backend": {
+    "test": {
       "cmd": "pytest backend/apps -q",
       "failures": [
         {"id": "backend/apps/financeiro/tests/test_dre.py::test_saldo", "error": "AssertionError"}
@@ -197,13 +197,22 @@ to the only one a phase gate should ask: **did WE break anything?**
 }
 ```
 
+**The suite key is the VERIFY-GATE STEP NAME — not a stack label.** `run_gate` looks the baseline
+up by the name of the step it just ran, so a file keyed `backend` while the gate step is `test:`
+matches nothing and the feature is silently inert (the gate just stays RED, with nothing to explain
+why). If `VERIFY-GATE.yml` declares `test:` and `fe-test:`, the suites are `test` and `fe-test`.
+`capture` derives the keys from the gate for exactly this reason — do not rename them by hand.
+
 The error type is part of the signature on purpose: the same test failing for a **different** reason
 is a NEW failure — that is how a fresh bug hides behind an old red.
 
 ## capture
 
-1. Resolve the suites from `.release-planning/VERIFY-GATE.yml` (its `test:`-ish steps), or take
-   `--cmd` explicitly. Record the command with the results.
+1. Resolve the suites from `.release-planning/VERIFY-GATE.yml` — **the suite key IS the step name**
+   (`test:` → `suites.test`). Record each step's command alongside its results. `--suite <name>`
+   selects one step; `--cmd` runs an ad-hoc command and requires an explicit `--suite` to key it.
+   Verify after writing: every suite key must exist as a step in VERIFY-GATE.yml, and warn loudly
+   about any that does not — that entry can never match.
 2. **Refuse to capture on a dirty tree, and warn loudly when not on the project's base branch** —
    a baseline captured on top of half-finished work excuses your own breakage forever. State the
    branch + SHA you captured on; they go into `captured_on`.

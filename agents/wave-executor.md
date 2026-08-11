@@ -204,18 +204,25 @@ echo "→ exec-env: $EXECENV (max_parallel=$ENV_CAP)"
 
 **Env SLOTS — reuse instead of re-provision (v0.23.0, opt-in `test_env_reuse: true`).**
 Provisioning costs ~60s (container + DB clone). Paying that per TASK means a 19-task phase spends
-~19 minutes on setup alone. With reuse on, provision `SCHED_CAP` envs ONCE at the start of the
-phase and keep them alive:
+~19 minutes on setup alone. With reuse on, provision the envs ONCE at the start of the phase and
+keep them alive. **This is a distinct dispatch mode** — REUSE MODE — and the readiness scheduler has
+an explicit branch for it (see `readiness_scheduler` → "reuse mode"); it is NOT a variation you can
+mix into the per-task path.
+
+Resolve `SCHED_CAP` FIRST (it is defined in `build_readiness_graph`, which runs before this), then:
 
 ```bash
+SLOT_N=0
 if [ "$(release_execenv_reuse "$CFG_ROOT")" = "EXECENV_REUSE=on" ]; then
-  for i in $(seq 1 "$SCHED_CAP"); do
+  SLOT_N="$SCHED_CAP"                       # one slot per scheduler seat, no more
+  for i in $(seq 1 "$SLOT_N"); do
     SLOT_LABEL[$i]="$(release_execenv_slot_label "$SESSION_ID" "$i")"
     SLOT_WT[$i]="$(release_execenv_slot_path "$WT_BASE" "$i")"
-    G worktree add -b "wave/${SESSION_ID}/slot-s$i" "${SLOT_WT[$i]}" "$BRANCH"
+    SLOT_BRANCH[$i]="wave/${SESSION_ID}/slot-s$i"
+    G worktree add -b "${SLOT_BRANCH[$i]}" "${SLOT_WT[$i]}" "$BRANCH"
     execenv_provision "$CFG_ROOT" "${SLOT_WT[$i]}" "${SLOT_LABEL[$i]}"    # once per PHASE
     SLOT_PREFIX[$i]="$(execenv_prefix "$CFG_ROOT" "${SLOT_WT[$i]}" "${SLOT_LABEL[$i]}")"
-    SLOT_FREE[$i]=1
+    SLOT_FREE[$i]=1; SLOT_TASK[$i]=""
   done
 fi
 ```
@@ -223,30 +230,49 @@ fi
 **Why slots and not a rebinding pool:** a container's bind mounts are fixed at creation, so an env
 cannot be re-pointed at a new worktree. So the SLOT is what stays put — its worktree path is stable
 (`<wt_base>/slot-s{i}`) and its env is provisioned against that path once. Dispatching a task into a
-free slot means resetting that slot's worktree in place, not moving the env:
+free slot resets that slot's worktree in place; the env never moves.
 
-```bash
-# take slot i for task T: reset its worktree to the current branch tip, keep the env
-G -C "${SLOT_WT[$i]}" reset --hard "$BRANCH"
-G -C "${SLOT_WT[$i]}" clean -fd
-# write the task slice, then spawn with test_exec_prefix: "${SLOT_PREFIX[$i]}"
+**The slot lifecycle — the ONLY legal order (getting this wrong silently loses commits):**
+
+```
+acquire slot i  (SLOT_FREE[i]=1 → 0, SLOT_TASK[i]=T)
+  └─ G -C "${SLOT_WT[$i]}" reset --hard "$BRANCH"     # ← DESTROYS anything not yet cherry-picked
+     G -C "${SLOT_WT[$i]}" clean -fd
+     write PLAN-SLICE, spawn tdd-executor with test_exec_prefix="${SLOT_PREFIX[$i]}"
+task T returns
+  └─ cherry-pick T's commits from "${SLOT_BRANCH[$i]}" onto $BRANCH   (SERIALIZED, as always)
+     verify the pick landed:  G log --oneline "$BRANCH" | grep -q "$T"
+release slot i  (SLOT_FREE[i]=1, SLOT_TASK[i]="")   ← ONLY here, ONLY after the pick succeeded
+end of phase
+  └─ for each slot: execenv_teardown … THEN G worktree remove --force … THEN G branch -D
 ```
 
+- **NEVER `reset --hard` a slot whose previous task's commits are not yet on `$BRANCH`.** The reset
+  is the destructive step; the cherry-pick is what makes it safe. A slot is only free after its
+  pick landed — that is the entire invariant, and it is why release happens after the pick and not
+  when the agent returns.
+- **NEVER tear an env down at harvest time in reuse mode.** Teardown is end-of-phase only; the
+  generic harvest step's "teardown env, remove worktree" applies to the per-task path only.
+- Cherry-pick sources `${SLOT_BRANCH[$i]}` (`wave/<session>/slot-s{i}`), NOT `wave/<session>/w{N}-{TXX}`
+  — that per-task branch does not exist in this mode.
+- A cherry-pick conflict on a slot: do NOT reset that slot. Abort the pick, leave the slot occupied,
+  freeze dispatch, and report — the commits still live on the slot branch and are recoverable.
 - A task that created a migration runs `execenv_migrate_cmd` before its tests — a REUSED env carries
   the previous task's schema, so this is not optional under reuse.
-- Slot worktrees are torn down (env teardown FIRST, then `worktree remove`) once at end-of-phase.
 - A slot whose env dies mid-phase: teardown, re-provision that slot once; if it fails again, drop
-  the slot (reduce effective capacity) and log it — never silently run tests in a broken env.
+  the slot (`SLOT_N` effectively shrinks; never dispatch into it again) and log it — never silently
+  run tests in a broken env.
 - **Trade-off, stated plainly:** reuse trades isolation for ~60s per task. Cross-task DB residue is
   real; that is why it is opt-in and why the migrate hook is mandatory under it. A project whose
   provision cannot cope leaves `test_env_reuse` unset and keeps per-task provision/teardown, which
   remains the default.
 
-**Concurrency cap (v0.23.0).** When `EXECENV=on`, each env is a real container + database — never keep more
-than `ENV_CAP` alive at once. Under the readiness scheduler this is enforced at dispatch (a task
-starts only if a slot is free), so envs are provisioned one per dispatched task and torn down as
-each task lands — never a whole wave provisioned up front. In LEGACY MODE the same cap is applied
-by batching the wave's parallel groups: provision batch → spawn → cherry-pick → teardown → next.
+**Concurrency cap (v0.23.0).** When `EXECENV=on`, each env is a real container + database — never keep
+more than `ENV_CAP` alive at once. In the per-task path this is enforced at dispatch (a task starts
+only if a seat is free) and envs are torn down as each task lands. In REUSE MODE the cap is the slot
+count itself: `SLOT_N` envs exist for the whole phase and no dispatch can exceed them. In LEGACY
+MODE the cap is applied by batching the wave's parallel groups: provision → spawn → cherry-pick →
+teardown → next.
 
 </step>
 
@@ -302,13 +328,21 @@ Build the graph ONCE, from the manifest when possible:
   AND `T` is not already done/in-flight.
 - `SCHEDULABLE(T)` ⟺ `READY(T)` AND `files[T]` is disjoint from the files of every task **currently
   in flight** (dynamic collision check — recomputed at each dispatch, never precomputed per wave).
+- **A task with NO `files:` declaration collides with everything** — its footprint is unknown, so it
+  runs alone: dispatch it only when nothing is in flight, and start nothing else until it lands.
+  (Same conservative rule the legacy `auto_derive_parallel_groups` applies.)
+- **Partial `depends_on` adoption:** if SOME tasks declare deps and others do not, a task with no
+  declaration does NOT mean "ready at t=0" — that would launch it before a dependency it really
+  has. Such a task inherits the WAVE BARRIER: it becomes ready only once every task of every
+  earlier wave has landed. `plan-checker` already flags this shape HIGH; the executor stays safe
+  regardless.
 - Ignore `deps:` between WAVES for scheduling when `task_deps` exists — it is documentation of the
   checkpoint order, not a barrier.
 - **Cycle detection:** if a non-empty remaining set has no `READY` member and nothing is in flight,
   the graph is cyclic (or depends on a task that will never run) → ABORT with the offending ids.
   Never "just run them in file order".
 
-**Concurrency cap:**
+**Concurrency cap — resolved HERE, before `load_exec_env` provisions any slot:**
 ```bash
 SCHED_CAP="$( [ -f "$ENV_LIB" ] && release_sched_max_parallel "$CFG_ROOT" || echo 4 )"
 ```
@@ -372,23 +406,42 @@ done      = set(resume_skip)
 frozen    = false                   # set by a failed wave-boundary verification
 loop:
     # 1. DISPATCH — fill the cap with schedulable tasks, cheapest-blocking first
-    while not frozen and len(in_flight) < SCHED_CAP:
+    #    REUSE MODE: the cap is the number of FREE SLOTS, and dispatch means acquiring one.
+    while not frozen and (free_seats() > 0):        # per-task: SCHED_CAP - len(in_flight)
+                                                    # reuse:    count(SLOT_FREE[i] == 1)
         cand = [T for T in remaining if READY(T) and files-disjoint from in_flight]
         if not cand: break
         # Tie-break, in order: (a) on the critical_path, (b) unblocks the most tasks,
         # (c) declared order. The critical path is the wall-clock floor — never let it wait
         # behind an off-path task when both are schedulable.
         T = pick(cand)
-        create worktree + slice + provision env (unchanged mechanics)
-        spawn release:tdd-executor  { model: task_model(complexity[T]), ... }
-        in_flight[T] = {...}
+        if REUSE MODE:
+            i = first slot with SLOT_FREE[i] == 1
+            SLOT_FREE[i] = 0; SLOT_TASK[i] = T
+            reset SLOT_WT[i] to $BRANCH (hard) + clean -fd     # safe: slot i's last pick landed
+            write slice into SLOT_WT[i]
+            spawn release:tdd-executor { cwd: SLOT_WT[i], test_exec_prefix: SLOT_PREFIX[i],
+                                         env_label: SLOT_LABEL[i], cfg_root: CFG_ROOT, ... }
+            in_flight[T] = {slot: i, branch: SLOT_BRANCH[i]}
+        else:
+            create worktree + slice + provision env (unchanged mechanics)
+            spawn release:tdd-executor { model: task_model(complexity[T]), ... }
+            in_flight[T] = {worktree, branch: wave/<session>/w{N}-{T}, label}
     if not in_flight: break         # nothing running and nothing schedulable → done or cyclic
 
     # 2. HARVEST — wait for the FIRST completion, not for all of them.
     #    (Waiting for the whole batch is the barrier we just removed; do not reintroduce it.)
     T = wait_any(in_flight)
-    cherry-pick T's commits onto $BRANCH        # SERIALIZED — one at a time, always
-    teardown T's env; remove T's worktree
+    cherry-pick T's commits from in_flight[T].branch onto $BRANCH   # SERIALIZED — one at a time
+    if the pick CONFLICTED:
+        freeze dispatch; do NOT release/reset anything (the commits live on that branch); report
+    if REUSE MODE:
+        # env and worktree STAY — teardown is end-of-phase only. The slot is released ONLY now,
+        # after the pick landed: releasing earlier would let the next task `reset --hard` over
+        # commits that were never picked.
+        SLOT_FREE[in_flight[T].slot] = 1; SLOT_TASK[...] = ""
+    else:
+        teardown T's env; remove T's worktree; delete its wave branch
     done.add(T); del in_flight[T]
 
     # 3. WAVE CHECKPOINT — when every task of wave W is in `done`, run W's boundary verification.
@@ -557,6 +610,9 @@ for TASK_ID in "${WAVE_TASKS[@]}"; do
       G cherry-pick --abort
       echo "CHERRY-PICK CONFLICT in ${WAVE_BRANCH} ${SHA}"
       echo "FALLBACK: re-execute wave ${WAVE_N} serially in the phase worktree"
+      # Re-run the RESUME SKIP FILTER first: tasks of this wave whose commits already landed must
+      # NOT be executed again. Without it the fallback re-does harvested work, duplicating commits
+      # (and, for migration tasks, generating a second migration).
       # serial fallback: nuke wave worktrees, run executors one at a time in $PHASE_WT
       exit 2
     }
@@ -754,6 +810,11 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 - NEVER let a failed provision silently drop a task — surface the evidence path, fall back to serial in `$PHASE_WT`, and record `env_provision_failed` in WAVE-SUMMARY.md
 - NEVER treat a failed teardown as fatal — log it, keep going (a leaked container must not cost the commits)
 - With `EXECENV=off` (no `.release-planning/EXEC-ENV.yml`) NOTHING above changes behaviour: no provisioning, empty prefix, exactly the pre-v0.22.0 flow
+- NEVER `reset --hard` a reuse SLOT whose previous task's commits are not yet cherry-picked onto `$BRANCH` — the reset is destructive and the pick is what makes it safe. A slot is released ONLY after its pick landed
+- NEVER teardown a reuse slot's env at harvest time — in reuse mode teardown is end-of-phase only (env first, then worktree, then branch)
+- NEVER cherry-pick from `wave/<session>/w{N}-{TXX}` in reuse mode — that branch does not exist there; the source is the SLOT branch `wave/<session>/slot-s{i}`
+- NEVER dispatch a task with no `files:` declaration alongside anything else — unknown footprint collides with everything; it runs alone
+- NEVER re-execute a wave in the cherry-pick conflict fallback without re-applying the resume skip filter — already-landed tasks would be duplicated
 - NEVER start a task whose `depends_on` are not yet COMMITTED on `$BRANCH` — a finished-but-uncommitted dep is invisible to the new worktree
 - NEVER run two cherry-picks concurrently, and never out of dependency order — the readiness scheduler parallelizes MAKING, never LANDING
 - NEVER let a wave-boundary verification block the dispatch of already-ready downstream tasks; on failure FREEZE new spawns, let in-flight tasks drain and land, fix, then resume
