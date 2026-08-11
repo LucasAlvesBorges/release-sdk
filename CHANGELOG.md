@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] — 2026-08-11
+
+Everything in this release comes from measured friction in one real fullstack phase, not from
+speculation.
+
+### Added — `/release:execute --fullstack`: both legs, one worktree, one land
+
+A fullstack phase needed two invocations, each with its own worktree, lock, loop and land, with a
+human sequencing them. `--fullstack` creates the lock, worktree, exec-env, loop and land ONCE and
+runs the two `wave-executor` legs back-to-back on the same branch, ordered by the manifests'
+`execution_order:`. Leg 2 starts only after leg 1's commits are on the branch; a failing leg 1 lands
+nothing. One gate run and one `phase-verifier` run cover the union (`stack: fullstack`) — a verified
+backend over an unverified frontend is not a phase. `--backend` / `--frontend` unchanged.
+
+### Added — planning artifacts travel with the phase worktree
+
+`.release-planning/` is untracked and `git worktree add` materializes only tracked files, so a phase
+worktree was born WITHOUT its PLAN, and the SUMMARY/VERIFICATION it produced lived only inside a
+worktree that `land_branch` and the EXIT trap both delete. A real run lost its SUMMARY that way.
+
+- **`bin/release-planning-sync-lib.sh`** (+ 37-assertion test): inputs copied in at setup, produced
+  artifacts copied back before any teardown. Deliberately asymmetric — IN overwrites freely, OUT is
+  additive-only and never copies scratch (`PLAN-SLICE-*`, `.exec-start-sha`, `sweep-B*.json`).
+- A failed copy-back clears the EXIT trap and **aborts the teardown**: leaving a worktree behind is
+  always cheaper than losing the artifacts.
+
+### Added — persistent test-failure baseline (`/release:baseline`)
+
+A repo carrying long-standing failures can never reach `GATE=GREEN`, so the loop burns iterations on
+code the phase never touched and a real regression hides in the noise.
+
+- **`bin/release-baseline-lib.sh`** (+ 35-assertion test): `.release-planning/test-baselines.json`
+  records `<test id>|<error type>` signatures. The error type is part of the signature so the same
+  test failing for a **different** reason is NEW — that is how a fresh bug hides behind an old red.
+- `run_gate` gains **`PASS_BASELINE`**: a step whose failures are ALL known does not turn the gate
+  RED but is echoed for audit (+7 gate assertions). `test-runner` classifies each failure
+  BASELINE/NEW; `phase-verifier` never counts an inherited failure as a phase gap; `tdd-executor`'s
+  RED proof must be a NEW failure.
+- Fail-safe everywhere: no file, unparseable output, or one unknown failure ⇒ everything NEW.
+
+### Added — bounded test runs, hang detection, and a migration hook
+
+- `run_test_bounded` applies `test_timeout` (EXEC-ENV, default 900s) with `timeout -k 10` and echoes
+  `TEST_HUNG` / `TEST_ELAPSED` / `TEST_RC` / `TEST_CMD`, output captured to a FILE so it survives the
+  caller's `$( )` subshell. `test-runner` retries a hang twice then reports `hung: true` with the
+  exact command. A hang is not a test failure — never baseline-classified, never fabricated as one.
+- **`test_env_migrate`** — a task that CREATED a migration applies it before its tests. `--reuse-db`
+  does not, and in a containerized env it must hit that env's DB clone.
+
+### Added — observable progress + 30-minute heartbeat
+
+**`bin/release-progress-lib.sh`** (+ 43-assertion test) maintains `.progress.json` per phase with
+current wave/task, tasks done/total, in-flight ids, active envs and last commit. Writes are atomic
+(temp file in the same dir + rename). Values are sanitized rather than backslash-escaped because the
+merge loop re-encodes on every write — escaping doubled each time until the file exploded (caught in
+test at 32MB). `wave-executor` writes on every dispatch/land/checkpoint, `tdd-executor` heartbeats
+before anything slow, and `/release:status` reads it first, flagging a build silent for 30+ minutes.
+
+### Added — opt-in env slots (`test_env_reuse`)
+
+Provisioning costs ~60s, paid per task. With reuse on, `SCHED_CAP` envs are provisioned once per
+phase. Slots, not a rebinding pool: bind mounts are fixed at container creation, so the slot owns a
+stable worktree path and the task's worktree is reset in place. Trade-off stated, not hidden — a
+reused env carries the previous task's schema, so the migrate hook becomes mandatory under it.
+Unset ⇒ per-task provision/teardown, fully isolated, unchanged.
+
 ## [0.23.0] — 2026-08-11
 
 ### Changed — the wave barrier is gone: wave-executor schedules by task readiness
