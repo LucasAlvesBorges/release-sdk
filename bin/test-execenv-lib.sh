@@ -21,6 +21,7 @@
 #   #14 test timeout: default 900, config override, timeout runner resolution
 #   #15 run_test_bounded reports a hang structurally instead of silence
 #   #16 migration hook renders (or stays empty when unconfigured)
+#   #17 env slots: opt-in reuse, stable labels, stable per-slot worktree paths
 #
 # Run: bash bin/test-execenv-lib.sh
 set -euo pipefail
@@ -35,6 +36,7 @@ no() { printf '  \033[31m✗ %s\033[0m\n      %s\n' "$1" "${2:-}"; FAIL=$((FAIL+
 eq() { [ "$2" = "$3" ] && ok "$1" || no "$1" "expected [$2] got [$3]"; }
 has() { case "$2" in *"$3"*) ok "$1";; *) no "$1" "missing [$3] in: $2";; esac; }
 hasnt() { case "$2" in *"$3"*) no "$1" "unexpected [$3] in: $2";; *) ok "$1";; esac; }
+ne() { [ "$2" != "$3" ] && ok "$1" || no "$1" "both were [$2]"; }
 
 TMP="$(mktemp -d -t release-execenv-test-XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
@@ -227,6 +229,23 @@ eq "rendered with label + worktree" "docker exec app-w1_t02 python $WT/backend/m
    "$(execenv_migrate_cmd "$ROOT" "$WT" w1_t02)"
 printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "unset → empty (host-local projects run manage.py directly)" "" "$(execenv_migrate_cmd "$ROOT" "$WT" l)"
+
+echo "── #17 env slots (reuse instead of re-provision) ──"
+printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "unset → off (per-task provisioning, unchanged)" "EXECENV_REUSE=off" "$(release_execenv_reuse "$ROOT")"
+printf 'test_env_provision: true\ntest_env_reuse: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "opt-in honored" "EXECENV_REUSE=on" "$(release_execenv_reuse "$ROOT")"
+printf 'test_env_provision: true\ntest_env_reuse: maybe\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "junk → off (never guess into reuse)" "EXECENV_REUSE=off" "$(release_execenv_reuse "$ROOT")"
+eq "no config at all → off" "EXECENV_REUSE=off" "$(release_execenv_reuse "$BARE")"
+L1="$(release_execenv_slot_label 1723-99 1)"; L2="$(release_execenv_slot_label 1723-99 2)"
+ne "slots get distinct labels" "$L1" "$L2"
+eq "slot label is stable across calls (the env is provisioned once against it)" "$L1" \
+   "$(release_execenv_slot_label 1723-99 1)"
+case "$L1" in *[!a-z0-9_]*) no "slot label is container/db safe" "got [$L1]";; *) ok "slot label is container/db safe ($L1)";; esac
+eq "slot path is stable + per-slot" "/tmp/wtbase/slot-s2" "$(release_execenv_slot_path /tmp/wtbase 2)"
+ne "two slots never share a path" "$(release_execenv_slot_path /tmp/wtbase 1)" \
+   "$(release_execenv_slot_path /tmp/wtbase 2)"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

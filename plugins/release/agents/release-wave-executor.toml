@@ -244,6 +244,46 @@ echo "→ exec-env: $EXECENV (max_parallel=$ENV_CAP)"
 - `EXECENV=on` → each parallel sub-worktree gets its own provisioned env, and every test command
   the executor runs is prefixed with that env's `test_exec_prefix`.
 
+**Env SLOTS — reuse instead of re-provision (v0.23.0, opt-in `test_env_reuse: true`).**
+Provisioning costs ~60s (container + DB clone). Paying that per TASK means a 19-task phase spends
+~19 minutes on setup alone. With reuse on, provision `SCHED_CAP` envs ONCE at the start of the
+phase and keep them alive:
+
+```bash
+if [ "$(release_execenv_reuse "$CFG_ROOT")" = "EXECENV_REUSE=on" ]; then
+  for i in $(seq 1 "$SCHED_CAP"); do
+    SLOT_LABEL[$i]="$(release_execenv_slot_label "$SESSION_ID" "$i")"
+    SLOT_WT[$i]="$(release_execenv_slot_path "$WT_BASE" "$i")"
+    G worktree add -b "wave/${SESSION_ID}/slot-s$i" "${SLOT_WT[$i]}" "$BRANCH"
+    execenv_provision "$CFG_ROOT" "${SLOT_WT[$i]}" "${SLOT_LABEL[$i]}"    # once per PHASE
+    SLOT_PREFIX[$i]="$(execenv_prefix "$CFG_ROOT" "${SLOT_WT[$i]}" "${SLOT_LABEL[$i]}")"
+    SLOT_FREE[$i]=1
+  done
+fi
+```
+
+**Why slots and not a rebinding pool:** a container's bind mounts are fixed at creation, so an env
+cannot be re-pointed at a new worktree. So the SLOT is what stays put — its worktree path is stable
+(`<wt_base>/slot-s{i}`) and its env is provisioned against that path once. Dispatching a task into a
+free slot means resetting that slot's worktree in place, not moving the env:
+
+```bash
+# take slot i for task T: reset its worktree to the current branch tip, keep the env
+G -C "${SLOT_WT[$i]}" reset --hard "$BRANCH"
+G -C "${SLOT_WT[$i]}" clean -fd
+# write the task slice, then spawn with test_exec_prefix: "${SLOT_PREFIX[$i]}"
+```
+
+- A task that created a migration runs `execenv_migrate_cmd` before its tests — a REUSED env carries
+  the previous task's schema, so this is not optional under reuse.
+- Slot worktrees are torn down (env teardown FIRST, then `worktree remove`) once at end-of-phase.
+- A slot whose env dies mid-phase: teardown, re-provision that slot once; if it fails again, drop
+  the slot (reduce effective capacity) and log it — never silently run tests in a broken env.
+- **Trade-off, stated plainly:** reuse trades isolation for ~60s per task. Cross-task DB residue is
+  real; that is why it is opt-in and why the migrate hook is mandatory under it. A project whose
+  provision cannot cope leaves `test_env_reuse` unset and keeps per-task provision/teardown, which
+  remains the default.
+
 **Concurrency cap (v0.23.0).** When `EXECENV=on`, each env is a real container + database — never keep more
 than `ENV_CAP` alive at once. Under the readiness scheduler this is enforced at dispatch (a task
 starts only if a slot is free), so envs are provisioned one per dispatched task and torn down as
@@ -823,6 +863,7 @@ def has_django_system_check_precommit():
 - [ ] Cherry-picks serialized and in dependency order; a failed wave checkpoint froze dispatch instead of abandoning in-flight work
 - [ ] Legacy PLAN (no deps anywhere) ran wave-barrier mode and SAID SO in WAVE-SUMMARY.md
 - [ ] `parallelism` block (max/avg concurrent, critical path + wall, total task time, speedup, idle_blocked) recorded
+- [ ] `test_env_reuse: true` → envs provisioned ONCE per slot, worktrees reset in place between tasks, migrate hook run for migration-creating tasks, all slots torn down at end-of-phase
 - [ ] `.progress.json` written on every dispatch/land/checkpoint, heartbeated during long silences, and cleared at the end (after artifacts synced out)
 - [ ] No task spawn ran a suite-wide test command (per-task runs are task-scoped; suite runs live at wave boundary / terminal sweep)
 - [ ] Monolithic PLAN.md > 600 lines → refused with re-split hint (no execution attempted)

@@ -56,6 +56,12 @@
 #                                              and `TEST_CMD` on a hang. A hang is rc 124/137.
 #   execenv_migrate_cmd <root> <wt> <label>  → rendered `test_env_migrate` (empty when unset) — run
 #                                              by a task that CREATED a migration, before its tests
+#   release_execenv_reuse <root>             → `EXECENV_REUSE=on|off` (`test_env_reuse: true`) —
+#                                              keep N envs alive for the phase (SLOT model) instead
+#                                              of provisioning one per task
+#   release_execenv_slot_label <session> <i> → the stable label of slot i
+#   release_execenv_slot_path <wt_base> <i>  → the worktree path slot i owns (the env is pinned to
+#                                              this path; tasks are created AT it, never moved)
 #
 # Config format — .release-planning/EXEC-ENV.yml — an ORDERED flat map, one `key: value` per line,
 # split on the FIRST colon only (values routinely contain colons: `-v {worktree}/backend:/app`):
@@ -216,6 +222,34 @@ run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → sets _TEST_OUT; echoes
              echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc" ;;
     *)       echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc" ;;
   esac
+  return 0
+}
+
+# ── env slots: reuse instead of re-provision (v0.23.0) ───────────────────────────────────────────
+# Provisioning costs ~60s (container + DB clone). Doing it per TASK means a 19-task phase pays ~19
+# minutes for nothing but setup. The fix is to keep N envs alive for the whole phase and hand them
+# to tasks as they are dispatched.
+#
+# THE DESIGN, and why it is slots and not a rebinding pool: a container's bind mounts are fixed at
+# creation, so an env cannot be re-pointed at a different worktree. Instead the SLOT is stable and
+# the WORKTREE is placed where the slot already looks: slot `s1` is provisioned once against
+# `<wt_base>/slot-s1`, and each task dispatched into that slot gets its worktree created AT that
+# path. The env never moves; the code under it does. That needs no container-runtime feature, and a
+# project whose provision command cannot cope simply leaves `test_env_reuse` unset and keeps the
+# per-task provision/teardown behaviour.
+release_execenv_reuse() {  # $1 root → EXECENV_REUSE=on|off (`test_env_reuse: true` opts in)
+  local v; v="$(release_execenv_get "${1:-.}" test_env_reuse)"
+  case "$v" in true|yes|1|on) echo "EXECENV_REUSE=on" ;; *) echo "EXECENV_REUSE=off" ;; esac
+  return 0
+}
+
+release_execenv_slot_label() {  # $1 session_id, $2 slot_index → stable, sanitized slot label
+  release_execenv_label "s${2:-1}_${1:-sess}"
+  return 0
+}
+
+release_execenv_slot_path() {  # $1 wt_base, $2 slot_index → the worktree path this slot owns
+  printf '%s/slot-s%s' "${1:-.}" "${2:-1}"
   return 0
 }
 

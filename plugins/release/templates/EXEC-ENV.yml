@@ -39,6 +39,12 @@
 #   - test_env_migrate (v0.23.0) runs when a task CREATED a migration, before that task's tests.
 #     `--reuse-db` does not apply a new migration, and in a containerized env it must hit that env's
 #     database clone. Unset ⇒ the executor runs `manage.py migrate` host-locally.
+#   - test_env_reuse: true (v0.23.0) keeps N envs alive for the whole phase instead of provisioning
+#     one per task — worth ~60s per task. SLOT model: each slot owns a fixed worktree path and its
+#     env is provisioned against that path once; dispatching a task resets that worktree in place
+#     (a container's bind mounts cannot be re-pointed, so the env never moves). Trade-off: cross-task
+#     database residue is real, so test_env_migrate becomes mandatory and your suite must tolerate a
+#     warm DB. Leave it unset for per-task provision/teardown (the default, fully isolated).
 #   - test_timeout (v0.23.0) bounds EVERY test invocation in seconds (default 900, `0` = unbounded).
 #     On expiry the process is killed and the runner reports `hung: true` with the command and
 #     elapsed time instead of going silent. Raise it for a legitimately slow suite; do not disable it.
@@ -61,6 +67,8 @@
 # test_env_migrate: docker exec -w /app myapp-{label} python manage.py migrate --noinput
 #
 # test_timeout: 900
+#
+# test_env_reuse: true
 
 # ── Example: host-local venv per worktree (no container) ────────────────────────────────────────
 # test_env_provision: python -m venv {worktree}/.venv && {worktree}/.venv/bin/pip install -q -r {worktree}/backend/requirements-dev.txt
