@@ -17,6 +17,7 @@
 #   #10 mechanical tier is haiku and profile-invariant (the one effort exception)
 #   #11 effort is max by default, honors CLAUDE_EFFORT
 #   #12 release_model_summary reflects the active mapping
+#   #13 release_worker_model_for: complexity-aware per-task tier, demote-only, sonnet floor
 #
 # Run: bash bin/test-model-lib.sh
 set -euo pipefail
@@ -93,6 +94,24 @@ eq "honors CLAUDE_EFFORT" "high" "$(CLAUDE_EFFORT=high release_model_effort)"
 echo "── #12 summary reflects mapping ──"
 has "summary shows worker=opus under fable-opus" "$(RELEASE_MODEL_PROFILE=fable-opus release_model_summary)" "worker=opus"
 has "summary shows worker=sonnet under opus-sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_model_summary)" "worker=sonnet"
+
+echo "── #13 per-task tier by complexity (demote-only, sonnet floor) ──"
+eq "fable-opus: complex → worker tier (opus)"  "opus"   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for complex)"
+eq "fable-opus: standard → worker tier (opus)" "opus"   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for standard)"
+eq "fable-opus: simple → one rung down (sonnet)" "sonnet" "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for simple)"
+eq "opus-sonnet: complex → worker tier (sonnet)" "sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_worker_model_for complex)"
+eq "opus-sonnet: simple → floors at sonnet, never haiku" "sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_worker_model_for simple)"
+eq "no arg → worker tier (legacy PLAN, zero behaviour change)" "opus" "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for)"
+eq "unknown label → worker tier (never guesses down)" "opus" "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for trivial)"
+eq "empty label → worker tier" "sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_worker_model_for '')"
+ne "fable-opus: simple is strictly cheaper than complex" \
+   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for simple)" \
+   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for complex)"
+for C in simple standard complex bogus ''; do
+  T="$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for "$C")"
+  case "$T" in haiku|fable) no "tier for '$C' stays in the code band" "got [$T]";; *) ok "tier for '${C:-<empty>}' stays in the code band ($T)";; esac
+done
+has "summary exposes the simple tier" "$(RELEASE_MODEL_PROFILE=fable-opus release_model_summary)" "worker[simple]=sonnet"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
