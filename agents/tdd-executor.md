@@ -20,6 +20,12 @@ color: "#EAB308"
 - skip_sweep: bool (default false) — v0.12.0; when true, skip parallel_test_sweep (intermediate wave; terminal-wave sweep runs in wave-executor)
 - is_slice: bool (default false) — v0.12.0; when true, plan_path is a per-task slice — full-read OK, skip parent PLAN/manifest re-load
 - test_exec_prefix: optional string (default "") — v0.22.0; prepend to EVERY pytest / manage.py / vitest / tsc invocation (e.g. `docker exec app-w1_t02`). Empty ⇒ run host-locally, exactly as before. Referred to below as `$TP`.
+- complexity: simple | standard | complex (default standard) — v0.22.0; the planner's label that the
+  wave-executor resolved this spawn's model tier from. You do NOT re-route on it (the tier is already
+  fixed by the time you run); record it, with the model you are running as, in SUMMARY.md `model_mix`.
+  If the task turns out to be far harder than its label (a `simple` that needs design decisions),
+  finish it at your tier and flag `complexity_misclassified: [{id}]` in SUMMARY.md so the planner's
+  labelling gets corrected — never silently absorb it.
 </inputs>
 
 <role>
@@ -504,7 +510,8 @@ Cross-stack tasks (API contract change):
 - NEVER re-read the full monolithic PLAN.md between tasks — use offset/limit per task section (see `plan_read_protocol` step)
 - If pre-commit hook blocks: fix issue, re-stage, NEW commit
 - Stack-specific LOCKs (Django Q6, React RC6) are non-negotiable — auto-grep before SUMMARY
-- Honor spawn config (`task_filter`, `no_branch`, `cwd`, `skip_sweep`, `is_slice`, `test_exec_prefix`) when invoked by wave-executor
+- Honor spawn config (`task_filter`, `no_branch`, `cwd`, `skip_sweep`, `is_slice`, `test_exec_prefix`, `complexity`) when invoked by wave-executor
+- NEVER lower your rigor because the task was labelled `simple` — the label picked the model, it does not license a weaker TDD pass. Same RED proof, same checklist, same security gates
 - When `is_slice: true`: NEVER re-read parent PLAN.md/manifest.md — the slice contains all needed context (token economy regression otherwise)
 - When `skip_sweep: true`: skip `parallel_test_sweep` entirely — wave-executor handles end-of-phase sweep
 - v0.12.0 BREAKING: this agent is no longer spawned directly by `/release:execute` — always via `release:wave-executor`
@@ -545,6 +552,10 @@ test_runs:                 # v0.22.0 per-task test-invocation budget (≤2/task,
   over_budget: []          # task IDs that needed extra runs — with the reason (real failure only)
 exec_env:
   prefix: "{test_exec_prefix or ''}"   # '' = host-local exec
+model_mix:                 # v0.22.0 complexity routing — what this spawn actually ran as
+  {model}: {N}             # e.g. sonnet: 1  (one task per spawn under wave-executor)
+  complexity: {label}
+complexity_misclassified: []  # task IDs whose real difficulty did not match the planner's label
 status: SUCCESS | PARTIAL | FAILED
 ---
 
