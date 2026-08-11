@@ -27,9 +27,14 @@
 #     failing teardown is logged, never fatal (it must not cost you the commits).
 #   - test_exec_prefix is prepended to EVERY pytest / manage.py / vitest command the task
 #     executor runs. Leave it unset when the provisioned env is reachable from the host.
-#   - test_env_max_parallel caps how many envs exist at once (default 4 when provisioning is
-#     configured; 0 = unlimited). Each env is a real container + database — this is the knob that
-#     keeps a 12-task wave from melting the machine.
+#   - test_env_max_parallel caps how many envs exist at once. Default: min(8, cores/2) — half the
+#     cores because each slot is an agent + a test runner + a container competing for them, capped
+#     at 8 because past that the serialized cherry-pick, not the CPU, is the bottleneck. `0` =
+#     unlimited ENVS (it is NOT a licence for unlimited agents: the readiness scheduler still bounds
+#     concurrent task spawns by the machine default). Each env is a real container + database — this
+#     is the knob that keeps a 12-task wave from melting the machine.
+#     The same value caps the readiness scheduler's concurrent task spawns, with or without envs;
+#     set it explicitly (above or below the machine default) when you have sized your own box.
 #
 # Env overrides: RELEASE_EXECENV_TIMEOUT (seconds per provision/teardown, default 600; 0 = none),
 #                RELEASE_EXECENV_DISABLE=1 (kill switch — forces host-local exec everywhere).

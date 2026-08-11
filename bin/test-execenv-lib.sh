@@ -14,8 +14,10 @@
 #   #7  provision failure ⇒ failed + EXECENV_EVIDENCE file containing the real command output
 #   #8  teardown runs, tolerates a vanished worktree, and never reports fatally
 #   #9  exec prefix rendering (set ⇒ rendered, unset ⇒ empty ⇒ host-local exec)
-#   #10 max_parallel default (4 when active, 0 when off) + explicit override + junk rejection
+#   #10 env cap: machine default when active, 0 when off, explicit override, junk rejection
 #   #11 RELEASE_EXECENV_DISABLE=1 forces the whole lib back to no-op
+#   #12 machine-derived cap: min(8, max(1, cores/2)), clamped both ends
+#   #13 scheduler cap is env-independent and never unlimited; explicit config wins
 #
 # Run: bash bin/test-execenv-lib.sh
 set -euo pipefail
@@ -46,7 +48,7 @@ eq "active off"              "EXECENV=off"         "$(release_execenv_active "$B
 eq "prefix empty"            ""                    "$(execenv_prefix "$BARE" "$WT" lbl)"
 eq "provision skipped"       "EXECENV_PROVISION=skipped" "$(execenv_provision "$BARE" "$WT" lbl)"
 eq "teardown skipped"        "EXECENV_TEARDOWN=skipped"  "$(execenv_teardown "$BARE" "$WT" lbl)"
-eq "max_parallel 0 (unlimited — host-local exec needs no cap)" "0" "$(release_execenv_max_parallel "$BARE")"
+eq "env cap 0 (no envs to cap — host-local exec)" "0" "$(release_execenv_max_parallel "$BARE")"
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 echo "── #2 config discovery + first-colon-only parsing ──"
@@ -133,12 +135,15 @@ test_env_provision: true
 EOF
 eq "no prefix configured → empty (host-local exec)" "" "$(execenv_prefix "$ROOT" "$WT" w2_t07)"
 
-echo "── #10 max_parallel ──"
-eq "active, unset → default 4" "4" "$(release_execenv_max_parallel "$ROOT")"
+echo "── #10 env cap ──"
+printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "active, unset → machine default (16 cores → 8)" "8" \
+   "$(RELEASE_EXEC_CORES=16 release_execenv_max_parallel "$ROOT")"
 printf 'test_env_provision: true\ntest_env_max_parallel: 2\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "explicit override honored" "2" "$(release_execenv_max_parallel "$ROOT")"
 printf 'test_env_provision: true\ntest_env_max_parallel: lots\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
-eq "junk value → safe default 4" "4" "$(release_execenv_max_parallel "$ROOT")"
+eq "junk value → machine default (4 cores → 2)" "2" \
+   "$(RELEASE_EXEC_CORES=4 release_execenv_max_parallel "$ROOT")"
 
 echo "── #11 kill switch ──"
 printf 'test_env_provision: touch {worktree}/SHOULD_NOT_EXIST\ntest_exec_prefix: docker exec x\n' \
@@ -149,6 +154,32 @@ eq "DISABLE=1 → skipped" "EXECENV_PROVISION=skipped" \
 eq "DISABLE=1 → no prefix" "" "$(RELEASE_EXECENV_DISABLE=1 execenv_prefix "$ROOT" "$WT" lbl)"
 [ -f "$WT/SHOULD_NOT_EXIST" ] && no "kill switch prevented the side effect" "file was created" \
   || ok "kill switch prevented the side effect"
+
+echo "── #12 machine-derived cap: min(8, max(1, cores/2)) ──"
+eq "16 cores → 8"                "8" "$(RELEASE_EXEC_CORES=16 release_default_max_parallel)"
+eq "32 cores → clamped to 8"     "8" "$(RELEASE_EXEC_CORES=32 release_default_max_parallel)"
+eq "8 cores → 4"                 "4" "$(RELEASE_EXEC_CORES=8  release_default_max_parallel)"
+eq "4 cores → 2"                 "2" "$(RELEASE_EXEC_CORES=4  release_default_max_parallel)"
+eq "2 cores → 1"                 "1" "$(RELEASE_EXEC_CORES=2  release_default_max_parallel)"
+eq "1 core → 1 (never 0)"        "1" "$(RELEASE_EXEC_CORES=1  release_default_max_parallel)"
+eq "junk core count → 1 core → 1" "1" "$(RELEASE_EXEC_CORES=banana release_default_max_parallel)"
+CORES="$(release_exec_cores)"
+case "$CORES" in ''|*[!0-9]*|0) no "detected core count is a positive integer" "got [$CORES]";; *) ok "detected core count is a positive integer ($CORES)";; esac
+
+echo "── #13 scheduler cap (env-independent, never unlimited) ──"
+eq "no EXEC-ENV.yml at all → machine default, NOT unlimited" "8" \
+   "$(RELEASE_EXEC_CORES=16 release_sched_max_parallel "$BARE")"
+printf 'test_env_provision: true\ntest_env_max_parallel: 3\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "explicit config below default wins" "3" "$(RELEASE_EXEC_CORES=16 release_sched_max_parallel "$ROOT")"
+printf 'test_env_provision: true\ntest_env_max_parallel: 12\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "explicit config above default also wins (user sized their machine)" "12" \
+   "$(RELEASE_EXEC_CORES=16 release_sched_max_parallel "$ROOT")"
+printf 'test_env_provision: true\ntest_env_max_parallel: 0\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "0 = unlimited ENVS is not unlimited AGENTS → machine default" "2" \
+   "$(RELEASE_EXEC_CORES=4 release_sched_max_parallel "$ROOT")"
+SC="$(RELEASE_EXEC_CORES=1 release_sched_max_parallel "$BARE")"
+[ "$SC" -ge 1 ] && ok "scheduler cap is always >=1 (never stalls the scheduler)" \
+  || no "scheduler cap is always >=1" "got [$SC]"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

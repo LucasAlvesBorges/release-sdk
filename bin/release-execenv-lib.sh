@@ -28,7 +28,13 @@
 #                                              Safe for BOTH container names and Postgres db names.
 #   release_execenv_render <tpl> <worktree> <label> [root]
 #                                            → `{worktree}` / `{label}` / `{root}` substituted
-#   release_execenv_max_parallel <root>      → concurrency cap (default 4 when active, 0 = unlimited)
+#   release_exec_cores                       → usable core count (RELEASE_EXEC_CORES overrides)
+#   release_default_max_parallel             → min(8, max(1, cores/2)) — the machine-derived cap
+#   release_execenv_max_parallel <root>      → LIVE-ENV cap: configured value, else the machine
+#                                              default when provisioning is on, else 0 (= no envs)
+#   release_sched_max_parallel <root>        → READINESS-SCHEDULER cap: concurrent task spawns,
+#                                              env-independent. Explicit config wins; unset / `0`
+#                                              falls back to the machine default (never unlimited)
 #   execenv_provision <root> <worktree> <label>
 #                                            → runs test_env_provision once for that worktree.
 #                                              Echoes `EXECENV_PROVISION=<ok|skipped|failed>`; on
@@ -114,11 +120,50 @@ release_execenv_render() {  # $1 template, $2 worktree, $3 label, [$4 root] → 
   return 0
 }
 
-release_execenv_max_parallel() {  # $1 root → cap (default 4 when active, 0 = unlimited)
+# ── concurrency caps ─────────────────────────────────────────────────────────────────────────────
+release_exec_cores() {  # → usable core count (RELEASE_EXEC_CORES overrides; 1 when undetectable)
+  local n="${RELEASE_EXEC_CORES:-}"
+  if [ -z "$n" ]; then
+    n="$(getconf _NPROCESSORS_ONLN 2>/dev/null)" \
+      || n="$(sysctl -n hw.ncpu 2>/dev/null)" \
+      || n="$(nproc 2>/dev/null)" || n=""
+  fi
+  case "$n" in ''|*[!0-9]*|0) n=1 ;; esac
+  printf '%s' "$n"
+  return 0
+}
+
+# The machine-derived default cap: half the cores, clamped to [1, 8]. Half (not all) because each
+# slot is an agent + a test runner + possibly a container — they compete for the same cores; 8
+# because past that the serialized cherry-pick back-pressure, not the CPU, is the bottleneck.
+release_default_max_parallel() {  # → min(8, max(1, cores/2))
+  local c half; c="$(release_exec_cores)"; half=$(( c / 2 ))
+  [ "$half" -lt 1 ] && half=1
+  [ "$half" -gt 8 ] && half=8
+  printf '%s' "$half"
+  return 0
+}
+
+release_execenv_max_parallel() {  # $1 root → live-env cap (configured, else machine default; 0 when off)
   local v; v="$(release_execenv_get "${1:-.}" test_env_max_parallel)"
   case "$v" in
-    ''|*[!0-9]*) [ "$(release_execenv_active "${1:-.}")" = "EXECENV=on" ] && echo 4 || echo 0 ;;
+    ''|*[!0-9]*) [ "$(release_execenv_active "${1:-.}")" = "EXECENV=on" ] \
+                   && release_default_max_parallel || echo 0 ;;
     *)           echo "$v" ;;
+  esac
+  return 0
+}
+
+# The READINESS SCHEDULER's cap (v0.22.0 — wave-executor). Distinct from the env cap above: it
+# bounds concurrent TASK SPAWNS whether or not per-worktree envs are configured, so a repo with no
+# EXEC-ENV.yml gets a sane machine-derived bound instead of "unlimited". An EXPLICIT
+# `test_env_max_parallel` always wins (the user sized their own machine); `0` means "unlimited
+# envs", which is not a licence for unlimited agents — the machine default still applies.
+release_sched_max_parallel() {  # $1 root → concurrent task-spawn cap (≥1)
+  local cfg; cfg="$(release_execenv_get "${1:-.}" test_env_max_parallel)"
+  case "$cfg" in
+    ''|*[!0-9]*|0) release_default_max_parallel ;;   # unset / junk / "unlimited envs" → machine default
+    *)             printf '%s' "$cfg" ;;             # explicit config wins, above or below the default
   esac
   return 0
 }
