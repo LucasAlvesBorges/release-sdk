@@ -14,6 +14,9 @@ color: "#A78BFA"
   - react default: `src/`
 - scope_filter: optional glob (e.g. `backend/apps/scheduling/`) — narrow discovery to subset
 - output_path: required — where to write the JSON inventory
+- test_exec_prefix: optional string (default "") — v0.22.0; prepend to the discovery command when the
+  suite runs inside a provisioned per-worktree env (collection imports the app, so it needs the same
+  env as execution). Empty ⇒ host-local, unchanged. Referred to below as `$TP`.
 </inputs>
 
 <role>
@@ -29,7 +32,7 @@ Spawned by `release:tdd-executor` before parallel test sweep.
 ### Django stack
 ```bash
 cd "$cwd" 2>/dev/null || true
-pytest "$test_root" --collect-only -q --no-header 2>/dev/null
+$TP pytest "$test_root" --collect-only -q --no-header 2>/dev/null
 ```
 
 Output format (pytest -q):
@@ -44,8 +47,8 @@ N tests collected
 ### React stack
 ```bash
 cd "$cwd" 2>/dev/null || true
-npx vitest list --reporter=json 2>/dev/null \
-  || npx vitest --reporter=json --run --passWithNoTests 2>/dev/null
+$TP npx vitest list --reporter=json 2>/dev/null \
+  || $TP npx vitest --reporter=json --run --passWithNoTests 2>/dev/null
 ```
 
 Fallback if `vitest list` unsupported (older versions):

@@ -400,8 +400,9 @@ After cherry-pick of LAST wave, spawn `release:test-discover` + 5x `release:test
 - Mirrors `release:tdd-executor`'s `parallel_test_sweep` step
 - Runs ONCE per phase (not per wave)
 - 5-way parallel buckets
-- Runs with the phase env prefix (`$PHASE_PREFIX`) and inside `$PHASE_WT` — the wave worktrees and
-  their envs are already torn down by this point
+- Runs inside `$PHASE_WT` — the wave worktrees and their envs are already torn down by this point.
+  Both spawns carry `test_exec_prefix: "$PHASE_PREFIX"` (collection imports the app, so discovery
+  needs the env too); empty when `EXECENV=off`
 - **Model tiers:** `release:test-discover` spawned with `model: <mechanical_model>` (haiku — pure
   `--collect-only`, no judgment); the 5x `release:test-runner` each with `model: <worker_model>` (the maker
   tier — running/diagnosing a failing bucket is worker-loop work). Both handed down by `/release:execute`.

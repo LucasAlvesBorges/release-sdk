@@ -13,6 +13,9 @@ color: "#06B6D4"
 - test_files: required array — list of test file paths assigned to this bucket
 - output_path: required — JSON result file (e.g. `.release-planning/phases/{NN}-*/sweep-{bucket_id}.json`)
 - extra_args: optional string — appended to pytest/vitest command (e.g. `--memray`, `-k pattern`)
+- test_exec_prefix: optional string (default "") — v0.22.0; prepend to the runner command when the
+  suite runs inside a provisioned per-worktree env (e.g. `docker exec -w /app app-phase12`). Empty
+  ⇒ run host-locally, unchanged. Referred to below as `$TP`.
 </inputs>
 
 <role>
@@ -26,6 +29,8 @@ Spawned in parallel (5x typical) by `release:tdd-executor` step `parallel_test_s
 <step name="validate_inputs">
 - If `test_files` empty → write JSON with `status: "empty"`, exit
 - If `cwd` set, prepend `cd "$cwd" &&` to every Bash command
+- If `test_exec_prefix` set, prepend it to the runner command itself (`$TP pytest …`) — the prefix
+  runs the command inside the provisioned env; `cd "$cwd"` still applies to the host shell
 - Stack must be `django` or `react` — anything else → exit with error JSON
 </step>
 
@@ -34,7 +39,7 @@ Spawned in parallel (5x typical) by `release:tdd-executor` step `parallel_test_s
 ### Django stack
 ```bash
 cd "$cwd" 2>/dev/null || true
-pytest <space-separated test_files> --tb=short -q --no-header $extra_args 2>&1
+$TP pytest <space-separated test_files> --tb=short -q --no-header $extra_args 2>&1
 ```
 
 Capture stdout + stderr. Capture exit code.
@@ -42,7 +47,7 @@ Capture stdout + stderr. Capture exit code.
 ### React stack
 ```bash
 cd "$cwd" 2>/dev/null || true
-npx vitest run <space-separated test_files> --reporter=verbose $extra_args 2>&1
+$TP npx vitest run <space-separated test_files> --reporter=verbose $extra_args 2>&1
 ```
 
 Capture stdout + stderr. Capture exit code.
