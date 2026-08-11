@@ -8,6 +8,9 @@ description: >
   v0.18.0: LOOPS BY DEFAULT — after building it runs the closed loop (objective gate via run_gate →
   independent checker via release-phase-verifier → release-code-fixer on the real evidence → re-verify)
   until GATE=GREEN AND checker PASS, then auto-lands. `--once` = legacy single-pass.
+  v0.22.0: optional per-worktree test envs (.release-planning/EXEC-ENV.yml) unlock fan-out for
+  containerized suites, and per-task test invocations are capped at 2 (RED + one combined
+  GREEN+REFACTOR run) with suite sweeps pinned to the wave boundary.
   Use when: PLAN ready (plan-checker PASS or WARN-accepted).
 ---
 
@@ -247,6 +250,45 @@ fi
 git -C "$PHASE_WT" rev-parse HEAD > "$PHASE_WT/.release-planning/phases/{NN}-{slug}/.exec-start-sha"
 ```
 
+**Test environment for the phase worktree (v0.22.0, opt-in).** If the project ships
+`.release-planning/EXEC-ENV.yml`, the phase worktree needs its own env too — the serial path, the
+wave-boundary verification and the terminal sweep all run there:
+
+```bash
+# same lib discovery the loop section uses below (defined here because it runs first)
+find_lib(){ local p="${RELEASE_PLUGIN_ROOT:+$RELEASE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "${CODEX_HOME:-$HOME/.codex}" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+ENV_LIB="$(find_lib release-execenv-lib.sh)"; [ -f "$ENV_LIB" ] && . "$ENV_LIB"
+PHASE_LABEL=""; PHASE_PREFIX=""; EXECENV=off
+if [ -f "$ENV_LIB" ] && [ "$(release_execenv_active "$ROOT")" = "EXECENV=on" ]; then
+  EXECENV=on
+  PHASE_LABEL="$(release_execenv_label "phase{NN}_${SESSION_ID}")"
+  OUT="$(execenv_provision "$ROOT" "$PHASE_WT" "$PHASE_LABEL")"
+  case "$OUT" in
+    *EXECENV_PROVISION=ok*) PHASE_PREFIX="$(execenv_prefix "$ROOT" "$PHASE_WT" "$PHASE_LABEL")" ;;
+    *) echo "ABORT: EXEC-ENV provision failed for the phase worktree."
+       echo "  evidence: $(printf '%s\n' "$OUT" | sed -n 's/^EXECENV_EVIDENCE=//p')"
+       echo "  fix .release-planning/EXEC-ENV.yml (or RELEASE_EXECENV_DISABLE=1 to run host-local)."
+       exit 1 ;;
+  esac
+  # tear the phase env down on ANY exit path, alongside the lock + worktree cleanup
+  trap 'execenv_teardown "$ROOT" "$PHASE_WT" "$PHASE_LABEL" >/dev/null 2>&1; rm -f "$LOCK"; git worktree remove --force "$PHASE_WT" 2>/dev/null' EXIT
+fi
+```
+
+No `EXEC-ENV.yml` ⇒ `EXECENV=off`, `PHASE_PREFIX=""` ⇒ everything below runs host-locally, exactly
+as before v0.22.0.
+
+**The gate needs the prefix too.** `run_gate` `eval`s the commands from `VERIFY-GATE.yml`, which
+cannot know the run's dynamic label — so export the prefix and reference it from the gate config:
+
+```bash
+export RELEASE_EXEC_PREFIX="$PHASE_PREFIX"     # '' when EXECENV=off ⇒ expands to nothing
+```
+```yaml
+# .release-planning/VERIFY-GATE.yml
+test: $RELEASE_EXEC_PREFIX pytest backend/apps -q
+```
+
 Then spawn the wave-executor handing down the isolation context:
 
 ```yaml
@@ -259,6 +301,8 @@ config:
   branch_already_set: true    # phase worktree already on the branch → skip its ensure_branch checkout
   worker_model: $WORKER_MODEL  # wave-executor tags EVERY tdd-executor spawn with this (maker tier: Opus | Sonnet)
   mechanical_model: $MECH_MODEL # test-discover collection tier (haiku); test-runner uses worker_model
+  cfg_root: "$ROOT"           # v0.22.0 — where .release-planning/EXEC-ENV.yml lives
+  phase_prefix: "$PHASE_PREFIX" # v0.22.0 — exec prefix of the PHASE env (serial path + wave verify + terminal sweep)
 ```
 
 **Rules:**
@@ -461,6 +505,55 @@ Wave-executor handles everything — no flag required.
 - Otherwise → parallel worktrees
 
 Token economy: serial PLAN re-read per spawn dropped from ~115KB × N spawns to ~3KB × N (-97% input cost).
+
+## Wall-clock economy (v0.22.0)
+
+Two independent levers, both opt-out-shaped (absent config ⇒ prior behaviour).
+
+### 1. Per-worktree test environments — `.release-planning/EXEC-ENV.yml`
+
+The parallel path above assumes a task's tests can run inside that task's worktree. In a project
+whose suite runs inside a container mounting ONE checkout (and one database), sub-worktree code is
+invisible to it — so every wave collapsed to serial, which is where multi-hour phases come from.
+
+Declare how to stand up and tear down a throwaway env for an arbitrary directory and fan-out is
+back on (`templates/EXEC-ENV.yml` documents the full contract):
+
+```yaml
+test_env_provision:    docker exec db createdb -T tmpl test_{label} && docker run -d --name app-{label} -v {worktree}/backend:/app app:test sleep infinity
+test_env_teardown:     docker rm -f app-{label} >/dev/null 2>&1; docker exec db dropdb --if-exists test_{label}; true
+test_exec_prefix:      docker exec -w /app app-{label}
+test_env_max_parallel: 4
+```
+
+- `{worktree}` / `{label}` / `{root}` are substituted per env. `{label}` is `[a-z0-9_]`, ≤32 chars —
+  safe as both a container-name suffix and a Postgres database name.
+- One env per phase worktree (this skill) + one per parallel task worktree (wave-executor), capped
+  at `test_env_max_parallel` (default 4) and torn down before each worktree is removed.
+- Provision failure ⇒ that task falls back to serial in the phase worktree with the phase env, with
+  the captured evidence surfaced. Teardown failure ⇒ logged, never fatal.
+- `RELEASE_EXECENV_DISABLE=1` is the kill switch; `RELEASE_EXECENV_TIMEOUT` bounds each
+  provision/teardown (default 600s).
+- Reference the prefix from `VERIFY-GATE.yml` as `$RELEASE_EXEC_PREFIX` so the gate runs in the env too.
+
+### 2. Bounded per-task test invocations
+
+Booting the runner — not running the assertions — is the per-task cost that dominates
+(30-60s per invocation for a containerized Django suite). `release-tdd-executor` now runs under a
+hard budget of **≤2 runner invocations per task** (≤3 for the task that also writes security tests):
+
+| Was (3-5 runs/task) | Now |
+|---|---|
+| RED run, often app-wide | RED run, this task's test files only — still mandatory, still its own commit |
+| GREEN run | — folded — |
+| REFACTOR re-run | ONE combined run after impl + Q1-Q7/RC1-RC7 are both applied (tests + lint on touched files) |
+| SECURITY run | SECURITY run, that file only |
+| suite sweep per task | suite sweep at the wave boundary / terminal sweep only |
+
+`makemigrations --check --dry-run` and `tsc --noEmit` moved to the wave boundary as well (in-task
+only when the task itself touched models or a shared type contract). TDD discipline is unchanged —
+the RED proof is still mandatory and never merged into another run; what changed is run *scope*.
+Each SUMMARY.md reports `test_runs:` so a regression in this budget is visible.
 
 ## Output
 

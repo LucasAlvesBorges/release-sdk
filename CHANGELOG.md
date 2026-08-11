@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] — 2026-08-11
+
+### Added — per-worktree test environments: parallelism for containerized suites
+
+`/release:execute` fans tasks out into one git worktree per task, but that only works if a task's
+tests can run inside that worktree. In a project whose suite runs inside a container mounting ONE
+checkout (and one database), sub-worktree code is invisible to it — so every wave collapsed to
+serial, which is where multi-hour phases come from (measured: 35 backend tasks ≈ 7h, ~12 min/task).
+
+- **`bin/release-execenv-lib.sh`** — new engine resolving `.release-planning/EXEC-ENV.yml`
+  (`test_env_provision` / `test_env_teardown` / `test_exec_prefix` / `test_env_max_parallel`) with
+  `{worktree}` / `{label}` / `{root}` placeholders. Labels are sanitized to `[a-z0-9_]`, ≤32 chars,
+  never digit-initial — valid as both a container-name suffix and a Postgres database name.
+  Provision/teardown run under `RELEASE_EXECENV_TIMEOUT` (default 600s); `RELEASE_EXECENV_DISABLE=1`
+  is the kill switch. House style: every function echoes its verdict and returns 0.
+- **`bin/test-execenv-lib.sh`** — 40-assertion contract test that SOURCES the real engine.
+- **`agents/wave-executor.md`** — provisions one env per parallel sub-worktree, batched at
+  `test_env_max_parallel` (default 4, `0` = unlimited), hands each `tdd-executor` spawn its
+  `test_exec_prefix`, and tears the env down *before* removing the worktree. A failed provision
+  surfaces its evidence file and falls back to serial for that task (`env_provision_failed` in
+  WAVE-SUMMARY.md); a failed teardown is logged, never fatal.
+- **`skills/execute/SKILL.md`** — provisions the phase worktree's env, tears it down on every exit
+  path, and exports `$RELEASE_EXEC_PREFIX` so `VERIFY-GATE.yml` commands run in the same env.
+- **`agents/test-runner.md` / `agents/test-discover.md`** — accept `test_exec_prefix` (collection
+  imports the app, so `--collect-only` needs the env exactly as execution does).
+- **`templates/EXEC-ENV.yml`** — documented contract + Docker and per-worktree-venv examples.
+
+Opt-in by construction: with no `EXEC-ENV.yml` the whole feature is inert and execution behaves
+exactly as in 0.21.0 (host-local exec, serial-on-collision).
+
+### Changed — per-task test invocations capped at 2 (was 3-5)
+
+Booting the runner, not running the assertions, is the per-task cost that dominates: a containerized
+Django suite pays 30-60s of setup *per invocation*, and each task was paying it 3-5 times
+(RED, GREEN, REFACTOR, SECURITY).
+
+- **New `test_invocation_budget` step in `agents/tdd-executor.md`**: RED runs ONLY the task's test
+  files (mandatory, still its own commit); GREEN and REFACTOR share ONE combined run — the Author
+  Checklist optimizations (Q1-Q7 / RC1-RC7) are applied as part of the implementation edit and then
+  verified once, together with lint on the touched files; SECURITY runs only its own file. Budget:
+  ≤2 runner invocations per task, ≤3 for the security task, extra runs only to diagnose a real
+  failure. Reported as `test_runs:` in SUMMARY.md.
+- A separate `refactor(...)` commit is now emitted only when a genuinely separate second pass
+  happened; otherwise the applied checklist IDs are recorded in the `feat(...)` commit body.
+- `makemigrations --check --dry-run` and `tsc --noEmit` moved to the wave boundary (in-task only
+  when the task itself touched models or a shared type contract).
+- `skip_sweep` now defaults to **true** for any per-task spawn (`task_filter` or `is_slice` set) —
+  a task never owns the suite sweep; the wave boundary and the terminal sweep do.
+
+TDD discipline is unchanged: the RED proof is still mandatory and never merged into another run.
+What changed is the *scope and count* of the runs.
+
 ## [0.21.0] — 2026-08-10
 
 ### Added — Codex token-economy policy: per-agent model routing, mandatory AGENTS.md gate, generic role catalog

@@ -1,0 +1,53 @@
+# EXEC-ENV.yml — per-worktree TEST ENVIRONMENT for /release:* execution.
+#
+# Copy to .release-planning/EXEC-ENV.yml ONLY if your tests cannot run against an arbitrary
+# directory on the host (typically: pytest runs inside a container that mounts one checkout and
+# talks to one database). If your tests DO run on the host, delete this file — with no config the
+# executor behaves exactly as before (host-local exec).
+#
+# WHY: `/release:execute` fans tasks out into one git worktree per task. A container that mounts
+# the phase worktree cannot see those sub-worktrees, so the executor is forced back to SERIAL —
+# the slowest possible mode. Describe how to stand up a throwaway env for an arbitrary directory
+# and parallelism comes back: one env per worktree, torn down after its commits are cherry-picked.
+#
+# Format: an ORDERED flat map, one `key: value` per line, split on the FIRST colon only (values
+# routinely contain colons: `-v {worktree}/backend:/app`). '#' comments and blank lines ignored.
+#
+# Placeholders:
+#   {worktree}  absolute path of the worktree being provisioned (this is what you must mount)
+#   {label}     unique, sanitized id for this env — [a-z0-9_], ≤32 chars, never digit-initial.
+#               Safe as a container name suffix AND as a Postgres database name.
+#   {root}      absolute path of the main repo checkout
+#
+# Contract:
+#   - test_env_provision MUST be synchronous (return only when the env can actually run tests)
+#     and idempotent (re-running for the same label must not fail). Exit 0 = provisioned; any
+#     non-zero exit ⇒ that worktree is abandoned and the wave falls back to serial execution.
+#   - test_env_teardown runs before the worktree is removed. Make it tolerate a missing env; a
+#     failing teardown is logged, never fatal (it must not cost you the commits).
+#   - test_exec_prefix is prepended to EVERY pytest / manage.py / vitest command the task
+#     executor runs. Leave it unset when the provisioned env is reachable from the host.
+#   - test_env_max_parallel caps how many envs exist at once (default 4 when provisioning is
+#     configured; 0 = unlimited). Each env is a real container + database — this is the knob that
+#     keeps a 12-task wave from melting the machine.
+#
+# Env overrides: RELEASE_EXECENV_TIMEOUT (seconds per provision/teardown, default 600; 0 = none),
+#                RELEASE_EXECENV_DISABLE=1 (kill switch — forces host-local exec everywhere).
+
+# ── Example: Django + pytest inside a per-worktree container with a cloned template DB ──────────
+# One key = ONE line (no YAML folded scalars — the parser is a flat first-colon split). Chain with
+# && and keep it on a single line; if it gets long, move it into a script and call that instead.
+#
+# test_env_provision: docker exec myapp-db createdb -T myapp_test_template test_{label} && docker run -d --name myapp-{label} --network myapp_default -v {worktree}/backend:/app -e DATABASE_URL=postgres://db/test_{label} myapp:test sleep infinity
+#
+# test_env_teardown: docker rm -f myapp-{label} >/dev/null 2>&1; docker exec myapp-db dropdb --if-exists test_{label} >/dev/null 2>&1; true
+#
+# test_exec_prefix: docker exec -w /app myapp-{label}
+#
+# test_env_max_parallel: 4
+
+# ── Example: host-local venv per worktree (no container) ────────────────────────────────────────
+# test_env_provision: python -m venv {worktree}/.venv && {worktree}/.venv/bin/pip install -q -r {worktree}/backend/requirements-dev.txt
+# test_env_teardown: rm -rf {worktree}/.venv
+# test_exec_prefix: {worktree}/.venv/bin/python -m
+# test_env_max_parallel: 3

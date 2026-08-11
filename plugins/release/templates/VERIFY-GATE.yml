@@ -14,6 +14,9 @@
 #   - '#' comments and blank lines are ignored.
 #   - Every command MUST exit 0 on success and non-zero on failure (that is the whole contract).
 #   - Avoid watch-mode runners (they hang the gate): use `vitest run`, not bare `vitest`.
+#   - Commands are eval'd, so env vars expand. If your tests run inside a per-worktree container
+#     (see templates/EXEC-ENV.yml), prefix them with `$RELEASE_EXEC_PREFIX` — /release:execute
+#     exports it with that worktree's exec prefix, and it expands to nothing when unset.
 
 # ── Django backend ──────────────────────────────────────────────────────────────────────────
 lint:    ruff check backend/

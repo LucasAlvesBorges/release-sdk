@@ -1,5 +1,5 @@
 name = "release-wave-executor"
-description = "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. Always invoked by /release:execute (no flag)."
+description = "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. v0.22.0: optional per-worktree test-env provisioning (.release-planning/EXEC-ENV.yml) so containerized test suites can fan out instead of being forced serial. Always invoked by /release:execute (no flag)."
 model = "gpt-5.6"
 reasoning_effort = "high"
 output_token_budget = 1500
@@ -185,6 +185,42 @@ git worktree prune                          # drop dead registrations before add
 
 </step>
 
+<step name="load_exec_env">
+
+**v0.22.0 — per-worktree test environments (opt-in, biggest parallelism unlock).**
+
+A wave can only fan out if each task's tests actually run inside that task's worktree. When the
+suite runs in a container that mounts ONE checkout (and one DB), sub-worktree code is invisible to
+it — historically the only safe answer was serial execution. A project can now describe how to
+stand up a throwaway env for an arbitrary directory; when it does, fan-out is back on.
+
+Source the engine (same discovery pattern as the merge/gate libs) and resolve the config ONCE:
+
+```bash
+find_lib(){ local p="${RELEASE_PLUGIN_ROOT:+$RELEASE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "${CODEX_HOME:-$HOME/.codex}" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+ENV_LIB="$(find_lib release-execenv-lib.sh)"; [ -f "$ENV_LIB" ] && . "$ENV_LIB"
+
+CFG_ROOT="${CFG_ROOT:-$(git -C "$PHASE_WT" rev-parse --show-toplevel 2>/dev/null || pwd)}"
+EXECENV="off"; ENV_CAP=0
+if [ -f "$ENV_LIB" ]; then
+  EXECENV="$(release_execenv_active "$CFG_ROOT" | cut -d= -f2)"
+  ENV_CAP="$(release_execenv_max_parallel "$CFG_ROOT")"     # default 4 when on, 0 = unlimited
+fi
+echo "→ exec-env: $EXECENV (max_parallel=$ENV_CAP)"
+```
+
+- `EXECENV=off` (no `.release-planning/EXEC-ENV.yml`, lib missing, or `RELEASE_EXECENV_DISABLE=1`)
+  → **behaviour is byte-identical to pre-v0.22.0**: no provisioning, no prefix, host-local exec.
+- `EXECENV=on` → each parallel sub-worktree gets its own provisioned env, and every test command
+  the executor runs is prefixed with that env's `test_exec_prefix`.
+
+**Concurrency cap.** When `EXECENV=on`, each env is a real container + database. Run at most
+`ENV_CAP` task worktrees at a time: split the wave's parallel groups into batches of `ENV_CAP`
+(`0` = no cap) and process batches sequentially — provision batch → spawn batch → cherry-pick →
+teardown batch → next batch. Never provision the whole wave up front.
+
+</step>
+
 <step name="resume_skip_filter">
 
 When invoked with `--resume`, build skip-set of already-completed tasks from `git log`:
@@ -270,10 +306,12 @@ slice_plan_for_task() {
 }
 ```
 
-2. Create one worktree per task + slice into each:
+2. Create one worktree per task + slice into each + **provision its test env** (v0.22.0):
 
 ```bash
-for TASK_ID in "${WAVE_TASKS[@]}"; do
+BATCH_TASKS=()          # the ≤ENV_CAP tasks of the current batch (all of them when ENV_CAP=0)
+SERIAL_FALLBACK=()      # tasks whose env could not be provisioned → run serially in $PHASE_WT
+for TASK_ID in "${BATCH[@]}"; do
   WT_PATH="$WT_BASE/w${WAVE_N}-${TASK_ID}"
   WAVE_BRANCH="wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}"   # session+wave scoped → no cross-session collision
   G worktree add -b "$WAVE_BRANCH" "$WT_PATH" "$BRANCH"
@@ -282,10 +320,33 @@ for TASK_ID in "${WAVE_TASKS[@]}"; do
   SLICE_PATH="$WT_PATH/.release-planning/phases/${PHASE_NUM}-${PHASE_SLUG}/PLAN-SLICE-${TASK_ID}.md"
   mkdir -p "$(dirname "$SLICE_PATH")"
   slice_plan_for_task "$TASK_ID" "$SOURCE_WAVE_PATH" "$SLICE_PATH"
+
+  # --- per-worktree test env (no-op when EXECENV=off) ---
+  LABEL="$(release_execenv_label "w${WAVE_N}_${TASK_ID}_${SESSION_ID}")"   # [a-z0-9_], ≤32
+  PREFIX=""
+  if [ "$EXECENV" = "on" ]; then
+    OUT="$(execenv_provision "$CFG_ROOT" "$WT_PATH" "$LABEL")"
+    case "$OUT" in
+      *EXECENV_PROVISION=ok*)
+        PREFIX="$(execenv_prefix "$CFG_ROOT" "$WT_PATH" "$LABEL")"
+        BATCH_TASKS+=("$TASK_ID") ;;
+      *)
+        # Provision failed → this worktree has no usable test env. Surface the evidence, drop the
+        # worktree, and run the task serially in $PHASE_WT (which has the phase-level env).
+        echo "EXEC-ENV provision FAILED for $TASK_ID — evidence: $(printf '%s\n' "$OUT" | sed -n 's/^EXECENV_EVIDENCE=//p')"
+        execenv_teardown "$CFG_ROOT" "$WT_PATH" "$LABEL" >/dev/null
+        G worktree remove --force "$WT_PATH"; G branch -D "$WAVE_BRANCH"
+        SERIAL_FALLBACK+=("$TASK_ID") ;;
+    esac
+  else
+    BATCH_TASKS+=("$TASK_ID")
+  fi
+  TASK_PREFIX["$TASK_ID"]="$PREFIX"; TASK_LABEL["$TASK_ID"]="$LABEL"
 done
 ```
 
-3. Spawn executors in single Agent call (parallel). Each spawn gets sliced plan path:
+3. Spawn executors for `BATCH_TASKS` in a single Agent call (parallel). Each spawn gets its sliced
+   plan path **and its env's exec prefix**:
 
 ```yaml
 agent: release-tdd-executor
@@ -298,12 +359,18 @@ config:
   no_branch: true                   # already on wave branch
   skip_sweep: true                  # intermediate wave — terminal sweep runs at end-of-phase
   is_slice: true                    # signal that plan_path is a slice (full-read OK, no offset gymnastics)
+  test_exec_prefix: "<TASK_PREFIX[TASK_ID]>"   # v0.22.0 — "" when EXECENV=off (host-local exec)
   instruction_suffix: "operate at maximum rigor / max effort"
 ```
 
-The executor agents must respect `task_filter`, `cwd`, `skip_sweep`, `is_slice`. (See `<task_filter_contract>` below.)
+The executor agents must respect `task_filter`, `cwd`, `skip_sweep`, `is_slice`, `test_exec_prefix`.
+(See `<task_filter_contract>` below.)
 
 4. Wait for all to finish. Collect commit SHAs from each worktree.
+
+5. Tasks in `SERIAL_FALLBACK` (env provisioning failed) run afterwards through the
+   **collision-bound serial path** in `$PHASE_WT`, with the phase-level prefix — never skipped, and
+   never silently: record them in WAVE-SUMMARY.md as `env_provision_failed`.
 
 ### Merge wave back to phase branch
 
@@ -324,13 +391,19 @@ for TASK_ID in "${WAVE_TASKS[@]}"; do
   done
 done
 
-# Cleanup wave worktrees + wave branches (phase worktree itself stays — owned by /release:execute)
-for TASK_ID in "${WAVE_TASKS[@]}"; do
+# Cleanup: teardown the test env FIRST (it may hold the worktree's files open / mounted),
+# then remove the worktree + wave branch. Phase worktree itself stays — owned by /release:execute.
+for TASK_ID in "${BATCH_TASKS[@]}"; do
   WT_PATH="$WT_BASE/w${WAVE_N}-${TASK_ID}"
+  [ "$EXECENV" = "on" ] && execenv_teardown "$CFG_ROOT" "$WT_PATH" "${TASK_LABEL[$TASK_ID]}"
   G worktree remove --force "$WT_PATH"
   G branch -D "wave/${SESSION_ID}/w${WAVE_N}-${TASK_ID}"
 done
 ```
+
+A teardown that reports `EXECENV_TEARDOWN=failed` is logged in WAVE-SUMMARY.md and execution
+continues — a leaked container must never cost the commits. Leaked envs are the user's to reap
+(`test_env_teardown` should be idempotent so a later run cleans them).
 
 ### Collision-bound wave path (serial fallback)
 
@@ -339,15 +412,24 @@ using the single-task executor. No per-task worktree. Same `task_filter` mechani
 the shared main checkout — that is the cross-session corruption path (another session's in-flight files
 get swept into the commit, producing `UU` + stray untracked test files with no `MERGE_HEAD`).
 
+Serial spawns carry `test_exec_prefix: "$PHASE_PREFIX"` — the prefix of the **phase** worktree's env,
+handed down by `/release:execute` (empty when `EXECENV=off`). The phase env is provisioned once by
+`/release:execute`, never per task.
+
 ### Verify wave (intermediate)
 
-After merge of intermediate wave (not terminal):
-```bash
-# Run ONLY wave-scoped tests (collect test files from wave tasks)
-pytest <test_files_from_wave> -x --tb=short    # backend
-npx vitest run <test_files>                    # frontend
+**This is the ONLY place a multi-task test run happens mid-phase (v0.22.0).** Task executors run
+strictly task-scoped tests (see `tdd-executor` → `test_invocation_budget`); anything wider — the
+migration drift check, the app-level sweep — belongs to this wave boundary, once per wave, not
+once per task.
 
-# Plus stack-specific gates (cheap, always run):
+After merge of intermediate wave (not terminal), run in `$PHASE_WT` with the phase prefix:
+```bash
+# Run ONLY wave-scoped tests (union of the test files declared by this wave's tasks)
+$PHASE_PREFIX pytest <test_files_from_wave> -x --tb=short    # backend
+$PHASE_PREFIX npx vitest run <test_files>                    # frontend
+
+# Plus stack-specific gates (cheap, always run — once per WAVE, never per task):
 # Django: makemigrations --check --dry-run, ruff check (touched dirs only), Q6 grep
 # React: tsc --noEmit, RC6 grep
 ```
@@ -360,6 +442,9 @@ After cherry-pick of LAST wave, spawn `release-test-discover` + 5x `release-test
 - Mirrors `release-tdd-executor`'s `parallel_test_sweep` step
 - Runs ONCE per phase (not per wave)
 - 5-way parallel buckets
+- Runs inside `$PHASE_WT` — the wave worktrees and their envs are already torn down by this point.
+  Both spawns carry `test_exec_prefix: "$PHASE_PREFIX"` (collection imports the app, so discovery
+  needs the env too); empty when `EXECENV=off`
 - **Model tiers:** `release-test-discover` spawned with `model: <mechanical_model>` (haiku — pure
   `--collect-only`, no judgment); the 5x `release-test-runner` each with `model: <worker_model>` (the maker
   tier — running/diagnosing a failing bucket is worker-loop work). Both handed down by `/release:execute`.
@@ -383,6 +468,10 @@ total_tasks: {N}
 parallel_tasks: {N}    # tasks that ran in worktrees
 serial_tasks: {N}      # tasks that fell back to serial
 duration_seconds: {N}
+exec_env: on | off             # .release-planning/EXEC-ENV.yml present + provisioning ran
+env_max_parallel: {N}          # concurrency cap actually applied (0 = unlimited)
+env_provision_failed: []       # task IDs whose env failed → executed serially in the phase worktree
+env_teardown_failed: []        # task IDs whose env leaked (idempotent teardown will reap them)
 ---
 
 # Wave Execution Summary: Phase {NN}
@@ -428,8 +517,9 @@ For wave executor to work, `release-tdd-executor` must accept (v0.12.0):
 - `plan_path: <path>` — pode ser manifest.md, W{X}-*.md, PLAN.md (legacy), OU PLAN-SLICE-{TASK_ID}.md (v0.12.0)
 - `skip_sweep: true` — skip parallel_test_sweep (intermediate wave only; terminal wave still runs full sweep)
 - `is_slice: true` — plan_path is a per-task slice; executor full-reads (no offset gymnastics) and skips manifest re-load
+- `test_exec_prefix: "<string>"` — v0.22.0; prefix prepended to EVERY pytest/manage.py/vitest command the executor runs (`docker exec app-w1_t02` …). Empty/unset ⇒ host-local exec (pre-v0.22.0 behaviour)
 
-Executor reads these from Agent spawn config. If unset, default behavior (all tasks/waves, branch-per-phase, current cwd, full sweep, no slice).
+Executor reads these from Agent spawn config. If unset, default behavior (all tasks/waves, branch-per-phase, current cwd, full sweep, no slice, host-local exec).
 
 **Token economy contract**: when `is_slice: true`, executor MUST NOT re-read parent PLAN.md/manifest.md. The slice already contains task body + must_haves + threat_model header. Re-reading parent is a regression of v0.12.0 economy.
 
@@ -451,6 +541,12 @@ Executor reads these from Agent spawn config. If unset, default behavior (all ta
 - If `git worktree` not supported → fall back to legacy `--no-branch` single-session mode in the main checkout and log a loud warning that concurrent sessions are unsafe in this mode.
 - Migration files (`migrations/00XX_*.py`) — DRF migration numbers collide across parallel branches → if wave has 2+ tasks that generate migrations, force serial execution
 - Lock files (`package-lock.json`, `poetry.lock`) — same: force serial
+- NEVER exceed `test_env_max_parallel` live test envs (default 4 when `EXECENV=on`) — each is a real container + database; batch the wave instead of provisioning it all at once
+- NEVER teardown a test env before its worktree's commits are cherry-picked; NEVER remove a worktree before its env teardown ran (mounts/handles)
+- NEVER let a failed provision silently drop a task — surface the evidence path, fall back to serial in `$PHASE_WT`, and record `env_provision_failed` in WAVE-SUMMARY.md
+- NEVER treat a failed teardown as fatal — log it, keep going (a leaked container must not cost the commits)
+- With `EXECENV=off` (no `.release-planning/EXEC-ENV.yml`) NOTHING above changes behaviour: no provisioning, empty prefix, exactly the pre-v0.22.0 flow
+- NEVER run an app-wide / suite-wide test command as part of a task spawn — suite-level runs belong to the wave boundary (intermediate) or the terminal sweep. That is the per-task cost the executor's `test_invocation_budget` exists to bound.
 
 </safety_rules>
 
@@ -501,6 +597,9 @@ def has_django_system_check_precommit():
 - [ ] Every parallel spawn received a PLAN-SLICE-{TASK_ID}.md (~3KB), not monolithic PLAN.md (token economy v0.12.0)
 - [ ] Intermediate waves: wave-scoped tests only (skip_sweep:true on spawns)
 - [ ] Terminal wave: full parallel_test_sweep via release-test-discover + 5x release-test-runner
+- [ ] `EXECENV=on`: every parallel spawn got a provisioned env + its `test_exec_prefix`; every env torn down before its worktree was removed; live envs never exceeded `test_env_max_parallel`
+- [ ] `EXECENV=off`: no provisioning attempted, `test_exec_prefix` empty on every spawn (behaviour identical to pre-v0.22.0)
+- [ ] No task spawn ran a suite-wide test command (per-task runs are task-scoped; suite runs live at wave boundary / terminal sweep)
 - [ ] Monolithic PLAN.md > 600 lines → refused with re-split hint (no execution attempted)
 - [ ] `--resume` skips tasks already committed (grep T-ID in `git log`)
 - [ ] Phase verifier (`/release:verify {NN}`) passes after wave execution

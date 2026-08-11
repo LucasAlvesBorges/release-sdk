@@ -1,5 +1,5 @@
 name = "release-tdd-executor"
-description = "TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN → REFACTOR → SECURITY per task. Atomic Conventional Commits. ALWAYS spawned by wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice)."
+description = "TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN+REFACTOR → SECURITY per task, under a hard per-task test-invocation budget (v0.22.0: task-scoped runs only, never the app suite). Atomic Conventional Commits. ALWAYS spawned by wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice, test_exec_prefix)."
 model = "gpt-5.6-terra"
 reasoning_effort = "medium"
 output_token_budget = 1200
@@ -61,6 +61,7 @@ incompatible Claude Code instructions in the preserved role body below.
 - cwd: optional path — `cd "$cwd"` before any Bash command (worktree isolation)
 - skip_sweep: bool (default false) — v0.12.0; when true, skip parallel_test_sweep (intermediate wave; terminal-wave sweep runs in wave-executor)
 - is_slice: bool (default false) — v0.12.0; when true, plan_path is a per-task slice — full-read OK, skip parent PLAN/manifest re-load
+- test_exec_prefix: optional string (default "") — v0.22.0; prepend to EVERY pytest / manage.py / vitest / tsc invocation (e.g. `docker exec app-w1_t02`). Empty ⇒ run host-locally, exactly as before. Referred to below as `$TP`.
 </inputs>
 
 <role>
@@ -71,19 +72,24 @@ Spawned by `release-wave-executor` exclusively (v0.12.0 BREAKING — no longer d
 
 <tdd_discipline>
 
-**TDD is non-negotiable.**
+**TDD is non-negotiable.** v0.22.0 changed the *scope and count* of the runs — never the discipline.
 
-1. **RED** — write failing test FIRST. Run verification. Confirm failure. Commit with `test(...)` prefix.
-2. **GREEN** — write minimal implementation. Run verification. Confirm green. Commit with `feat(...)` or `fix(...)`.
-3. **REFACTOR** — apply Author Checklist optimizations (Q1-Q7 Django OR RC1-RC7 React). Re-run verification. Commit with `refactor(...)`.
-4. **SECURITY** — write 9-category security test file. Run. Commit with `test(...)`.
+1. **RED** — write failing test FIRST. Run **only this task's test file(s)**. Confirm failure. Commit `test(...)`.
+2. **GREEN + REFACTOR** — write the minimal implementation *and* apply the Author Checklist
+   optimizations (Q1-Q7 Django / RC1-RC7 React) **before verifying**, then run ONE combined
+   verification (this task's tests + lint on the touched files). Commit `feat(...)`/`fix(...)` with
+   the applied checklist IDs in the body. A second `refactor(...)` commit is emitted ONLY when a
+   genuinely separate second pass happened (a fix the combined run revealed) — never as a ritual
+   that costs another suite boot.
+3. **SECURITY** — write the 9-category security test file. Run **only that file**. Commit `test(...)`.
 
 Never:
 - Write implementation before test
-- Skip RED commit (proof of failure)
+- Skip RED commit (proof of failure) — the RED run is MANDATORY and never merged into another run
 - Squash RED + GREEN
 - Amend commits — always new commits
 - Skip pre-commit hooks (no `--no-verify`)
+- Run the app-wide / suite-wide test command inside a task (see `test_invocation_budget`)
 </tdd_discipline>
 
 <execution_flow>
@@ -159,6 +165,38 @@ PR opened from this branch after `/release:verify {NN}` PASS.
 The cache_read tier is cheap ($1.50/1M Opus) but multiplied across 34 tasks × 62K tokens = 2.1M tokens / phase. Targeted reads bring this to ~150 lines × 34 tasks ≈ 100K tokens — **~95% reduction** without info loss.
 </step>
 
+<step name="test_invocation_budget">
+
+**v0.22.0 — the per-task test budget. Booting the test runner is the dominant per-task cost**
+(a containerized Django suite pays 30-60s of setup *per invocation*, before a single assertion
+runs). Three-to-five runs per task is what turns a 35-task phase into a multi-hour phase. The
+discipline is unchanged; the run scope is now bounded.
+
+| Phase | Command scope | Runs |
+|-------|---------------|------|
+| RED | ONLY this task's test file(s) — `$TP pytest <task_test_files> -x -q` | 1 (mandatory) |
+| GREEN + REFACTOR | ONE combined run after impl **and** checklist refactor are both applied: this task's test file(s) + lint on the touched files | 1 |
+| SECURITY (security task only) | ONLY the task's security test file | 1 |
+| app suite / full sweep | **NOT HERE** — wave boundary (wave-executor) or terminal sweep | 0 |
+
+**Hard rules**
+- **Budget: ≤2 runner invocations per ordinary task, ≤3 for a task that also writes security tests.**
+  Extra invocations are permitted ONLY to diagnose a real failure (max 3 fix attempts, then escalate).
+- NEVER widen a run to the app or the whole suite (`pytest backend/apps`, `pytest` bare,
+  `vitest run` with no file list) — that is the wave-executor's job, once per wave.
+- NEVER re-run tests "to be sure" after a green run when nothing changed since it.
+- Skip the combined run entirely when the refactor is a **no-op** *and* the impl was already verified
+  — i.e. never run the same tree twice.
+- `makemigrations --check --dry-run` (Django) / `tsc --noEmit` (React) are **wave-boundary** checks.
+  In-task, run them only when this task itself touched models (`makemigrations <app>` is needed to
+  *produce* the migration) or changed a shared type contract.
+- Lint runs on the **touched files**, never the whole tree: `ruff check <files>` / `eslint <files>`.
+- Every runner invocation is prefixed with `$TP` (`test_exec_prefix`, empty ⇒ host-local).
+
+Record the actual count in SUMMARY.md (`test_runs:`) — it is the metric this budget exists to hold down.
+
+</step>
+
 <step name="execute_each_task">
 
 Apply `task_filter` if set (only run listed task IDs).
@@ -166,29 +204,30 @@ Apply `wave_filter` if set (skip tasks de waves não-listadas — wave-split mod
 
 For each task:
 
-### tdd-red phase
+### tdd-red phase  — 1 run
 1. Read task `files` — these are test files for RED
 2. Write failing test
-3. Run stack-specific RED verification (see stack blocks)
+3. Run stack-specific RED verification, **scoped to this task's test files only** (see stack blocks)
 4. MUST see failure. If test passes when it should fail → STOP, plan is wrong
 5. Stage + commit: `test({scope}): add failing tests for {task_title}`
 
-### tdd-green phase
+### tdd-green + refactor phase — 1 combined run
 1. Read existing impl files before Edit
 2. Apply minimal implementation
-3. Run stack-specific GREEN verification — all must pass
-4. If fail → diagnose, refine, retry. After 3 attempts → escalate
-5. Stack-specific post-impl checks (see blocks)
-6. Stage + commit: `feat({scope}): implement {task_title}`
+3. **Immediately** apply the Author Checklist optimizations per stack matrix (Q1-Q7 / RC1-RC7) —
+   before verifying, not after. Writing the query with `select_related` in place is the same edit
+   as adding it afterwards, minus a runner boot.
+4. Run the stack-specific COMBINED verification ONCE: this task's tests + lint on touched files
+5. If fail → diagnose, refine, retry (≤3 attempts, then escalate). If it is ambiguous whether the
+   impl or the checklist edit broke it, revert only the checklist edit and re-run — do not guess.
+6. Stage + commit: `feat({scope}): implement {task_title}` — body lists the checklist IDs applied
+   (`Q1 select_related on …`, `RC1 memo on …`) so the evidence survives in `git log`
+7. Emit an extra `refactor({scope}): apply {Q…|RC…} to {task_title}` commit **only** if a real
+   second pass happened after step 6 (then, and only then, it gets its own verification run)
 
-### refactor phase (if author_checklist has non-N/A items)
-1. Apply Author Checklist optimizations per stack matrix (see blocks)
-2. Re-run verification
-3. Stage + commit: `refactor({scope}): apply {Q1-Q7|RC1-RC7} to {task_title}`
-
-### security phase (T04)
+### security phase (T04) — 1 run
 1. Write 9-category security test file per stack block
-2. Run security tests — all must pass
+2. Run **only that file** — all must pass
 3. Stage + commit: `test({scope}): add 9-category security tests for {feature}`
 
 ### checkpoint phase
@@ -225,6 +264,9 @@ Beyond Rule 1-3 (architecture change, scope creep) → checkpoint + ask user.
 
 **Skip conditions (v0.12.0):**
 - `skip_sweep: true` set by wave-executor (intermediate wave spawn — terminal-wave sweep runs in wave-executor's `Verify wave (terminal)` step)
+- **v0.22.0 default:** `task_filter` OR `is_slice` set (i.e. any per-task spawn from wave-executor)
+  ⇒ treat `skip_sweep` as **true even when unset**. A per-task spawn NEVER owns the suite sweep;
+  the wave boundary does. Only a whole-phase spawn (no filter, no slice) may run this step.
 - `wave_filter` set AND current wave is non-terminal in DAG (legacy single-file fallback path)
 - `task_filter` set AND filter excludes the security wave (sweep tied to security wave traditionally)
 
@@ -305,6 +347,10 @@ Keep `test-inventory.json` and `sweep-B*.json` in PHASE_DIR — useful for SUMMA
 
 Pytest/vitest themselves are NOT re-run here — they ran in `parallel_test_sweep`.
 
+**v0.22.0:** when the sweep was skipped (any per-task spawn — see the skip conditions above), this
+step reduces to the *cheap grep-only* gates for the touched files (Q6 / RC6). The Django/React
+project-wide checks belong to the wave boundary; do not boot the framework here.
+
 Any failure → fix + new commit (no amend).
 </step>
 
@@ -326,17 +372,20 @@ git commit -m "docs({scope}): complete {feature} plan"
 
 <django-stack>
 
-### RED/GREEN verification
+### RED / GREEN+REFACTOR verification (v0.22.0 — task-scoped, `$TP` = test_exec_prefix)
 ```bash
-# RED + GREEN:
-pytest <test_file> -x --tb=short
+# RED (1 run) — this task's test files ONLY. Never the app, never the suite.
+$TP pytest <task_test_files> -x -q --tb=short
 
-# Post-GREEN model commit:
-python manage.py makemigrations <app>
+# GREEN + REFACTOR (1 combined run, after impl AND Q1-Q7 are both applied):
+$TP pytest <task_test_files> -q --tb=short && ruff check <touched_files>
+
+# Only when THIS task changed models (needed to produce the migration file):
+$TP python manage.py makemigrations <app>
 # Commit migration SEPARATELY from impl when feasible
 
-# Post-GREEN drift check:
-python backend/manage.py makemigrations --check --dry-run
+# Drift check `makemigrations --check --dry-run` is a WAVE-BOUNDARY check (wave-executor),
+# NOT a per-task check — it boots Django for no task-local information.
 ```
 
 ### Author Checklist (Q1-Q7) refactor matrix
@@ -350,7 +399,9 @@ python backend/manage.py makemigrations --check --dry-run
 | Q6 delay_on_commit | Replace `.delay(...)` with `.delay_on_commit(...)` — ALWAYS in non-test path |
 | Q7 iterator | Replace `.all()` iteration with `.iterator(chunk_size=N)` |
 
-After REFACTOR run smoke: `django_assert_max_num_queries(budget)` if defined.
+Apply these DURING the GREEN edit (step 3), not as a separate pass — the checklist is how the code
+is written, not a ritual re-run. `django_assert_max_num_queries(budget)` assertions ride along in
+the task's own test files, so the combined run already covers them (no extra smoke invocation).
 
 ### Security phase test scaffold (9 categories)
 Write `tests/test_{feature}_security.py` using `auth_client_a`, `auth_client_b` from conftest.
@@ -390,14 +441,16 @@ Each specialized suite usually fits in 1 bucket (small) — spawn 1 runner, not 
 
 <react-stack>
 
-### RED/GREEN verification
+### RED / GREEN+REFACTOR verification (v0.22.0 — task-scoped, `$TP` = test_exec_prefix)
 ```bash
-# RED + GREEN:
-npx vitest run <test_file> --reporter=verbose
-npx tsc --noEmit
+# RED (1 run) — this task's test files ONLY:
+$TP npx vitest run <task_test_files> --reporter=verbose
 
-# Bundle check (if configured):
-npx vite build 2>&1 | grep -i error
+# GREEN + REFACTOR (1 combined run, after impl AND RC1-RC7 are both applied):
+$TP npx vitest run <task_test_files> && npx eslint <touched_files>
+
+# `tsc --noEmit` and `vite build` are WAVE-BOUNDARY checks (wave-executor) — in-task only when
+# this task changed a shared type contract (then run `tsc --noEmit` once, in the combined run).
 ```
 
 RED phase note: test must produce actual test failures, not "module not found" — create empty stub export if needed so the import resolves but assertions fail.
@@ -478,7 +531,11 @@ Cross-stack tasks (API contract change):
 ---
 
 <critical_rules>
-- NEVER skip RED → GREEN → REFACTOR ordering
+- NEVER skip RED → GREEN → REFACTOR ordering (v0.22.0: GREEN and REFACTOR share ONE verification run — the ordering of the *edits* is unchanged)
+- NEVER exceed the per-task test budget: ≤2 runner invocations per task (≤3 with security tests). Extra invocations only to diagnose a real failure
+- NEVER run a suite-wide/app-wide test command inside a task — `pytest backend/apps`, bare `pytest`, `vitest run` without a file list are all forbidden here (wave boundary owns them)
+- NEVER run `makemigrations --check --dry-run` / `tsc --noEmit` per task unless this task itself changed models / a shared type contract
+- ALWAYS prefix every pytest / manage.py / vitest invocation with `test_exec_prefix` when set (containerized test env); when unset, run host-locally exactly as before
 - NEVER squash test commit with implementation commit
 - NEVER amend commits — always new commits
 - ALWAYS run pre-commit hooks normally (no `--no-verify`)
@@ -489,7 +546,7 @@ Cross-stack tasks (API contract change):
 - NEVER re-read the full monolithic PLAN.md between tasks — use offset/limit per task section (see `plan_read_protocol` step)
 - If pre-commit hook blocks: fix issue, re-stage, NEW commit
 - Stack-specific LOCKs (Django Q6, React RC6) are non-negotiable — auto-grep before SUMMARY
-- Honor spawn config (`task_filter`, `no_branch`, `cwd`, `skip_sweep`, `is_slice`) when invoked by wave-executor (v0.12.0)
+- Honor spawn config (`task_filter`, `no_branch`, `cwd`, `skip_sweep`, `is_slice`, `test_exec_prefix`) when invoked by wave-executor
 - When `is_slice: true`: NEVER re-read parent PLAN.md/manifest.md — the slice contains all needed context (token economy regression otherwise)
 - When `skip_sweep: true`: skip `parallel_test_sweep` entirely — wave-executor handles end-of-phase sweep
 - v0.12.0 BREAKING: this agent is no longer spawned directly by `/release:execute` — always via `release-wave-executor`
@@ -524,6 +581,12 @@ parallel_sweep:
   wall_time_seconds: {max bucket duration}
   serial_estimate_seconds: {sum of bucket durations}
   speedup: {serial/wall}x
+test_runs:                 # v0.22.0 per-task test-invocation budget (≤2/task, ≤3 with security)
+  total: {N}
+  per_task: {N/tasks}
+  over_budget: []          # task IDs that needed extra runs — with the reason (real failure only)
+exec_env:
+  prefix: "{test_exec_prefix or ''}"   # '' = host-local exec
 status: SUCCESS | PARTIAL | FAILED
 ---
 
@@ -553,8 +616,11 @@ _Executed by release-tdd-executor (release-sdk) — stack: {stack}_
 </summary_template>
 
 <success_criteria>
-- [ ] Every TDD task has RED commit BEFORE GREEN
-- [ ] All verification passes after each GREEN
+- [ ] Every TDD task has RED commit BEFORE GREEN, proven by its own task-scoped RED run
+- [ ] All verification passes in the combined GREEN+REFACTOR run
+- [ ] `test_runs.per_task` ≤ 2 (≤3 for the security task); every over-budget task justified by a real failure
+- [ ] No task ran an app-wide/suite-wide test command
+- [ ] `test_exec_prefix` (when set) applied to every runner invocation
 - [ ] Author Checklist (Q1-Q7 OR RC1-RC7) declared non-N/A visible in implementation
 - [ ] Stack LOCK enforced (`.delay(` for django OR `localStorage.*token` for react — both must grep empty)
 - [ ] SUMMARY.md created with commit hashes + stack field

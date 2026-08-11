@@ -303,7 +303,7 @@
     "model": "gpt-5.6-terra",
     "reasoning_effort": "medium",
     "output_token_budget": 1200,
-    "description": "TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN → REFACTOR → SECURITY per task. Atomic Conventional Commits. ALWAYS spawned by wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice)."
+    "description": "TDD-strict per-task executor (v0.12.0). Stack-dispatched verification + Author Checklist refactor (Q1-Q7 Django / RC1-RC7 React). RED → GREEN+REFACTOR → SECURITY per task, under a hard per-task test-invocation budget (v0.22.0: task-scoped runs only, never the app suite). Atomic Conventional Commits. ALWAYS spawned by wave-executor (never direct from skill since v0.12.0). Honors spawn config (task_filter, no_branch, cwd, skip_sweep, is_slice, test_exec_prefix)."
   },
   {
     "name": "release-test-auditor",
@@ -348,7 +348,7 @@
     "model": "gpt-5.6",
     "reasoning_effort": "high",
     "output_token_budget": 1500,
-    "description": "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. Always invoked by /release:execute (no flag)."
+    "description": "Default phase executor (v0.12.0). Reads PLAN manifest (v0.11.0 wave-split dir) OR legacy wave_X frontmatter, auto-derives parallel_groups via per-task files: disjoint analysis, slices PLAN per task (~3KB) into worktree-local PLAN-SLICE.md, spawns N tdd-executor concurrently in git worktrees when disjoint files detected, cherry-picks commits back to feat/{NN}-{slug} branch after each wave. Falls back serial-in-main-tree when file overlap detected. v0.22.0: optional per-worktree test-env provisioning (.release-planning/EXEC-ENV.yml) so containerized test suites can fan out instead of being forced serial. Always invoked by /release:execute (no flag)."
   },
   {
     "name": "release-agents-md-builder",
