@@ -15,6 +15,8 @@
 #   #8  suite scoping: a signature recorded under another suite is not a hit for this one
 #   #9  RELEASE_BASELINE_DISABLE=1 ignores the file entirely
 #   #10 counts + end-to-end: parse real pytest output against a real baseline file
+#   #11 zsh regression: the parser emits ONLY signatures — no `local` leakage (B1)
+#   #12 hostile ids: brackets containing " - ", commas in parametrization, bare asserts
 #
 # Run: bash bin/test-baseline-lib.sh
 set -euo pipefail
@@ -141,6 +143,52 @@ E2E="$(printf '%s\n' "$PYOUT" | baseline_parse_failures django | baseline_classi
 has "the inherited AssertionError is BASELINE" "$E2E" "BASELINE=backend/apps/financeiro/tests/test_dre.py::test_saldo|AssertionError"
 has "the drf-spectacular crash is NEW (never captured)" "$E2E" "NEW=backend/apps/api/tests/test_schema.py::test_spectacular|AttributeError"
 has "verdict new — the run broke something" "$E2E" "BASELINE_VERDICT=new"
+
+echo "── #11 zsh regression — the lib is SOURCED by a zsh harness, not only by bash (B1) ──"
+# `local id err` (no assignment) PRINTS the previous values in zsh, injecting bogus signatures into
+# the parser's stdout: 1 inherited failure looked fine, 2+ turned every gate RED. Bash never showed it.
+MULTI='FAILED a/t.py::t1 - AssertionError: x
+FAILED b/t.py::t2 - IntegrityError: y
+FAILED c/t.py::t3 - TypeError: z'
+if command -v zsh >/dev/null 2>&1; then
+  ZOUT="$(printf '%s\n' "$MULTI" | zsh -c "source '$HERE/release-baseline-lib.sh'; baseline_parse_failures django")"
+  eq "zsh: exactly 3 signatures for 3 failures" "3" "$(printf '%s\n' "$ZOUT" | grep -c .)"
+  hasnt "zsh: no 'id=' leakage on stdout"  "$ZOUT" "id="
+  hasnt "zsh: no 'err=' leakage on stdout" "$ZOUT" "err="
+  BOUT="$(printf '%s\n' "$MULTI" | baseline_parse_failures django)"
+  eq "zsh output is byte-identical to bash" "$BOUT" "$ZOUT"
+  ZC="$(printf '%s\n' "$MULTI" | zsh -c "source '$HERE/release-baseline-lib.sh'; baseline_parse_failures django | baseline_classify '$ROOT' backend")"
+  has "zsh: classify still reaches a verdict" "$ZC" "BASELINE_VERDICT="
+  hasnt "zsh: classify emits no leaked assignments" "$ZC" "recorded="
+else
+  ok "zsh not installed on this host — skipped"
+fi
+
+echo "── #12 hostile test ids (H3/M1) ──"
+HOSTILE='FAILED t.py::test_x[a - b] - AssertionError: boom
+FAILED t.py::test_y[1,2] - IntegrityError: dup
+FAILED t.py::test_z - assert 1 == 2
+FAILED t.py::test_w'
+HS="$(printf '%s\n' "$HOSTILE" | baseline_parse_failures django)"
+has "\" - \" inside brackets does NOT truncate the id" "$HS" "t.py::test_x[a - b]|AssertionError"
+has "comma in parametrization survives"                  "$HS" "t.py::test_y[1,2]|IntegrityError"
+has "bare assert → Failure (volatile repr never matches twice)" "$HS" "t.py::test_z|Failure"
+has "no separator at all → id + Failure"                 "$HS" "t.py::test_w|Failure"
+eq "4 signatures, none dropped" "4" "$(printf '%s\n' "$HS" | grep -c .)"
+
+# the same hostile ids must survive a ROUND TRIP through the baseline file (comma split used to
+# silently drop the parametrized entry, so a recorded failure never matched)
+cat > "$ROOT/.release-planning/test-baselines.json" <<'JSON'
+{ "suites": { "backend": { "failures": [
+  {"id": "t.py::test_y[1,2]", "error": "IntegrityError"},
+  {"id": "t.py::test_x[a - b]", "error": "AssertionError"}
+] } } }
+JSON
+eq "comma-parametrized id is recorded and found" "BASELINE_HIT=yes" \
+   "$(baseline_has "$ROOT" 't.py::test_y[1,2]|IntegrityError' backend)"
+eq "bracketed-dash id is recorded and found" "BASELINE_HIT=yes" \
+   "$(baseline_has "$ROOT" 't.py::test_x[a - b]|AssertionError' backend)"
+eq "both counted (neither dropped by the reader)" "2" "$(baseline_count "$ROOT" backend)"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
