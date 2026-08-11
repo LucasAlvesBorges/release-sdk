@@ -76,6 +76,7 @@ Fill task template (stack-aware checklist — see blocks below):
 - id: T01
   type: tdd-red | tdd-green | refactor | security | race | memray | a11y | checkpoint
   title: {one-line}
+  complexity: simple | standard | complex     # v0.22.0 — REQUIRED (see <task_complexity> below)
   files:
     - path: {create|modify}
   action: |
@@ -90,6 +91,30 @@ Fill task template (stack-aware checklist — see blocks below):
     - {observable assertion 1}
     - {observable assertion 2}
 ```
+
+<task_complexity>
+
+**v0.22.0 — every task carries `complexity:`. It is the input to per-task model routing**
+(`release_worker_model_for` in `bin/release-model-lib.sh`): `simple` runs one tier below the phase
+worker (floor: sonnet), `standard`/`complex` run at the worker tier. It can only DEMOTE, never
+promote — so an over-cautious `complex` costs money, an over-optimistic `simple` costs a retry.
+**When genuinely torn, write `standard`.**
+
+| Label | Criteria (ALL must hold) | Typical |
+|-------|--------------------------|---------|
+| `simple` | Mechanical change following an existing pattern 1:1 · no design decision · ≤2 files · the RED test is a copy/parametrization of an existing one | serializer/field wiring, URL registration, factory or fixture, copied test matrix, config/env/settings value, docstring/docs, straight rename |
+| `complex` | ANY of: new algorithm or business logic · migration with data backfill · concurrency (Q5, `select_for_update`, race/TOCTOU) · new security surface (auth, tenancy, permissions, external input) · cross-app refactor · the RED test requires domain reasoning to even write | balance recomputation, backfill migration, idempotent webhook receiver, permission-class change, N+1 rewrite with `Subquery`/`OuterRef` |
+| `standard` | Everything else — **and the default when omitted** | a normal viewset + its tests, a component + its RTL tests, a REFACTOR task applying Q1-Q7 to code you just wrote |
+
+Rules:
+- A task with NO `complexity:` is treated as `standard` — legacy PLANs keep the pre-v0.22.0 tier.
+- NEVER label a `security` / `race` / `memray` task `simple` — those exist because the surface is
+  risky; the tier follows the risk.
+- NEVER label a task `simple` just because it is short. Two lines of concurrency logic are `complex`.
+- The wave manifest repeats the labels per wave (`complexity: {T01: simple, T02: complex}`) so
+  `release:wave-executor` can route spawns without opening every slice.
+
+</task_complexity>
 </step>
 
 <step name="wave_partition">
@@ -104,12 +129,16 @@ Agrupar tasks em waves coerentes respeitando `WAVE_TARGET_LINES=400` e `WAVE_HAR
 **Dependency graph:**
 ```yaml
 waves:
-  W1: { deps: [], parallel_safe: true,  files: [tests/test_X.py] }
-  W2: { deps: [W1], parallel_safe: false, files: [models.py, 0055_migration.py] }
-  W3: { deps: [W2], parallel_safe: false, files: [serializers.py, views.py] }
-  W4: { deps: [W2,W3], parallel_safe: true, files: [tests/test_X_security.py] }
+  W1: { deps: [], parallel_safe: true,  files: [tests/test_X.py],                complexity: {T01: standard} }
+  W2: { deps: [W1], parallel_safe: false, files: [models.py, 0055_migration.py], complexity: {T02: complex, T03: complex} }
+  W3: { deps: [W2], parallel_safe: false, files: [serializers.py, views.py],     complexity: {T04: simple, T05: standard} }
+  W4: { deps: [W2,W3], parallel_safe: true, files: [tests/test_X_security.py],   complexity: {T06: complex} }
   W5: { deps: [W4], parallel_safe: false, files: []  }  # no-commit verify gate
 ```
+
+The per-wave `complexity:` map mirrors the labels in the task bodies — it exists so `wave-executor`
+resolves each spawn's model tier from the manifest alone. Omit it and every task falls back to
+`standard` (the pre-v0.22.0 tier).
 
 Waves com `parallel_safe: true` E sem overlap de files podem ser executados em worktrees disjuntos via release:wave-executor.
 </step>
@@ -442,6 +471,8 @@ cross_stack_lockstep: false
 - [ ] N wave files (W1..WN) escritos, cada um 200-600 linhas, 3-5 tasks
 - [ ] Cada wave file declara `depends_on`, `parallel_safe`, `files_touched`
 - [ ] Cada task: files, action, author_checklist (Q1-Q7 OR RC1-RC7), done_when
+- [ ] Cada task: `complexity: simple|standard|complex` justificável pelos critérios de `<task_complexity>` — nenhuma task de security/race/memray marcada `simple`
+- [ ] Manifest repete os labels por wave (`complexity: {T01: …}`) para o wave-executor rotear sem abrir cada slice
 - [ ] Security matrix com 9 categorias mapeadas (no manifest)
 - [ ] Wave Map table no manifest mostra cada wave com linhas + tasks
 - [ ] NENHUM wave file > 600 linhas
