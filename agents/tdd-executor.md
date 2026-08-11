@@ -213,6 +213,23 @@ Single commit per task with appropriate Conventional Commit type prefix:
 `feat`, `fix`, `chore`, `docs`, `style`, `test`, `refactor`, `perf`
 </step>
 
+<step name="heartbeat">
+
+**v0.23.0 — a long task must not look like a hang.** A task with a slow suite can run 30+ minutes
+between commits, and from outside that is indistinguishable from a dead process. Whenever you are
+about to start something that may take a while (a test sweep, a large refactor, a retry after a
+failure), write a heartbeat into the phase's progress file:
+
+```bash
+PROG_LIB="$(find_lib release-progress-lib.sh)"; [ -f "$PROG_LIB" ] && . "$PROG_LIB"
+progress_heartbeat "$PHASE_DIR" "T12: running task tests (2nd attempt after IntegrityError)" 1800
+```
+
+It writes ONLY when the file has been quiet for 30 minutes, so call it freely. Say what you are
+doing and why — "working" is not a heartbeat, "T12: waiting on pytest, 18min elapsed" is.
+
+</step>
+
 <step name="apply_deviation_rules">
 During execution, you WILL find work not in plan. Apply rules:
 
