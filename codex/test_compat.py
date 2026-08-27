@@ -37,7 +37,11 @@ class CodexCompatibilityTests(unittest.TestCase):
     def test_manifest_and_marketplace(self) -> None:
         manifest = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
         marketplace = json.loads((REPO_ROOT / ".agents" / "plugins" / "marketplace.json").read_text())
+        claude_manifest = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text())
+        claude_marketplace = json.loads((REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text())
         self.assertEqual(manifest["name"], "release")
+        self.assertEqual(claude_marketplace["plugins"][0]["version"], claude_manifest["version"])
+        self.assertEqual(manifest["version"], f'{claude_manifest["version"]}+codex.3')
         self.assertEqual(manifest["skills"], "./skills/")
         self.assertNotIn("hooks", manifest)
         self.assertEqual(marketplace["plugins"][0]["source"]["path"], "./plugins/release")
@@ -178,6 +182,8 @@ class CodexCompatibilityTests(unittest.TestCase):
             target.mkdir()
             sentinel = target / "unrelated-agent.toml"
             sentinel.write_text('name = "unrelated"\n')
+            retired = target / "release-django-discuss-orchestrator.toml"
+            retired.write_text('name = "release-django-discuss-orchestrator"\n')
             command = [
                 sys.executable,
                 str(PLUGIN / "bin" / "install-codex-agents.py"),
@@ -190,8 +196,11 @@ class CodexCompatibilityTests(unittest.TestCase):
             first = subprocess.run(command, check=True, capture_output=True, text=True)
             second = subprocess.run(command, check=True, capture_output=True, text=True)
             self.assertEqual(json.loads(first.stdout)["updated"], len(list((PLUGIN / "agents").glob("release-*.toml"))))
+            self.assertEqual(json.loads(first.stdout)["removed"], [retired.name])
             self.assertEqual(json.loads(second.stdout)["updated"], 0)
+            self.assertEqual(json.loads(second.stdout)["removed"], [])
             self.assertEqual(sentinel.read_text(), 'name = "unrelated"\n')
+            self.assertFalse(retired.exists())
 
     def test_apply_patch_adapter_reaches_consolidated_edit_guard(self) -> None:
         if not shutil.which("node"):

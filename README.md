@@ -8,7 +8,7 @@ Comandos `/release:*` context-aware roteiam automaticamente para os agents certo
 
 **Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador leve que lê estado só quando precisa desempatar, imprime a rota escolhida e nunca ativa loops implicitamente.
 
-**Versão atual: v0.25.0** — fluxos adaptativos C0–C4, especialistas sob demanda, invocação curta `/release:*` e distribuições próprias para Claude Code e Codex. Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+**Versão atual: v0.25.1** — fluxos adaptativos C0–C4, especialistas sob demanda, invocação curta `/release:*` e distribuições próprias para Claude Code e Codex. Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
 
 ---
 
@@ -340,6 +340,14 @@ reutiliza a configuração do Claude Code.
 
 ```bash
 codex plugin marketplace add LucasAlvesBorges/release-sdk
+codex plugin add release@release-sdk
+```
+
+Para atualizar uma instalação existente:
+
+```bash
+codex plugin marketplace upgrade release-sdk
+codex plugin remove release@release-sdk
 codex plugin add release@release-sdk
 ```
 

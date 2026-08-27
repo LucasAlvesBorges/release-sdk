@@ -8,7 +8,7 @@ Context-aware `/release:*` commands route automatically to the right agents base
 
 **Entry point:** `/release:auto <plain-language intent>` — lightweight router that reads state only to break ties, prints the selected route, and never enables loops implicitly.
 
-**Current version: v0.25.0** — short `/release:*` invocation with isolated Claude Code and Codex distributions. See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
+**Current version: v0.25.1** — short `/release:*` invocation with isolated Claude Code and Codex distributions. See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 
 ---
 
@@ -317,6 +317,14 @@ modify or reuse Claude Code configuration.
 
 ```bash
 codex plugin marketplace add LucasAlvesBorges/release-sdk
+codex plugin add release@release-sdk
+```
+
+To update an existing installation:
+
+```bash
+codex plugin marketplace upgrade release-sdk
+codex plugin remove release@release-sdk
 codex plugin add release@release-sdk
 ```
 

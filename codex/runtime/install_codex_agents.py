@@ -99,12 +99,24 @@ def main() -> int:
     for source in stale:
         atomic_copy(source, target_dir / source.name)
 
+    # Retired SDK-owned agents must not survive an upgrade merely because the
+    # current package no longer ships a source file for them. Keep this list
+    # explicit so the installer never deletes unrelated user agents.
+    retired_names = {"release-django-discuss-orchestrator.toml"}
+    removed = []
+    for name in sorted(retired_names):
+        target = target_dir / name
+        if target.is_file():
+            target.unlink()
+            removed.append(name)
+
     print(
         json.dumps(
             {
                 "status": "installed",
                 "agents": len(sources),
                 "updated": len(stale),
+                "removed": removed,
                 "target": str(target_dir),
                 "next": "start a new Codex task",
             },

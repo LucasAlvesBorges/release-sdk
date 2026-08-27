@@ -1,7 +1,7 @@
 {
   "name": "release",
   "description": "Adaptive Django, React and React Native delivery for Claude Code: compact spec/plan, proportional C0-C4 execution, explicit bounded loops, focused tests, worktree isolation and security checks.",
-  "version": "0.25.0",
+  "version": "0.25.1",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
