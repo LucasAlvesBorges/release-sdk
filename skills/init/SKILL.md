@@ -118,7 +118,7 @@ This project uses **release-sdk** ({stack}). Planning artifacts live at
 - Phase artifacts: `.release-planning/phases/{NN}-{slug}/`
 
 Entry point: **`/release:auto <freeform intent>`** — routes to the right `/release:*`
-skill (status / spec / discuss / plan / execute / review / verify / ui-phase / ai-phase /
+skill (status / spec / plan / execute / review / verify / ui-phase / ai-phase /
 secure-phase / debug / fast / quick / ship / import / workstreams / checklist).
 
 GSD coexistence: if `.planning/` is also present, it belongs to upstream GSD and is

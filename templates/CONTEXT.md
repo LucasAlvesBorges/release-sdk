@@ -1,8 +1,7 @@
 <!--
 # CONTEXT.md — Phase {NN}: {phase-slug}
 #
-# Produced by /django:discuss after gathering user decisions.
-# Read by /django:plan before generating PLAN.md.
+# Legacy compatibility mirror. Existing files are read and updated by /release:plan.
 # Locked decisions (D-XX) are NON-NEGOTIABLE — planner and executor honor every one.
 -->
 
@@ -10,7 +9,7 @@
 phase: {NN}
 slug: {phase-slug}
 created: {YYYY-MM-DDTHH:MM:SSZ}
-status: discussed                 # discussed | planned | executing | complete
+status: discussed                # legacy value: discussed | planned | executing | complete
 decisions_count: {N}
 deferred_count: {N}
 ---
@@ -32,7 +31,7 @@ deferred_count: {N}
 
 ## Decisions (LOCKED — non-negotiable)
 
-These were chosen by the user during /django:discuss. Every PLAN.md task must implement them. Reference D-XX in task action for traceability.
+These were chosen by the user before planning. Every PLAN.md task must implement them. Reference D-XX in task action for traceability. SPEC.md remains the source of truth.
 
 ### D-01: {Decision title}
 
@@ -59,7 +58,7 @@ These were chosen by the user during /django:discuss. Every PLAN.md task must im
 
 ## Deferred Ideas (NOT in this phase)
 
-Ideas raised during discuss but explicitly scoped OUT of this phase. Must NOT appear in PLAN.md tasks. May resurface in future phase via /django:phase add.
+Ideas explicitly scoped OUT of this phase during clarification. Must NOT appear in PLAN.md tasks. May resurface in a future phase.
 
 - **{Idea title}** — {one-line rationale why deferred}. Candidate for: Phase {YY}.
 - ...
@@ -77,7 +76,7 @@ Areas where user accepted "Claude decides reasonably". Planner documents choice 
 
 ## Open Risks (planning-level)
 
-Risks discovered during discuss that need monitoring during execute:
+Risks discovered before planning that need monitoring during execute:
 
 | Risk | Mitigation strategy | Owner |
 |------|---------------------|-------|
@@ -94,4 +93,4 @@ Risks discovered during discuss that need monitoring during execute:
 
 ---
 
-_Edit only via /django:discuss (re-runs discussion). Manual edits risk de-syncing PLAN.md._
+_Legacy file: `/release:plan` mirrors newly settled D-XX here only when this file already exists._

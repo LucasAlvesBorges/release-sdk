@@ -1,9 +1,8 @@
 <!--
 # SPEC.md — Phase {NN}: {phase-slug}
 #
-# Stack-aware artifact between ROADMAP entry and CONTEXT.md.
-# Use when WHAT the phase delivers is ambiguous and needs sharpening before /release:discuss.
-# Produced by /release:spec, consumed by /release:discuss.
+# Stack-aware source of truth between ROADMAP and PLAN.
+# Produced by /release:spec, completed by /release:plan's decision preflight.
 -->
 
 ---
@@ -12,7 +11,7 @@ slug: {phase-slug}
 stack: {django | react | fullstack}
 created: {YYYY-MM-DDTHH:MM:SSZ}
 ambiguity_score: {HIGH | MED | LOW}
-ready_for_discuss: false | true
+status: ready | blocked
 ---
 
 # Phase {NN} Spec: {phase-name}
@@ -61,16 +60,17 @@ ready_for_discuss: false | true
 
 ## Open Questions
 
-Questions surfaced during `/release:spec`. Each becomes a discussion topic in `/release:discuss` → locked Decision D-XX in CONTEXT.md.
+Questions surfaced by `/release:spec` or the `/release:plan` preflight. Each decision-changing answer
+becomes a stable D-XX in this SPEC. Mirror it to CONTEXT.md only when that legacy file already exists.
 
-### HIGH (must resolve in /release:discuss)
+### HIGH (must resolve before the planner runs)
 
 {Answers fundamentally shape what gets built — scope-defining.}
 
 1. {Question} — options: A {tradeoff}, B {tradeoff}; recommendation: {A or B or "user must decide"}
 2. ...
 
-### MED (should resolve in /release:discuss)
+### MED (resolve before planning when architecture, contract, risk or acceptance changes)
 
 {Answers shape UX boundaries or behavior in edge cases.}
 
@@ -86,20 +86,22 @@ Questions surfaced during `/release:spec`. Each becomes a discussion topic in `/
 
 ## Ambiguity Score
 
-- **LOW** (0-3 open questions, none HIGH) — spec is clear, `/release:discuss` will be brief.
-- **MED** (4-6 open questions, ≤2 HIGH) — meaningful ambiguity, discuss covers 3-5 topics.
+- **LOW** (0-3 open questions, none decision-changing) — plan can use established patterns.
+- **MED** (4-6 open questions, ≤2 HIGH) — plan asks only the decision-changing subset in batches of three.
 - **HIGH** (7+ open questions OR ≥3 HIGH) — spec is fuzzy. Consider splitting phase or running `/gsd-explore` first.
 
 **This spec scores: {HIGH | MED | LOW}**
 
 **Justification:** {Why this score — count of HIGH/MED/LOW questions, scope clarity, scope-creep risk.}
 
-{If HIGH:} **Recommendation:** {Split phase into {NN}a/{NN}b, or run `/gsd-explore` before `/release:discuss`.}
+{If HIGH:} **Recommendation:** {Split phase into {NN}a/{NN}b, or let `/release:plan` settle the
+decision-changing questions before spawning the planner.}
 
 ## Next
 
-→ `/release:discuss {NN}`  (lock D-XX decisions for HOW)
+→ `/release:plan {NN}`  (settle remaining gray areas, lock D-XX, then create an executable PLAN once)
 
 ---
 
-_Edit via `/release:spec {NN}` to re-run spec clarification. Proceed directly to `/release:discuss` if `ambiguity_score` is LOW._
+_Edit scope via `/release:spec {NN}`. `/release:plan` always performs the final decision preflight
+before writing or revising PLAN._

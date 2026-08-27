@@ -209,7 +209,8 @@ If `SPEC.md` exists, write `{NN}-SPEC.md` using `templates/SPEC.md` as the shape
 
 - Copy goal/scope text from GSD `SPEC.md` if present; otherwise pull goal from `ROADMAP.md`
 - Frontmatter: `stack: {detected}`, `created: {now ISO}`, `ambiguity_score: MED`,
-  `ready_for_discuss: true` (default after import — user can re-run `/release:spec` to revise)
+  `status: blocked` when imported HIGH/MED questions or `[NEEDS REVIEW]` remain, otherwise `ready`.
+  `/release:plan` revalidates either status before any PLAN write.
 - Stack Detection section: record `Signals: {file:line list}` for the grep hits that proved stack
 - Applicable LOCKs: list LOCK-XX whose status is EXTRACTED/INFERRED
 - Open Questions section: any GSD `## Questions` / `## Open Items` content goes under MED
@@ -221,7 +222,7 @@ If `SPEC.md` exists, write `{NN}-SPEC.md` using `templates/SPEC.md` as the shape
 If `CONTEXT.md` exists, write `{NN}-CONTEXT.md` using `templates/CONTEXT.md`:
 
 - Preserve every existing `D-XX` heading verbatim with question/choice/rationale/impact
-- Bump frontmatter: `status: discussed`, `decisions_count: {N}`
+- Preserve the legacy CONTEXT frontmatter value `status: discussed`; set `decisions_count: {N}`
 - Append new `D-XX` entries (numbered after the highest existing D-XX) for stack defaults that
   the LOCKs force but are NOT yet captured. Mark each with `source: import-default`.
   Examples:
@@ -230,7 +231,7 @@ If `CONTEXT.md` exists, write `{NN}-CONTEXT.md` using `templates/CONTEXT.md`:
   - If LOCK-09 = `httpOnly cookie only` and CONTEXT.md doesn't address auth storage in a React
     phase → append `D-XX: Auth storage (import-default)`
 
-If `CONTEXT.md` does NOT exist, write a minimal `{NN}-CONTEXT.md` with `status: discussed`,
+If `CONTEXT.md` does NOT exist, write a minimal `{NN}-CONTEXT.md` with legacy `status: discussed`,
 `decisions_count: 0`, a `Goal` block copied from ROADMAP, and a stub
 `## Decisions (LOCKED — non-negotiable)` section with `[NEEDS REVIEW]`.
 
@@ -333,7 +334,7 @@ written to:
    - Phase artifacts: `.release-planning/phases/{NN}-{slug}/`
 
    Entry point: **`/release:auto <freeform intent>`** — routes to the right `/release:*`
-   skill (status / spec / discuss / plan / execute / review / verify / ui-phase /
+   skill (status / spec / plan / execute / review / verify / ui-phase /
    ai-phase / secure-phase / debug / fast / quick / ship / workstreams / checklist).
    <!-- release-sdk:end -->
    ```
@@ -361,7 +362,8 @@ EOF
 Update `.release-planning/STATE.md` (release-sdk-owned; create if missing):
 - Append history line: `{ISO timestamp} — release-sdk import complete ({phase_count} phases)`
 - Set `cursor.active_phase` and `cursor.active_stage` to the lowest imported NN at stage
-  `discussed`, unless `.release-planning/STATE.md` already had a cursor (then preserve it)
+  `plan`, unless `.release-planning/STATE.md` already had a cursor (then preserve it). The plan
+  preflight validates imported decisions before preserving or creating PLAN.
 
 NEVER touch `.planning/STATE.md` — it belongs to GSD.
 

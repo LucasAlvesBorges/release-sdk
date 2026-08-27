@@ -138,7 +138,8 @@ view. Re-run `pytest apps/invoices/tests/test_views.py::TestBulkArchive`.
 
 ## Open questions
 - Should the mixin enforce `for_user()` at compile time (raise on bare `.objects`)?
-- LOCK-02 doesn't currently mandate that — worth re-discussing at next /release:discuss.
+- LOCK-02 doesn't currently mandate that — leave it as a Q-XX for the next `/release:plan`
+  decision preflight.
 ```
 
 ### Step 8 — Write `HANDOFF.md`

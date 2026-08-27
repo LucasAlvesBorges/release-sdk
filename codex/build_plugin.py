@@ -98,7 +98,6 @@ AGENT_MODEL_OVERRIDES = {
     "codebase-mapper": (MODEL_TERRA, "medium", "explorer_deep"),
     "debugger": (MODEL_TERRA, "high", "explorer_deep"),
     "django-checklist-verifier": (MODEL_LUNA, "low", "tester"),
-    "django-discuss-orchestrator": (MODEL_TERRA, "medium", "planner"),
     "django-security-retro": (MODEL_FRONTIER, "high", "security_reviewer"),
     "doc-classifier": (MODEL_LUNA, "low", "tester"),
     "doc-verifier": (MODEL_TERRA, "medium", "reviewer"),

@@ -79,7 +79,7 @@ This skill is read-only — no working-tree cleanliness check needed.
 | `--stack frontend` | Filter UAT items tagged `frontend` or `fullstack`. |
 | `--stack fullstack` | Only `fullstack`-tagged items. |
 
-Phases at stage `spec`, `discuss`, `planning` are excluded by default (UAT items not yet
+Phases at stage `spec` or `planning` are excluded by default (UAT items not yet
 expected). Override by passing the phase number explicitly is not supported — keep this
 skill cross-phase only; single-phase work goes through `/release:verify-work`.
 

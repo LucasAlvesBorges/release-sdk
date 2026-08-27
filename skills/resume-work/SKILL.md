@@ -150,7 +150,6 @@ not execute it.** The user reads, decides, runs.
 | Paused stage | Suggested next |
 |---|---|
 | `spec` | `/release:spec {NN}` |
-| `discuss` | `/release:discuss {NN}` |
 | `plan` | `/release:plan {NN}` |
 | `execute` | `/release:execute {NN}` (resumes from last_completed_task) |
 | `verify` | `/release:verify-work {NN}` |

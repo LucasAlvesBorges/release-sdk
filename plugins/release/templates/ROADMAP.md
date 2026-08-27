@@ -17,7 +17,7 @@
 
 **Goal:** {One-line outcome user observes when this phase ships.}
 
-**Status:** `not-started` | `in-discuss` | `in-plan` | `in-execute` | `in-verify` | `complete`
+**Status:** `not-started` | `in-spec` | `in-plan` | `in-execute` | `in-verify` | `complete`
 
 **Success Criteria:**
 - [ ] {Measurable truth #1}

@@ -69,7 +69,7 @@ open_questions:
     recommendation: A
 ```
 
-These go to `/release:discuss` or orchestrator for user decision before planning.
+These go to the `/release:plan` decision preflight for user resolution before the planner is spawned.
 </step>
 
 <step name="write_research_md">

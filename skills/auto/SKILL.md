@@ -32,8 +32,7 @@ Downstream skills own complexity, models and execution. Use `release-*` agents o
 | UAT/did it work/validate behavior | `verify-work` |
 | missing/add tests or coverage gap | `add-tests`; use `validate-phase` only for a phase-wide audit |
 | execute/run plan/finish phase | `execute`; add `--loop` only if autonomy is explicit |
-| plan/break into tasks | `plan` |
-| discuss/open questions/tradeoffs | `discuss` |
+| plan/break into tasks, open questions, gray areas, tradeoffs | `plan` |
 | explicit keep-fixing/loop on bounded goal | `loop` |
 | ship/PR | `ship` |
 | parallel session/worktree | `session` |

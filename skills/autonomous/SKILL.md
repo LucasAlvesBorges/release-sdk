@@ -29,9 +29,10 @@ stops there.
 
 Run skills serially; do not spawn a separate orchestration fleet.
 
-1. If `{NN}-SPEC.md` is absent or `status` is not `ready`, invoke `release:spec`. Abort if HIGH open
-   questions remain. Do not invoke `discuss` separately; spec owns decisions.
+1. If `{NN}-SPEC.md` is absent, invoke `release:spec` to establish scope and acceptance.
 2. If `{NN}-PLAN.md` is absent or deterministic `release-plan-lint.js` fails, invoke `release:plan`.
+   Its decision preflight resolves remaining gray areas before spawning the planner. Abort if a
+   required user decision cannot be settled; never accept a partial PLAN as a resume gate.
 3. Invoke `release:execute {NN}`. Add `--loop` only when the user supplied it. Execute owns focused
    tests, the final gate, risk-based checking, worktree isolation and landing.
 4. If `--uat`, invoke `release:verify-work`; otherwise do not add a second verification pipeline.

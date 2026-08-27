@@ -8,6 +8,7 @@ model: sonnet
 <inputs>
 - phase, slug, stack, phase_dir
 - spec_path, context_path (optional), locks_path
+- decisions_settled: true (required)
 - revise_findings (optional)
 </inputs>
 
@@ -17,7 +18,9 @@ default and a wave executor only when strict parallelism is justified.
 </role>
 
 <workflow>
-1. Read SPEC, legacy CONTEXT if supplied, locks and AGENTS/CLAUDE project guidance once.
+1. Require `decisions_settled: true`. Read SPEC, legacy CONTEXT if supplied, locks and AGENTS/CLAUDE
+   project guidance once. If any HIGH or architecture/contract/risk-changing MED question remains,
+   refuse to write or revise PLAN and return the blocking Q-XX IDs to the parent.
 2. Inspect 1-3 closest implementation/test analogs. Cite paths in task actions; do not create a
    separate research artifact.
 3. Map every AC-XX to at least one task and every task to an AC-XX.
@@ -54,6 +57,8 @@ file collision is not a dependency. Record the critical path.
 </parallelism>
 
 <rules>
+- Planning begins only after the parent completed its decision preflight. Do not ask user questions,
+  invent decisions or turn unresolved gray areas into PLAN tasks/checkpoints.
 - No RESEARCH.md, PATTERNS.md, wave directory or separate RED/GREEN/REFACTOR/SECURITY tasks.
 - No generic Q1-Q7/RC1-RC7 repetition. Apply only checks relevant to touched surfaces.
 - Do not reread the whole repository or invent future work.

@@ -37,7 +37,7 @@ Quatro especialistas compactos ficam disponíveis para dúvidas realmente espec�
 
 1. `/release:init` — captura visão, trava stack backend + frontend, modelo de auth, padrões proibidos → `PROJECT.md` (LOCK-01..LOCK-12)
 2. `/release:roadmap` — decompõe milestone em fases vertical-slice → `ROADMAP.md`
-3. Por fase: `/release:spec` → `/release:plan` → `/release:execute` → `/release:verify`; `discuss` só retoma dúvidas abertas
+3. Por fase: `/release:spec` → `/release:plan` → `/release:execute` → `/release:verify`; `plan` resolve gray areas antes de criar o PLAN
 4. Decisões D-XX vivem no SPEC compacto, são referenciadas pelo PLAN e verificadas contra o codebase real
 
 Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Zero mudança não-rastreável.
@@ -98,8 +98,7 @@ gravar o conteúdo das mensagens.
 ├───────────────────────────────────────────────────────────────────────────┤
 │  POR FASE                              backend         frontend           │
 │  /release:spec {NN}     →  SPEC.md compacto (AC + D-XX + riscos)          │
-│  /release:discuss {NN}  →  atualiza só dúvidas HIGH/MED no mesmo SPEC     │
-│  /release:plan {NN}     →  um {NN}-PLAN.md com 2–8 tasks verticais        │
+│  /release:plan {NN}     →  resolve gray areas + cria PLAN uma única vez    │
 │  /release:execute {NN}  →  uma passagem + testes focados + gate final     │
 │                            Django: pytest, ruff                           │
 │                            React:  vitest, tsc                            │
@@ -125,7 +124,7 @@ gravar o conteúdo das mensagens.
 ├───────────────────────────────────────────────────────────────────────────┤
 │  AUTONOMOUS                                                               │
 │  /release:autonomous     →  roda todas fases pendentes do ROADMAP em      │
-│                            sequência (spec→discuss→plan→execute→verify).  │
+│                            sequência (spec→plan→execute→verify).          │
 │                            Aborta na primeira falha de verify.            │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
@@ -137,7 +136,7 @@ gravar o conteúdo das mensagens.
 ### Entry point
 | Comando | Stack | Propósito |
 |---|---|---|
-| `/release:auto {intent}` | both | **Roteador de intenção livre.** 32 regras mapeiam seu prompt para o skill `/release:*` certo. Imprime rota + razão antes de invocar. |
+| `/release:auto {intent}` | both | **Roteador de intenção livre.** Mapeia seu prompt para o skill `/release:*` certo. Imprime rota + razão antes de invocar. |
 
 ### Ciclo de vida do projeto + fase
 | Comando | Stack | Propósito |
@@ -145,8 +144,7 @@ gravar o conteúdo das mensagens.
 | `/release:init` | both | Inicializa PROJECT.md (LOCK-01..LOCK-12). Injeta bloco delimitado no CLAUDE.md raiz. |
 | `/release:import` | both | Mass-port GSD `.planning/` → release-sdk `.release-planning/` (one-shot, todas as fases) |
 | `/release:spec {NN}` | both | Esclarece O QUE a fase entrega (SPEC.md, score de ambiguidade) |
-| `/release:discuss {NN}` | both | Coleta decisões (D-XX) da fase |
-| `/release:plan {NN}` | both | Gera PLAN.md com checklists + segurança |
+| `/release:plan {NN}` | both | Resolve gray areas em lotes de até 3, grava D-XX e gera um PLAN pronto para execute |
 | `/release:ui-phase {NN}` | frontend | Produz UI-SPEC.md (contrato de design) |
 | `/release:ai-phase {NN}` | both | Produz AI-SPEC.md (framework LLM, prompts, eval, guardrails) |
 | `/release:execute {NN}` | both | Execução TDD-strict (pytest ou vitest). **Auto-land** na base quando a fase passa (`--no-merge`/`--pr` pra segurar) |
@@ -199,11 +197,11 @@ gravar o conteúdo das mensagens.
 
 ## Agents — Singletons (release-sdk nativos)
 
-### Plan + discuss
+### Plan
 | Agent | Papel |
 |---|---|
-| `spec-clarifier` | Score de ambiguidade do SPEC.md antes do discuss |
-| `assumptions-analyzer` | Análise profunda do codebase pré-plan, surface hidden assumptions + ripple analysis |
+| `spec-clarifier` | Clarifica contrato/aceitação no preflight estrito de spec ou plan |
+| `assumptions-analyzer` | Análise profunda e delimitada quando uma gray area depende do codebase |
 | `feature-planner` | Geração de PLAN.md por stack |
 | `plan-checker` | Pre-execute goal-backward + LOCK trace (gates stack-aware) |
 | `pattern-mapper` | Mapeia arquivos novos para análogos existentes mais próximos |
@@ -258,7 +256,6 @@ gravar o conteúdo das mensagens.
 ### Django-specific (lógica pura Django)
 | Agent | Papel |
 |---|---|
-| `django-discuss-orchestrator` | Compatibilidade para discussões Django legadas; o fluxo novo atualiza SPEC sem questionário fixo |
 | `django-checklist-verifier` | Q1-Q7 verifier Django — spawned por `/release:checklist` |
 
 ---
