@@ -1,6 +1,6 @@
 {
   "name": "release",
-  "version": "0.25.0+codex.3",
+  "version": "0.25.1+codex.3",
   "description": "Codex-native full-stack delivery workflows for Django, React, and React Native with specialized subagents.",
   "author": {
     "name": "Lucas Alves Borges",

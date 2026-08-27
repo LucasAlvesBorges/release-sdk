@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "release",
-      "version": "0.25.0",
+      "version": "0.25.1",
       "source": "./",
       "description": "Token-efficient Django, React and React Native delivery with compact /release:* workflows, opt-in specialists, bounded agents, cached gates, local cost telemetry and explicit security audits.",
       "author": {
