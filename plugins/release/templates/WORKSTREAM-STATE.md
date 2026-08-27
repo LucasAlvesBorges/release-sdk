@@ -15,7 +15,7 @@ owner: null                       # author / responsible engineer (free text)
 status: idle                      # "idle" | "in-progress" | "blocked" | "complete"
 cursor:
   active_phase: null              # phase number, e.g., "01" or null when between phases
-  active_stage: null              # "discuss" | "plan" | "execute" | "verify" | null
+  active_stage: null              # "spec" | "plan" | "execute" | "verify" | null
   active_plan: null               # plan slug if in execute, e.g., "01-02-serializers"
   last_completed_task: null       # task ID, e.g., "T03"
 last_commit:
@@ -104,7 +104,7 @@ Workstream-scoped phase manifest. Mirror of `ROADMAP.md` but with live status.
 
 | # | Phase | Stack | Status | Active Stage | Started | Completed |
 |---|---|---|---|---|---|---|
-| 01 | {slug} | {stack} | {planned\|in-progress\|complete\|blocked} | {discuss\|plan\|execute\|verify\|—} | {date or —} | {date or —} |
+| 01 | {slug} | {stack} | {planned\|in-progress\|complete\|blocked} | {spec\|plan\|execute\|verify\|—} | {date or —} | {date or —} |
 | 02 | {slug} | {stack} | ... | ... | ... | ... |
 
 Example:

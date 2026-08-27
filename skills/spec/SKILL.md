@@ -3,8 +3,8 @@ name: spec
 description: >
   Define a phase's observable outcome, boundaries, acceptance criteria and only the decisions that
   materially affect implementation. Adaptive: concise inline specification by default; one
-  clarifier agent only for C3/C4 ambiguity or risk. Produces a compact NN-SPEC.md consumed directly
-  by plan, so a separate discuss pass is optional.
+  clarifier agent only for C3/C4 ambiguity or risk. Produces a compact NN-SPEC.md whose remaining
+  decision-changing gray areas are resolved by plan before the planner runs.
 ---
 
 # /release:spec — one-pass scope and decisions
@@ -42,7 +42,8 @@ force strict. Stack detection alone never justifies an agent.
    acceptance. Do not ask generic framework/checklist questions.
 5. Ask at most three questions per batch. There is no mandatory question floor. Skip questions whose
    answers are inferable from locks or an established code pattern.
-6. Write `{phase_dir}/{NN}-SPEC.md`. Commit once after the user-visible decisions are settled.
+6. Write `{phase_dir}/{NN}-SPEC.md`. Commit once after this command's user-visible decisions are
+   settled. `plan` performs the final gray-area preflight before creating PLAN.
 7. If `--linear` is explicitly supplied and a Linear connector exists, read
    `references/linear-sync.md`; otherwise do no connector discovery.
 
@@ -79,11 +80,12 @@ One observable user/business outcome.
 - Q-01 [HIGH|MED] Only unresolved implementation-changing questions
 ```
 
-`ready` means no HIGH open question. LOW-level implementation choices belong to the planner/worker
-and must not create another user round.
+`ready` means no HIGH and no MED question that changes architecture, contract, risk or observable
+acceptance. LOW-level implementation choices belong to the planner/worker and must not create another
+user round. `plan` revalidates this condition against targeted code evidence.
 
 ## Compatibility
 
 Existing `CONTEXT.md` decisions remain valid and override inferred choices. New phases use SPEC as
-the single source of truth. `/release:discuss` updates this same file instead of starting a second
-discovery pipeline.
+the single source of truth. `plan` appends newly settled D-XX decisions here and mirrors them to a
+legacy CONTEXT only when that file already exists.

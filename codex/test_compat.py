@@ -53,6 +53,45 @@ class CodexCompatibilityTests(unittest.TestCase):
             if path.parent.name != "setup-codex":
                 self.assertIn("Codex runtime contract", text, path)
 
+    def test_plan_owns_gray_area_preflight_and_discuss_is_removed(self) -> None:
+        self.assertFalse((REPO_ROOT / "skills" / "discuss" / "SKILL.md").exists())
+        self.assertFalse((REPO_ROOT / "agents" / "django-discuss-orchestrator.md").exists())
+        self.assertFalse((PLUGIN / "skills" / "discuss" / "SKILL.md").exists())
+        self.assertFalse((PLUGIN / "agents" / "release-django-discuss-orchestrator.toml").exists())
+
+        plan = (REPO_ROOT / "skills" / "plan" / "SKILL.md").read_text()
+        planner = (REPO_ROOT / "agents" / "feature-planner.md").read_text()
+        self.assertLess(plan.index("## Decision preflight"), plan.index("Spawn it exactly once"))
+        for contract in (
+            "before any PLAN write",
+            "If `{NN}-SPEC.md` is absent",
+            "do not invoke another skill or planner",
+            "at most three unanswered, decision-changing questions per batch",
+            "stable `D-XX [LOCKED]`",
+            "no HIGH questions and no MED",
+            "Do not create or revise PLAN",
+            "auth/authorization and tenancy",
+            "async side effects, failure/idempotency and concurrency",
+            "volume, performance and",
+            "loading/empty/error states",
+            "fullstack API/auth/error handoff",
+        ):
+            self.assertIn(contract, plan)
+        self.assertIn("decisions_settled: true (required)", planner)
+        self.assertIn("refuse to write or revise PLAN", planner)
+
+        active_files = [
+            *(REPO_ROOT / "skills").glob("*/SKILL.md"),
+            *(REPO_ROOT / "agents").glob("*.md"),
+            *(REPO_ROOT / "templates").glob("*.md"),
+            REPO_ROOT / "README.md",
+            REPO_ROOT / "README.en.md",
+        ]
+        for path in active_files:
+            text = path.read_text()
+            self.assertNotIn("/release:discuss", text, path)
+            self.assertNotIn("/django:discuss", text, path)
+
     def test_all_agents_are_valid_toml(self) -> None:
         source = sorted((REPO_ROOT / "agents").glob("*.md"))
         roles = sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md"))

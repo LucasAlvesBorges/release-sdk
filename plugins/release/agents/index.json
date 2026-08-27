@@ -81,15 +81,6 @@
     "description": "Verifies Author Checklist Q1-Q7 applied in implemented Django code — select_related (Q1), prefetch_related (Q2), annotate(Count) (Q3), Subquery/OuterRef (Q4), F()/select_for_update (Q5), .delay_on_commit() (Q6), .iterator() (Q7). Produces CHECKLIST.md with PASS/FAIL per question."
   },
   {
-    "name": "release-django-discuss-orchestrator",
-    "source": "django-discuss-orchestrator.md",
-    "role_class": "planner",
-    "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
-    "output_token_budget": 1000,
-    "description": "Gathers phase context through adaptive questioning. Probes the phase goal, surfaces ambiguities, asks user N targeted questions, locks decisions as D-XX in CONTEXT.md. Does NOT plan — only gathers + locks decisions. Spawned by /django:discuss."
-  },
-  {
     "name": "release-django-security-retro",
     "source": "django-security-retro.md",
     "role_class": "security_reviewer",
@@ -294,7 +285,7 @@
     "model": "gpt-5.6-terra",
     "reasoning_effort": "medium",
     "output_token_budget": 1000,
-    "description": "Strict-mode requirements clarifier. Resolves only ambiguities that change scope, public contracts, security, data or observable acceptance; updates the compact phase SPEC. Spawned at most once by release:spec for C3/C4 work."
+    "description": "Strict-mode requirements clarifier. Surfaces only ambiguities that change scope, public contracts, security, data or observable acceptance; supports the compact SPEC and plan preflight. Spawned at most once per invoking workflow for C3/C4 work."
   },
   {
     "name": "release-tdd-executor",

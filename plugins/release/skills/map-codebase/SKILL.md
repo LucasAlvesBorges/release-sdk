@@ -141,13 +141,13 @@ If `--refresh` was not passed and every requested focus was cached, the skill pr
 → Commit
    chore(codebase): map tech,arch,quality,concerns into .release-planning/codebase/
 
-→ Next: read .release-planning/codebase/*.md or run /release:discuss
+→ Next: read .release-planning/codebase/*.md or run /release:plan
 ```
 
 ## When to use
 
-- **Starting a phase** — run before `/release:discuss` so the orchestrator has architecture
-  context to reason against.
+- **Starting a phase** — run before `/release:plan` when a broad architecture snapshot will help
+  its decision preflight reason against current evidence.
 - **Onboarding** — first thing to run on an unfamiliar repo; produces a 4-doc snapshot.
 - **Post-refactor refresh** — pass `--refresh` after a structural rewrite so subsequent
   research agents read the current shape.

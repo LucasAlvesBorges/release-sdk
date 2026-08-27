@@ -18,7 +18,7 @@ Context-aware `/release:*` commands route automatically to the right agents base
 
 1. `/release:init` — capture vision, lock backend + frontend stack, auth model, forbidden patterns → `PROJECT.md` (LOCK-01..LOCK-12)
 2. `/release:roadmap` — decompose milestone into vertical-slice phases → `ROADMAP.md`
-3. Per phase: `/release:spec` → `/release:plan` → `/release:execute` → `/release:verify`; `discuss` only resumes unresolved decisions
+3. Per phase: `/release:spec` → `/release:plan` → `/release:execute` → `/release:verify`; `plan` resolves gray areas before creating PLAN
 4. D-XX decisions live in the compact SPEC, are referenced by PLAN tasks, and are verified against the codebase
 
 No silent assumptions. No "v1 / placeholder / will be wired later". No untraceable changes.
@@ -67,8 +67,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 ├──────────────────────────────────────────────────────────────────────────┤
 │  PER PHASE                            backend        frontend             │
 │  /release:spec {NN}     →  compact SPEC.md (AC + D-XX + risks)           │
-│  /release:discuss {NN}  →  update unresolved HIGH/MED in the same SPEC   │
-│  /release:plan {NN}     →  one PLAN.md with 2–8 vertical tasks           │
+│  /release:plan {NN}     →  settle gray areas, then create PLAN once      │
 │  /release:execute {NN}  →  single pass + focused tests + one final gate  │
 │                            Django: pytest, ruff                           │
 │                            React:  vitest, tsc                            │
@@ -119,11 +118,11 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 
 ### Agents — Singletons (release-sdk native)
 
-#### Plan + discuss
+#### Plan
 | Agent | Role |
 |---|---|
-| `spec-clarifier` | SPEC.md ambiguity scoring before discuss-phase |
-| `assumptions-analyzer` | Deep codebase analysis surfacing hidden assumptions + ripple analysis for discuss |
+| `spec-clarifier` | Contract/acceptance clarification for strict spec or plan preflight |
+| `assumptions-analyzer` | Scoped codebase evidence when a gray area depends on hidden coupling |
 | `feature-planner` | PLAN.md generation per stack |
 | `plan-checker` | Pre-execute goal-backward + LOCK trace verifier (stack-aware gates) |
 | `pattern-mapper` | Maps new files to closest existing analogs |
@@ -177,7 +176,6 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 #### Django-specific (pure Django logic)
 | Agent | Role |
 |---|---|
-| `django-discuss-orchestrator` | 10-dim backend questionnaire (models, multi-tenancy, Celery, F(), select_for_update, etc) — spawned by `/release:discuss` |
 | `django-checklist-verifier` | Q1-Q7 Django verifier — spawned by `/release:checklist` |
 
 ### Author Checklists
@@ -192,7 +190,7 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 #### Entry point
 | Command | Stack | Purpose |
 |---|---|---|
-| `/release:auto {intent}` | both | **Freeform-intent router.** 32 rules map your prompt to the right `/release:*` skill. Prints chosen route + reason before invoking. |
+| `/release:auto {intent}` | both | **Freeform-intent router.** Maps your prompt to the right `/release:*` skill. Prints chosen route + reason before invoking. |
 
 #### Project + phase lifecycle
 | Command | Stack | Purpose |
@@ -200,8 +198,7 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 | `/release:init` | both | Initialize PROJECT.md (LOCK-01..LOCK-12). Injects delimited block into repo-root CLAUDE.md. |
 | `/release:import` | both | Mass-port GSD `.planning/` → release-sdk `.release-planning/` (one-shot, all phases) |
 | `/release:spec {NN}` | both | Clarify WHAT phase delivers (SPEC.md, ambiguity score) |
-| `/release:discuss {NN}` | both | Gather decisions (D-XX) for phase |
-| `/release:plan {NN}` | both | Generate PLAN.md with checklists + security |
+| `/release:plan {NN}` | both | Resolve gray areas in batches of up to 3, persist D-XX and generate an execute-ready PLAN |
 | `/release:ui-phase {NN}` | frontend | Produce UI-SPEC.md design contract |
 | `/release:ai-phase {NN}` | both | Produce AI-SPEC.md (LLM framework, prompts, eval, guardrails) |
 | `/release:execute {NN}` | both | TDD-strict execution (pytest or vitest). **Auto-lands** onto base when the phase passes (`--no-merge`/`--pr` to hold) |
@@ -209,7 +206,7 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 | `/release:verify-work {NN}` | both | Conversational UAT walkthrough (UAT.md) |
 | `/release:ship` | both | Pre-ship review → PR body grounded in SPEC/PLAN/UAT → `gh pr create` → cursor `shipped`. Never auto-merges. |
 | `/release:status` | both | Cursor + recent activity + next action |
-| `/release:autonomous` | both | Run all remaining ROADMAP phases sequentially (spec→discuss→plan→execute→verify-work). Aborts on first verify failure. |
+| `/release:autonomous` | both | Run all remaining ROADMAP phases sequentially (spec→plan→execute→verify-work). Aborts on first verify failure. |
 
 #### Quality gates + audits
 | Command | Stack | Purpose |
