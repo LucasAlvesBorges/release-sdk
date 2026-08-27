@@ -5,7 +5,7 @@ description: >
   rodando) e abre o dashboard no browser padrão. Mostra custo $ por sessão/dia/semana/all-time,
   breakdown por workflow, agente, fase, complexidade e modo, além de tempo, spawns, gates e cache
   hit ratio. Dados gravados em ~/.claude/token-tracker/events.jsonl via hook
-  PostToolUse que parseia o transcript JSONL.
+  PostToolUse que parseia transcripts JSONL do Claude e do Codex.
   Use quando: o usuário quiser ver gasto/eficiência de tokens, comparar custo entre skills,
   ou diagnosticar baixo cache hit.
 ---
@@ -15,6 +15,11 @@ description: >
 Abre o dashboard de tokens em `http://localhost:47777`.
 
 ## Comportamento
+
+O coletor aceita os dois schemas de transcript: `assistant.message.usage` do Claude e
+`event_msg/token_count` do Codex. No Codex, `total_token_usage` é cumulativo; o cursor persiste o
+último total e o evento gravado contém somente o delta. `cached_input_tokens` e
+`cache_write_input_tokens` são separados de `input_tokens` para evitar dupla contagem.
 
 1. **Verificar worker**: `curl -sf http://127.0.0.1:47777/api/health` (timeout 1s).
 2. **Spawn se off**: se a porta não responder, lançar daemon detached:

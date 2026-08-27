@@ -8,8 +8,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import tomllib
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
@@ -271,6 +273,73 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertEqual(cursor["phase"], "07")
             self.assertEqual(cursor["complexity"], "C3")
             self.assertEqual(cursor["mode"], "agent")
+
+    def test_token_collector_emits_codex_cumulative_deltas(self) -> None:
+        if not shutil.which("node"):
+            self.skipTest("node unavailable")
+        received: list[dict] = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                received.append(json.loads(body))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+
+            def log_message(self, _format: str, *args: object) -> None:
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                transcript = root / "rollout.jsonl"
+                transcript.write_text(
+                    json.dumps({
+                        "type": "turn_context", "payload": {"model": "gpt-5.6-sol"},
+                    }) + "\n" +
+                    json.dumps({
+                        "type": "event_msg", "ordinal": 10, "timestamp": "2026-01-01T00:00:00Z",
+                        "payload": {"type": "token_count", "info": {"total_token_usage": {
+                            "input_tokens": 100, "cached_input_tokens": 40,
+                            "cache_write_input_tokens": 10, "output_tokens": 20,
+                        }}},
+                    }) + "\n" +
+                    json.dumps({
+                        "type": "event_msg", "ordinal": 20, "timestamp": "2026-01-01T00:00:01Z",
+                        "payload": {"type": "token_count", "info": {"total_token_usage": {
+                            "input_tokens": 160, "cached_input_tokens": 70,
+                            "cache_write_input_tokens": 10, "output_tokens": 27,
+                        }}},
+                    }) + "\n"
+                )
+                environment = os.environ.copy()
+                environment["PLUGIN_DATA"] = str(root / "plugin-data")
+                environment["RELEASE_TOKEN_PORT"] = str(server.server_port)
+                payload = {"session_id": "codex-test", "transcript_path": str(transcript), "cwd": str(root)}
+                command = ["node", str(PLUGIN / "hooks" / "release-token-collector.js")]
+                subprocess.run(command, input=json.dumps(payload), text=True, check=True, env=environment)
+
+                self.assertEqual(
+                    [(event["input"], event["output"], event["cache_read"], event["cache_create"])
+                     for event in received],
+                    [(50, 20, 40, 10), (30, 7, 30, 0)],
+                )
+                self.assertTrue(all(event["model"] == "gpt-5.6-sol" for event in received))
+                cursor = json.loads((
+                    root / "plugin-data" / "token-tracker" / "cursors" / "codex-test.json"
+                ).read_text())
+                self.assertEqual(cursor["codex_totals"]["input_tokens"], 160)
+
+                subprocess.run(command, input=json.dumps(payload), text=True, check=True, env=environment)
+                self.assertEqual(len(received), 2)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
     def _run_agents_md_guard(self, cwd: Path, file_path: str) -> subprocess.CompletedProcess:
         payload = {"tool_name": "Write", "tool_input": {"file_path": file_path}, "cwd": str(cwd)}

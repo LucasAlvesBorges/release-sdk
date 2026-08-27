@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// release-sdk-hook-version: 0.1.0
+// release-sdk-hook-version: 0.2.0
 // release-token-collector.js — PostToolUse hook
-// Parses only the new transcript bytes for assistant usage, POSTs to worker on :47777.
+// Parses only the new transcript bytes for Claude or Codex usage, POSTs to worker on :47777.
 // Fails silent: never blocks parent tool, never errors.
 
 const fs = require('fs');
@@ -61,9 +61,9 @@ function parseLines(txt) {
 
 function loadCursor(sessionId) {
   const f = path.join(STATE_DIR, `${sessionId}.json`);
-  if (!fs.existsSync(f)) return { last_uuid: null, byte_offset: null, skill: null };
+  if (!fs.existsSync(f)) return { last_uuid: null, byte_offset: null, skill: null, codex_totals: null };
   try { return JSON.parse(fs.readFileSync(f, 'utf8')); }
-  catch { return { last_uuid: null, byte_offset: null, skill: null }; }
+  catch { return { last_uuid: null, byte_offset: null, skill: null, codex_totals: null }; }
 }
 
 function saveCursor(sessionId, cursor) {
@@ -87,12 +87,18 @@ function postEvent(ev) {
 }
 
 function entryText(entry) {
-  try { return JSON.stringify(entry.message?.content || ''); } catch { return ''; }
+  try {
+    return JSON.stringify(
+      entry.message?.content || entry.payload?.item?.content || entry.payload?.message?.content || ''
+    );
+  } catch { return ''; }
 }
 
 function skillFromEntry(entry) {
   if (entry.attributionSkill) return entry.attributionSkill;
-  if (entry.type !== 'user' || entry.isMeta) return null;
+  const isCodexUser = entry.type === 'event_msg' && entry.payload?.type === 'item_completed' &&
+    entry.payload?.item?.type === 'UserMessage';
+  if ((entry.type !== 'user' && !isCodexUser) || entry.isMeta) return null;
   const content = entryText(entry);
   let match = content.match(/Base directory for this skill:[^"\\n]*?\/skills\/([a-z][a-z0-9_-]+)/i);
   if (match) return `release:${match[1]}`;
@@ -106,6 +112,10 @@ function updateContext(context, entry) {
   const skill = skillFromEntry(entry);
   if (skill) context.skill = skill;
   if (entry.attributionAgent) context.agent = entry.attributionAgent;
+  const runtimeModel = entry.type === 'turn_context'
+    ? entry.payload?.model
+    : entry.payload?.thread_settings?.model;
+  if (runtimeModel) context.model = runtimeModel;
 
   const content = entryText(entry);
   const phase = content.match(/\.release-planning\/phases\/(\d{1,3})-/i) ||
@@ -121,6 +131,38 @@ function updateContext(context, entry) {
   else if (context.skill === 'release:quick' || context.skill === 'release:fast') context.mode = 'bounded';
   else if (context.skill?.startsWith('release:')) context.mode = 'workflow';
   else context.mode = context.mode || 'interactive';
+}
+
+function codexTotalUsage(entry) {
+  if (entry.type !== 'event_msg' || entry.payload?.type !== 'token_count') return null;
+  return entry.payload?.info?.total_token_usage || null;
+}
+
+function normalizedCodexTotals(usage) {
+  const number = key => Number.isFinite(Number(usage?.[key])) ? Math.max(0, Number(usage[key])) : 0;
+  return {
+    input_tokens: number('input_tokens'),
+    output_tokens: number('output_tokens'),
+    cached_input_tokens: number('cached_input_tokens'),
+    cache_write_input_tokens: number('cache_write_input_tokens'),
+  };
+}
+
+function codexUsageDelta(usage, previous) {
+  const current = normalizedCodexTotals(usage);
+  const prior = previous ? normalizedCodexTotals(previous) : normalizedCodexTotals(null);
+  const reset = Object.keys(current).some(key => current[key] < prior[key]);
+  const baseline = reset ? normalizedCodexTotals(null) : prior;
+  const delta = Object.fromEntries(Object.keys(current).map(key => [key, current[key] - baseline[key]]));
+  const cacheRead = delta.cached_input_tokens;
+  const cacheCreate = delta.cache_write_input_tokens;
+  return {
+    totals: current,
+    input: Math.max(0, delta.input_tokens - cacheRead - cacheCreate),
+    output: delta.output_tokens,
+    cache_read: cacheRead,
+    cache_create: cacheCreate,
+  };
 }
 
 function toolMetrics(entry) {
@@ -167,7 +209,9 @@ async function main() {
     phase: cursor.phase || null,
     complexity: cursor.complexity || null,
     mode: cursor.mode || null,
+    model: cursor.model || data.model || null,
   };
+  let codexTotals = cursor.codex_totals || null;
   const entriesByUuid = new Map(entries.filter(e => e.uuid).map(e => [e.uuid, e]));
 
   const toPost = [];
@@ -177,10 +221,23 @@ async function main() {
       continue;
     }
     updateContext(context, e);
-    if (e.type !== 'assistant') continue;
-    const u = e.message?.usage;
-    if (!u) continue;
-    if (!u.input_tokens && !u.output_tokens && !u.cache_read_input_tokens && !u.cache_creation_input_tokens) continue;
+    const codexUsage = codexTotalUsage(e);
+    const claudeUsage = e.type === 'assistant' ? e.message?.usage : null;
+    if (!codexUsage && !claudeUsage) continue;
+
+    let usage;
+    if (codexUsage) {
+      usage = codexUsageDelta(codexUsage, codexTotals);
+      codexTotals = usage.totals;
+    } else {
+      usage = {
+        input: claudeUsage.input_tokens || 0,
+        output: claudeUsage.output_tokens || 0,
+        cache_read: claudeUsage.cache_read_input_tokens || 0,
+        cache_create: claudeUsage.cache_creation_input_tokens || 0,
+      };
+    }
+    if (!usage.input && !usage.output && !usage.cache_read && !usage.cache_create) continue;
 
     const eventMs = e.timestamp ? new Date(e.timestamp).getTime() : Date.now();
     const parentMs = entriesByUuid.get(e.parentUuid)?.timestamp
@@ -196,7 +253,7 @@ async function main() {
     toPost.push({
       ts: Math.floor(eventMs / 1000),
       session_id: sessionId,
-      uuid: e.uuid,
+      uuid: e.uuid || (e.ordinal != null ? `codex-${e.ordinal}` : `codex-${e.timestamp || eventMs}`),
       workflow: agent ? `${skill || 'interactive'}>${agent}` : (skill || 'interactive'),
       skill,
       agent,
@@ -207,14 +264,14 @@ async function main() {
       latency_ms: Math.round(latencyMs),
       spawns: metrics.spawns,
       gate_runs: metrics.gate_runs,
-      model: e.message?.model || data.model || 'unknown',
-      input: u.input_tokens || 0,
-      output: u.output_tokens || 0,
-      cache_read: u.cache_read_input_tokens || 0,
-      cache_create: u.cache_creation_input_tokens || 0,
+      model: e.message?.model || context.model || data.model || 'unknown',
+      input: usage.input,
+      output: usage.output,
+      cache_read: usage.cache_read,
+      cache_create: usage.cache_create,
       cwd,
     });
-    newLast = e.uuid;
+    newLast = e.uuid || newLast;
   }
 
   for (const ev of toPost) await postEvent(ev);
@@ -229,6 +286,8 @@ async function main() {
       phase: context.phase,
       complexity: context.complexity,
       mode: context.mode,
+      model: context.model,
+      codex_totals: codexTotals,
     });
   }
 }
