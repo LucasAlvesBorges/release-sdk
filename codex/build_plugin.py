@@ -374,7 +374,7 @@ def build_manifest(output: Path) -> None:
     base_version = legacy["version"].split("+", 1)[0]
     manifest = {
         "name": "release",
-        "version": f"{base_version}+codex.2",
+        "version": f"{base_version}+codex.3",
         "description": "Codex-native full-stack delivery workflows for Django, React, and React Native with specialized subagents.",
         "author": {
             "name": legacy["author"]["name"],
