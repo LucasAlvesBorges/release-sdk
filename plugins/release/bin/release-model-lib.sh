@@ -14,13 +14,13 @@
 # THE TOPOLOGY (see README "Model-tier orchestration"):
 #   Orchestrator (main loop: plan → fan out → evaluate → re-dispatch)  ── Fable  ── evaluates ↓
 #       └─ fan out → N Workers (each with its own worker loop: build → self-check → fix) ── Opus
-#   The orchestrator NEVER authors code; workers NEVER decide "done". The checker runs on the
-#   ORCHESTRATOR tier (a different model than the maker) so "Fable evaluates Opus's work" is literal
-#   AND the maker≠checker anti-confirmation-bias invariant holds by construction.
+#   The orchestrator NEVER authors code. Ordinary C0-C2 checking uses a separate worker-tier turn;
+#   only C3/C4 risk review climbs to the orchestrator tier. Independence comes from a fresh turn,
+#   while model escalation is paid only when the decision benefits from it.
 #
 # TWO PROFILES, derived from the SESSION model (the running orchestrator self-identifies):
-#   fable-opus  (primary)   orchestrator=Fable   worker=Opus     ← session is running on Fable
-#   opus-sonnet (fallback)  orchestrator=Opus    worker=Sonnet   ← Fable unavailable; session on Opus
+#   opus-sonnet (default)   orchestrator=Opus    worker=Sonnet   ← cost-safe common profile
+#   fable-opus  (opt-in)    orchestrator=Fable   worker=Opus     ← C3/C4 when a Fable session is available
 # This guarantees we NEVER spawn a tier the user lacks: workers are always exactly one rung BELOW the
 # orchestrator, and the orchestrator is the session the user already chose in Codex (`/model`).
 #
@@ -29,8 +29,8 @@
 #   1. RELEASE_MODEL_PROFILE env         — explicit override; the orchestrator exports this from
 #                                          self-knowledge ("I am Fable" → fable-opus; "I am Opus" → opus-sonnet).
 #   2. .release-planning/MODELS.yml       — `profile: fable-opus|opus-sonnet` pin (survives across sessions).
-#   3. default                            — fable-opus (assume the best tier is available; the
-#                                          orchestrator downgrades to opus-sonnet when it is Opus).
+#   3. default                            — opus-sonnet (cost-safe; a Fable session may explicitly
+#                                          opt into fable-opus for C3/C4 work).
 #
 # Public API (all echo a value and return 0 — house style; callers capture the echo):
 #   release_model_profile               → `fable-opus` | `opus-sonnet`
@@ -41,9 +41,9 @@
 #                                         absent ⇒ release_worker_model (unchanged); `simple` ⇒ one
 #                                         rung below the worker with a HARD FLOOR at sonnet.
 #                                         Classification can only DEMOTE, never promote.
-#   release_checker_model               → = orchestrator tier  (Fable evaluates Opus; Opus evaluates Sonnet)
+#   release_checker_model [C0-C4]        → worker tier for C0-C2; orchestrator tier for C3/C4
 #   release_mechanical_model            → `haiku`              (collection-only agents; the ONE effort exception)
-#   release_model_effort                → `max` (or $CODEX_REASONING_EFFORT) — every role runs at maximum effort
+#   release_model_effort [C0-C4]        → low/medium/high/max by complexity (or $CODEX_REASONING_EFFORT)
 #   release_model_summary               → one human-readable line of the active mapping (for skill preambles)
 
 # ── internal: valid profiles ─────────────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ release_model_profile() {
     p="$(grep -m1 '^[[:space:]]*profile:' "$cfg" 2>/dev/null | sed -E 's/^[[:space:]]*profile:[[:space:]]*//; s/[[:space:]]*$//')"
     if [ -n "$p" ] && _release_model_valid_profile "$p"; then printf '%s' "$p"; return 0; fi
   fi
-  printf 'fable-opus'   # default: assume the best tier; the orchestrator downgrades when it is Opus
+  printf 'opus-sonnet'  # common work should not silently buy the highest available fleet
   return 0
 }
 
@@ -107,23 +107,36 @@ release_worker_model_for() {  # [complexity: simple|standard|complex]
   return 0
 }
 
-# The checker is the orchestrator tier by design: a model ABOVE the maker evaluates the maker's work.
-# This is both "Fable loops to evaluate Opus" (the user's intent) and the maker≠checker invariant.
-release_checker_model() { release_orchestrator_model; }
+# Independence requires a different turn, not always a more expensive model. Only C3/C4 review
+# climbs to the orchestrator tier; ordinary acceptance checking stays at the worker tier.
+release_checker_model() {
+  case "${1:-C2}" in C3|c3|3|C4|c4|4|strict) release_orchestrator_model;; *) release_worker_model;; esac
+}
 
 # Collection-only agents (e.g. `pytest --collect-only`) carry no judgment that a bigger model improves.
 # They are the ONE documented exception to "every role at the worker tier" — kept cheap on purpose.
 release_mechanical_model() { printf 'haiku'; return 0; }
 
-# ── public: effort — every role at maximum ───────────────────────────────────────────────────────
-release_model_effort() { printf '%s' "${CODEX_REASONING_EFFORT:-max}"; return 0; }
+# ── public: effort proportional to complexity ───────────────────────────────────────────────────
+release_model_effort() {
+  [ -n "${CODEX_REASONING_EFFORT:-}" ] && { printf '%s' "$CODEX_REASONING_EFFORT"; return 0; }
+  case "${1:-C2}" in
+    C0|c0|0|C1|c1|1|lean) printf 'low' ;;
+    C2|c2|2|standard) printf 'medium' ;;
+    C3|c3|3|strict) printf 'high' ;;
+    C4|c4|4) printf 'max' ;;
+    *) printf 'medium' ;;
+  esac
+  return 0
+}
 
 # ── public: human-readable one-liner for skill preambles + /release:models ────────────────────────
 release_model_summary() {
-  local prof orch work simple
+  local prof orch work simple standard_checker strict_checker
   prof="$(release_model_profile)"; orch="$(release_orchestrator_model)"; work="$(release_worker_model)"
   simple="$(release_worker_model_for simple)"
-  printf 'profile=%s  orchestrator/checker=%s  worker=%s  worker[simple]=%s  effort=%s' \
-    "$prof" "$orch" "$work" "$simple" "$(release_model_effort)"
+  standard_checker="$(release_checker_model C2)"; strict_checker="$(release_checker_model C3)"
+  printf 'profile=%s  orchestrator=%s  worker=%s  worker[simple]=%s  checker[C2]=%s  checker[strict]=%s  effort=%s' \
+    "$prof" "$orch" "$work" "$simple" "$standard_checker" "$strict_checker" "$(release_model_effort)"
   return 0
 }

@@ -42,7 +42,7 @@ loop_signature() {  # [text...]  (else reads stdin)
 
 # ── public: the iteration guard (hard cap + no-progress) ─────────────────────────────────────────
 loop_guard() {  # <iter> <max> <prev_sig> <cur_sig>
-  local iter="${1:-0}" max="${2:-6}" prev="${3:-}" cur="${4:-}"
+  local iter="${1:-0}" max="${2:-2}" prev="${3:-}" cur="${4:-}"
   # no-progress first — it is the more actionable reason ("the maker is stuck", not just "out of tries")
   if [ -n "$prev" ] && [ "$prev" = "$cur" ]; then echo "LOOP=stop reason=no-progress"; return 0; fi
   if [ "$iter" -ge "$max" ] 2>/dev/null;      then echo "LOOP=stop reason=budget-iters"; return 0; fi

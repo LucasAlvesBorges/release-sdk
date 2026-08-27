@@ -28,12 +28,12 @@ everywhere.
 | `agents-md-builder` | Terra | medium | read-only (except `AGENTS.md`) | 1200 tok |
 | `explorer-fast` | Luna | low | read-only | 700 tok |
 | `explorer-deep` | Terra | medium | read-only | 1200 tok |
-| `planner` | Frontier | high | read-only | 1500 tok |
+| `planner` | Frontier | high | read-only | 1000 tok |
 | `worker-lite` | Luna | low | workspace-write | 700 tok |
-| `worker` | Terra | medium | workspace-write | 1200 tok |
+| `worker` | Terra | medium | workspace-write | 1000 tok |
 | `worker-complex` | Frontier | high | workspace-write | 1500 tok |
 | `tester` | Luna | low | workspace-write | 700 tok |
-| `reviewer` | Terra | high | read-only | 1200 tok |
+| `reviewer` | Terra | high | read-only | 900 tok |
 | `security-reviewer` | Frontier | high | read-only | 1500 tok |
 | `docs-researcher` | Luna | medium | read-only | 700 tok |
 | `handoff-writer` | Luna | low | read-only | 500 tok |
@@ -62,7 +62,12 @@ reasoning effort for a specific call when the complexity level demands it
   read-only. Frontier/xhigh reserved for the single central architectural
   decision only. Parallel writers require isolated worktrees with an explicit
   merge plan. No destructive change ships without described
-  validation+rollback.
+validation+rollback.
+
+Specialized release workflow agents may be cheaper than the generic catalog: the compact
+`feature-planner`, `wave-executor`, `plan-checker`, `phase-verifier` and `loop-goal-verifier` default
+to Terra/medium. The spawning skill escalates only when the phase is C3/C4 and the specific decision
+requires frontier judgment; strict profile alone does not make deterministic coordination expensive.
 
 ## Per-task complexity routing (release-sdk PLAN tasks, v0.22.0)
 

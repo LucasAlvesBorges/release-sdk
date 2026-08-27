@@ -10,12 +10,6 @@ description: >
   spec. Survives `/clear` and context compaction.
 ---
 
-## Agent Policy (LOCKED)
-
-NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation. Specifically: `gsd-debugger` → `release:debugger`.
-
----
-
 # /release:debug — Persistent Bug Investigation
 
 Scientific method, persisted to disk. Survives context resets.
@@ -80,7 +74,7 @@ Agent({
 
 Agent owns the session. It writes `SESSION.md` after every checkpoint (hypothesis test,
 ruled-out branch, partial fix). The user can `/clear` and `/release:debug --resume {id}`
-to come back. When it reports `RESOLVED`, YOU (orchestrator/checker tier) confirm `FIX.md`'s
+to come back. When it reports `RESOLVED`, YOU (the parent session) confirm `FIX.md`'s
 verification command actually passes before committing — maker≠checker.
 
 ### Step 3 — Close protocol

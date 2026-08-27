@@ -1,125 +1,35 @@
 ---
 name: verify
-description: >
-  Context-aware goal-backward verification. Detects which stacks were implemented in a phase,
-  spawns phase-verifier and/or phase-verifier, produces VERIFICATION.md.
-  Use when: execute complete, before marking phase done.
+description: Goal-backward phase verification that reuses the shared gate cache. Cross-phase integration is explicit with --integration.
 ---
 
-## Agent Policy (LOCKED)
+# `/release:verify`
 
-NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
-
----
-
-# /release:verify — Context-Aware Phase Verification
-
-Detects phase type and runs the appropriate verification(s).
+Verify delivered acceptance conditions without replaying tests already proven by the shared gate.
 
 ## Usage
 
-```
-/release:verify 01                   # auto-detect, verify
-/release:verify 01 --backend         # Django verification only
-/release:verify 01 --frontend        # React verification only
-```
-
-## Detection
-
-Reads SUMMARY.md(s) from execute phase:
-- `{NN}-SUMMARY.md` with `stack: django` → backend verify
-- `{NN}-SUMMARY.md` with `stack: react-tsx` → frontend verify
-- Both exist → fullstack verify
-
-## Backend verification (release:phase-verifier)
-
-Goal-backward analysis:
-1. Every PLAN.md truth (must_haves.truths) observable in code?
-2. Every D-XX decision implemented and grep-provable?
-3. All pytest tests pass?
-4. `makemigrations --check` clean?
-5. `ruff check` clean?
-6. Q6: no `.delay()` in production code?
-7. 9-category security tests present and passing?
-
-## Frontend verification
-
-Goal-backward analysis:
-1. Every D-XX (frontend) decision implemented?
-2. All Vitest tests pass?
-3. `tsc --noEmit` clean?
-4. RC1-RC7 evidence in SUMMARY.md?
-5. 9-category React security tests present and passing?
-6. No localStorage auth token usage (grep)?
-7. CSRF header sent in API calls (test evidence)?
-
-## Integration verification (fullstack)
-
-Additional checks:
-- API endpoint from PLAN-BACKEND matches fetch URL in PLAN-FRONTEND
-- Serializer field names match Zod schema fields
-- Auth strategy consistent end-to-end
-
-## Cross-phase integration check (release:integration-checker)
-
-**Final optional step**, after per-phase VERIFICATION.md is written.
-
-Gate:
-```
-verified_or_shipped_count = count of phases in current milestone (from ROADMAP.md) at stage ∈ {verified, shipped}
-if verified_or_shipped_count >= 2:
-    spawn release:integration-checker
-else:
-    echo "Integration check skipped (only $verified_or_shipped_count phases at verified+, need 2)."
+```text
+/release:verify [phase]
+/release:verify [phase] --strict
+/release:verify [phase] --integration
 ```
 
-Spawn invocation:
-```
-Agent({
-  subagent_type: "release:integration-checker",
-  phases: [<NNs of all verified/shipped phases in current milestone>],
-  stack: "{django|react|fullstack}",   # auto-detect from PROJECT.md stack: field
-  milestone: "{label}"                  # from ROADMAP.md current milestone
-})
-```
+## Flow
 
-Output: `.release-planning/INTEGRATION-CHECK.md` (milestone-scoped, NOT inside a single phase directory — it spans phases).
+1. Resolve the phase from the argument or current ROADMAP/STATE and read, once, its SPEC, PLAN, compact SUMMARY, locks, and existing VERIFICATION.
+2. Source `bin/release-gate-lib.sh` and run `run_gate_cached "$repo" full`. A matching committed tree returns the prior GREEN evidence. Never invoke pytest, Vitest, lint, typecheck, migrations, or build separately when that evidence already covers them.
+3. If the gate is RED or unresolved, write `GAPS_FOUND` with the gate evidence; do not launch broad duplicate suites. A dirty tree cannot reuse committed-tree evidence and must be reported explicitly.
+4. Check each acceptance criterion goal-backward: wired implementation plus focused deterministic evidence. Check only risk surfaces triggered by the diff (for example tenancy/auth, migration preservation, concurrency, external input, or API/UI contract).
+5. For C0-C2 with clear evidence, verify inline. Spawn one `release:phase-verifier` only for `--strict`, C3/C4 risk, or genuinely missing/stale acceptance evidence. Pass paths, changed files, and gate output/cache key—not copied documents or logs.
+6. Write `{phase}-VERIFICATION.md` with `PASS`, `WARN`, or `GAPS_FOUND`, concise evidence per criterion, and next action. Never mark complete with gaps.
 
-**Non-gating:** failures detected by the integration checker DO NOT change the per-phase verify verdict — this step is informational only. Print findings table to stdout so the user sees seam issues, but `{NN}-VERIFICATION.md` verdict stands as written by `release:phase-verifier`.
+`--integration` is the only trigger for `release:integration-checker`. It checks seams across the explicitly relevant verified/shipped phases and writes `.release-planning/INTEGRATION-CHECK.md`. It is informational and does not rewrite a phase verdict. Phase count alone never triggers it.
 
-## Output
+## Stop conditions
 
-```
-.release-planning/phases/{NN}-{slug}/{NN}-VERIFICATION.md
+- `PASS`: all acceptance conditions and locks have code/test evidence and the cached/current gate is GREEN.
+- `WARN`: delivery is proven but a non-blocking risk remains.
+- `GAPS_FOUND`: missing behavior/evidence, violated lock, RED/unresolved gate, or stale working tree.
 
----
-verdict: PASS | GAPS_FOUND
-backend_verdict: PASS | GAPS_FOUND | N/A
-frontend_verdict: PASS | GAPS_FOUND | N/A
----
-
-## Backend Verification
-[table: truth → code evidence → PASS/FAIL]
-
-## Frontend Verification
-[table: decision → code evidence → PASS/FAIL]
-
-## Gaps Found (if any)
-D-03: NOT IMPLEMENTED — ...
-RC2: isError state missing in InvoiceList
-
-## Next Steps
-PASS → /release:review 01 (optional), mark phase done
-GAPS_FOUND → /release:plan 01 --gaps → /release:execute 01 --gaps
-```
-
-
----
-
-## Stack dispatch
-
-This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
-
-## Notes / Constraints
-
-- v0.7.0 wires `release:integration-checker` as an OPTIONAL final step: spawns only when ≥2 phases in the current milestone are at stage `verified` or `shipped`. Writes milestone-scoped `.release-planning/INTEGRATION-CHECK.md` (not per-phase). Informational — does NOT change the per-phase verify verdict.
+Do not run separate backend and frontend verifiers. A fullstack phase is one acceptance surface; inspect only the changed seams.

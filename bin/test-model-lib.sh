@@ -5,17 +5,17 @@
 # test IS the code skills/{auto,execute,loop,quick,security,debug,models} resolve tiers from.
 #
 # Coverage:
-#   #1  default profile is fable-opus (best tier assumed; orchestrator downgrades when it is Opus)
-#   #2  fable-opus maps orchestrator/checker→fable, worker→opus
-#   #3  opus-sonnet maps orchestrator/checker→opus, worker→sonnet
-#   #4  checker == orchestrator tier in BOTH profiles (Fable evaluates Opus; Opus evaluates Sonnet)
+#   #1  default profile is opus-sonnet (cost-safe)
+#   #2  fable-opus maps orchestrator→fable, worker/C2-checker→opus
+#   #3  opus-sonnet maps orchestrator→opus, worker/C2-checker→sonnet
+#   #4  checker stays at worker tier for C0-C2 and climbs only for C3/C4
 #   #5  worker is exactly one rung BELOW the orchestrator in BOTH profiles (never spawns a tier the user lacks)
 #   #6  RELEASE_MODEL_PROFILE env overrides everything
 #   #7  an invalid RELEASE_MODEL_PROFILE is ignored (falls back to default) + warns on stderr
 #   #8  MODELS.yml `profile:` pin is honored when env is unset
 #   #9  env pin beats the MODELS.yml pin (most-specific wins)
 #   #10 mechanical tier is haiku and profile-invariant (the one effort exception)
-#   #11 effort is max by default, honors CLAUDE_EFFORT
+#   #11 effort follows complexity and honors CLAUDE_EFFORT
 #   #12 release_model_summary reflects the active mapping
 #   #13 release_worker_model_for: complexity-aware per-task tier, demote-only, sonnet floor
 #
@@ -42,25 +42,25 @@ unset RELEASE_MODEL_PROFILE 2>/dev/null || true
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 echo "── #1 default profile ──"
-eq "no env, no config → fable-opus" "fable-opus" "$(release_model_profile)"
+eq "no env, no config → opus-sonnet" "opus-sonnet" "$(release_model_profile)"
 
 echo "── #2 fable-opus role mapping ──"
 eq "orchestrator → fable" "fable"  "$(RELEASE_MODEL_PROFILE=fable-opus release_orchestrator_model)"
 eq "worker       → opus"  "opus"   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model)"
-eq "checker      → fable" "fable"  "$(RELEASE_MODEL_PROFILE=fable-opus release_checker_model)"
+eq "C2 checker   → opus"  "opus"   "$(RELEASE_MODEL_PROFILE=fable-opus release_checker_model C2)"
 
 echo "── #3 opus-sonnet role mapping ──"
 eq "orchestrator → opus"   "opus"   "$(RELEASE_MODEL_PROFILE=opus-sonnet release_orchestrator_model)"
 eq "worker       → sonnet" "sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_worker_model)"
-eq "checker      → opus"   "opus"   "$(RELEASE_MODEL_PROFILE=opus-sonnet release_checker_model)"
+eq "C2 checker   → sonnet" "sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_checker_model C2)"
 
-echo "── #4 checker == orchestrator (maker≠checker across tiers) ──"
-eq "fable-opus:  checker==orchestrator" \
+echo "── #4 checker tier follows complexity; independence is a separate turn ──"
+eq "C2 checker stays worker" \
+   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model)" \
+   "$(RELEASE_MODEL_PROFILE=fable-opus release_checker_model C2)"
+eq "C3 checker climbs to orchestrator" \
    "$(RELEASE_MODEL_PROFILE=fable-opus release_orchestrator_model)" \
-   "$(RELEASE_MODEL_PROFILE=fable-opus release_checker_model)"
-eq "opus-sonnet: checker==orchestrator" \
-   "$(RELEASE_MODEL_PROFILE=opus-sonnet release_orchestrator_model)" \
-   "$(RELEASE_MODEL_PROFILE=opus-sonnet release_checker_model)"
+   "$(RELEASE_MODEL_PROFILE=fable-opus release_checker_model C3)"
 
 echo "── #5 worker is one rung below orchestrator (never spawns a tier the session lacks) ──"
 ne "fable-opus:  worker != orchestrator" \
@@ -73,7 +73,7 @@ echo "── #6 env override ──"
 eq "env forces opus-sonnet" "opus-sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_model_profile)"
 
 echo "── #7 invalid env ignored + warns ──"
-eq "garbage env → default fable-opus" "fable-opus" "$(RELEASE_MODEL_PROFILE=banana release_model_profile 2>/dev/null)"
+eq "garbage env → default opus-sonnet" "opus-sonnet" "$(RELEASE_MODEL_PROFILE=banana release_model_profile 2>/dev/null)"
 has "warns on stderr" "$(RELEASE_MODEL_PROFILE=banana release_model_profile 2>&1 >/dev/null)" "ignoring invalid"
 
 echo "── #8 MODELS.yml pin honored ──"
@@ -90,12 +90,17 @@ eq "mechanical → haiku (fable-opus)"  "haiku" "$(RELEASE_MODEL_PROFILE=fable-o
 eq "mechanical → haiku (opus-sonnet)" "haiku" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_mechanical_model)"
 
 echo "── #11 effort ──"
-eq "default effort → max" "max" "$(unset CLAUDE_EFFORT; release_model_effort)"
-eq "honors CLAUDE_EFFORT" "high" "$(CLAUDE_EFFORT=high release_model_effort)"
+eq "default effort → medium" "medium" "$(unset CLAUDE_EFFORT; release_model_effort)"
+eq "C1 effort → low" "low" "$(unset CLAUDE_EFFORT; release_model_effort C1)"
+eq "C3 effort → high" "high" "$(unset CLAUDE_EFFORT; release_model_effort C3)"
+eq "C4 effort → max" "max" "$(unset CLAUDE_EFFORT; release_model_effort C4)"
+eq "honors CLAUDE_EFFORT" "high" "$(CLAUDE_EFFORT=high release_model_effort C1)"
 
 echo "── #12 summary reflects mapping ──"
 has "summary shows worker=opus under fable-opus" "$(RELEASE_MODEL_PROFILE=fable-opus release_model_summary)" "worker=opus"
 has "summary shows worker=sonnet under opus-sonnet" "$(RELEASE_MODEL_PROFILE=opus-sonnet release_model_summary)" "worker=sonnet"
+has "summary shows cheap C2 checker" "$(RELEASE_MODEL_PROFILE=fable-opus release_model_summary)" "checker[C2]=opus"
+has "summary shows strict checker escalation" "$(RELEASE_MODEL_PROFILE=fable-opus release_model_summary)" "checker[strict]=fable"
 
 echo "── #13 per-task tier by complexity (demote-only, sonnet floor) ──"
 eq "fable-opus: complex → worker tier (opus)"  "opus"   "$(RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for complex)"

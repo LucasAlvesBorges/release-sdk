@@ -97,9 +97,17 @@
     </table>
   </div>
   <div class="card">
-    <h3>Por skill (release:*)</h3>
+    <h3>Breakdown
+      <select id="breakdown">
+        <option value="workflow">workflow</option>
+        <option value="agent">agente</option>
+        <option value="phase">fase</option>
+        <option value="complexity">complexidade</option>
+        <option value="mode">modo</option>
+      </select>
+    </h3>
     <table id="skill-table">
-      <thead><tr><th>Skill</th><th>Custo $</th><th>Custo R$</th><th>Turnos</th><th>tok/turno</th></tr></thead>
+      <thead><tr><th id="breakdown-label">Workflow</th><th>Custo $</th><th>Turnos</th><th>Latência média</th><th>Spawns</th><th>Gates</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -119,6 +127,7 @@ function fmtCost(n) { return '$' + (n || 0).toFixed(2); }
 function fmtBrl(n) { return 'R$' + (n || 0).toFixed(2).replace('.', ','); }
 function fmtTok(n) { if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return String(n||0); }
 function fmtPct(n) { return (n || 0).toFixed(1) + '%'; }
+function fmtTime(ms) { if (!ms) return '0s'; if (ms < 60000) return (ms/1000).toFixed(1)+'s'; return (ms/60000).toFixed(1)+'m'; }
 
 async function fetchStats() {
   const r = await fetch('/api/stats' + (sessionId ? `?session_id=${sessionId}` : ''));
@@ -199,16 +208,20 @@ function renderProjectTable(s) {
 }
 
 function renderSkillTable(s) {
-  const rows = Object.entries(s.by_skill).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
+  const dimension = $('breakdown').value;
+  const groups = s[`by_${dimension}`] || s.by_workflow || s.by_skill;
+  const rows = Object.entries(groups).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
+  $('breakdown-label').textContent = $('breakdown').selectedOptions[0].textContent;
   const tbody = $('skill-table').querySelector('tbody');
-  if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">sem dados de skill (use /release:*)</td></tr>'; return; }
+  if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty">sem dados nesta dimensão</td></tr>'; return; }
   tbody.innerHTML = rows.map(([k, v]) => `
     <tr>
       <td>${k}</td>
       <td class="cost">${fmtCost(v.cost_usd)}</td>
-      <td class="brl">${fmtBrl(v.cost_brl)}</td>
       <td>${v.turns}</td>
-      <td>${fmtTok(v.tokens_per_turn)}</td>
+      <td>${fmtTime(v.avg_latency_ms)}</td>
+      <td>${v.spawns || 0}</td>
+      <td>${v.gate_runs || 0}</td>
     </tr>`).join('');
 }
 
@@ -231,6 +244,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
   currentMetric = t.dataset.metric;
   refresh();
 }));
+$('breakdown').addEventListener('change', refresh);
 
 refresh();
 setInterval(refresh, 5000);

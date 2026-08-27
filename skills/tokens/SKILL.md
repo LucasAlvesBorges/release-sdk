@@ -3,8 +3,8 @@ name: tokens
 description: >
   Token tracker dashboard. Inicia worker daemon HTTP em localhost:47777 (se ainda não estiver
   rodando) e abre o dashboard no browser padrão. Mostra custo $ por sessão/dia/semana/all-time,
-  breakdown por modelo, projeto e skill, timeline de uso, e cache hit ratio — métrica chave da
-  eficiência do release-sdk. Dados gravados em ~/.claude/token-tracker/events.jsonl via hook
+  breakdown por workflow, agente, fase, complexidade e modo, além de tempo, spawns, gates e cache
+  hit ratio. Dados gravados em ~/.claude/token-tracker/events.jsonl via hook
   PostToolUse que parseia o transcript JSONL.
   Use quando: o usuário quiser ver gasto/eficiência de tokens, comparar custo entre skills,
   ou diagnosticar baixo cache hit.
@@ -67,11 +67,14 @@ Atualizar quando Anthropic mudar preços.
 
 - **Cache hit %**: `cache_read / (input + cache_read + cache_create)` — quanto maior, mais barato
 - **tok/turno**: total tokens / turnos — saturação do contexto. Acima de 100k indica conversa longa
-- **$/skill**: identifica skills caros para otimizar prompts
+- **$/workflow e $/agent**: separa custo do orquestrador e dos workers
+- **tempo, spawns e gates**: mostra onde latência e fan-out crescem sem ganho proporcional
+- **fase/complexidade/modo**: permite comparar C0–C4, execução normal, strict, loop e agent
 
 ## Privacidade
 
 - Dados ficam **locais** em `~/.claude/token-tracker/events.jsonl`. Worker só escuta `127.0.0.1`
-- Schema do evento: `{ts, session_id, uuid, model, input, output, cache_read, cache_create, cwd, skill}`
+- Schema do evento permanece retrocompatível e adiciona `workflow`, `agent`, `agent_id`, `phase`,
+  `complexity`, `mode`, `latency_ms`, `spawns` e `gate_runs`
 - **Não grava** conteúdo de mensagens — apenas contadores de tokens
 - Para apagar histórico: `/release:tokens --reset`

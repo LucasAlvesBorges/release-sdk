@@ -155,6 +155,26 @@ test: printf 'FAILED apps/financeiro/tests/test_dre.py::test_saldo - AssertionEr
 YML
 eq "no baseline file → RED (fail-safe)" "GATE=RED" "$(run_gate "$BR" | grep '^GATE=')"
 
+echo "── #12 quick gate skips broad tests ──"
+Q="$SBX/quick"; mkdir -p "$Q"; touch "$Q/manage.py"
+OUT="$(release_resolve_quick_gate "$Q")"
+has "quick keeps lint" "$OUT" "ruff check"
+has "quick keeps migration drift" "$OUT" "makemigrations --check"
+hasnt "quick omits full pytest" "$OUT" "pytest"
+
+echo "── #13 GREEN cache is keyed by committed tree + commands ──"
+C="$SBX/cache"; mkdir -p "$C/.release-planning"; git -C "$C" init -q
+git -C "$C" config user.email test@example.com; git -C "$C" config user.name Test
+printf 'ok\n' > "$C/tracked.txt"; git -C "$C" add tracked.txt; git -C "$C" commit -qm init
+printf 'check: true\n' > "$C/.release-planning/VERIFY-GATE.yml"
+OUT="$(run_gate_cached "$C")"
+has "first run green" "$OUT" "GATE=GREEN"
+OUT="$(run_gate_cached "$C")"
+has "second run cache hit" "$OUT" "GATE_CACHE=hit"
+printf 'dirty\n' >> "$C/tracked.txt"
+OUT="$(run_gate_cached "$C")"
+hasnt "dirty tree never reuses cache" "$OUT" "GATE_CACHE=hit"
+
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

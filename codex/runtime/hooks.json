@@ -23,27 +23,7 @@
           },
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/hooks/codex-edit-adapter.js\" \"${PLUGIN_ROOT}/hooks/django-workflow-guard.js\"",
-            "timeout": 8
-          },
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/hooks/codex-edit-adapter.js\" \"${PLUGIN_ROOT}/hooks/django-prompt-guard.js\"",
-            "timeout": 8
-          },
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/hooks/codex-edit-adapter.js\" \"${PLUGIN_ROOT}/hooks/django-tenant-scope-check.sh\"",
-            "timeout": 8
-          },
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/hooks/codex-edit-adapter.js\" \"${PLUGIN_ROOT}/hooks/react-workflow-guard.js\"",
-            "timeout": 8
-          },
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/hooks/codex-edit-adapter.js\" \"${PLUGIN_ROOT}/hooks/react-security-guard.js\"",
+            "command": "node \"${PLUGIN_ROOT}/hooks/codex-edit-adapter.js\" \"${PLUGIN_ROOT}/hooks/release-edit-guard.js\"",
             "timeout": 8
           }
         ]
@@ -53,12 +33,6 @@
       {
         "matcher": ".*",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/hooks/release-context-monitor.js\"",
-            "timeout": 4,
-            "statusMessage": "Tracking Codex context..."
-          },
           {
             "type": "command",
             "command": "node \"${PLUGIN_ROOT}/hooks/release-token-collector.js\"",

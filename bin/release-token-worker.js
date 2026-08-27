@@ -27,6 +27,11 @@ const PRICING = {
   'claude-sonnet-4-5':     { in: 3,  out: 15, cache_read: 0.3,  cache_write: 3.75 },
   'claude-haiku-4-5':      { in: 1,  out: 5,  cache_read: 0.1,  cache_write: 1.25 },
   'claude-haiku-4-5-20251001': { in: 1, out: 5, cache_read: 0.1, cache_write: 1.25 },
+  // Conservative family fallbacks keep budget guards from pricing a new Opus/Fable as Sonnet.
+  // Exact dated IDs should still be added above when known.
+  'opus-family-fallback':  { in: 15, out: 75, cache_read: 1.5, cache_write: 18.75 },
+  'sonnet-family-fallback': { in: 3, out: 15, cache_read: 0.3, cache_write: 3.75 },
+  'haiku-family-fallback': { in: 1, out: 5, cache_read: 0.1, cache_write: 1.25 },
   'default':               { in: 3,  out: 15, cache_read: 0.3,  cache_write: 3.75 }
 };
 
@@ -79,6 +84,10 @@ function priceFor(model) {
   for (const key of Object.keys(PRICING)) {
     if (key !== 'default' && model.startsWith(key.split('[')[0])) return PRICING[key];
   }
+  const family = String(model).toLowerCase();
+  if (family.includes('opus') || family.includes('fable')) return PRICING['opus-family-fallback'];
+  if (family.includes('sonnet')) return PRICING['sonnet-family-fallback'];
+  if (family.includes('haiku')) return PRICING['haiku-family-fallback'];
   return PRICING.default;
 }
 
@@ -101,9 +110,9 @@ function appendEvent(ev) {
   fs.appendFileSync(EVENTS_FILE, JSON.stringify(ev) + '\n');
 }
 
-function readEvents() {
-  if (!fs.existsSync(EVENTS_FILE)) return [];
-  const txt = fs.readFileSync(EVENTS_FILE, 'utf8');
+function readEventsFile(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  const txt = fs.readFileSync(filePath, 'utf8');
   const out = [];
   for (const line of txt.split('\n')) {
     if (!line.trim()) continue;
@@ -112,8 +121,13 @@ function readEvents() {
   return out;
 }
 
+function readEvents() { return readEventsFile(EVENTS_FILE); }
+
 function emptyAgg() {
-  return { input: 0, output: 0, cache_read: 0, cache_create: 0, cost_usd: 0, turns: 0 };
+  return {
+    input: 0, output: 0, cache_read: 0, cache_create: 0, cost_usd: 0, turns: 0,
+    latency_ms: 0, spawns: 0, gate_runs: 0,
+  };
 }
 
 function accum(agg, ev) {
@@ -123,6 +137,9 @@ function accum(agg, ev) {
   agg.cache_create += ev.cache_create || 0;
   agg.cost_usd     += costUsd(ev);
   agg.turns        += 1;
+  agg.latency_ms   += ev.latency_ms || 0;
+  agg.spawns       += ev.spawns || 0;
+  agg.gate_runs    += ev.gate_runs || 0;
 }
 
 function cacheHitPct(a) {
@@ -136,8 +153,8 @@ function tokensPerTurn(a) {
   return Math.round((a.input + a.output + a.cache_read + a.cache_create) / a.turns);
 }
 
-function buildStats(qs) {
-  const events = readEvents();
+function buildStats(qs, suppliedEvents) {
+  const events = suppliedEvents || readEvents();
   const now = Date.now() / 1000;
   const ONE_DAY = 86400;
   const cwd = qs.cwd || null;
@@ -161,6 +178,11 @@ function buildStats(qs) {
   const byModel  = {};
   const byProject = {};
   const bySkill   = {};
+  const byWorkflow = {};
+  const byAgent = {};
+  const byPhase = {};
+  const byComplexity = {};
+  const byMode = {};
   const timeline  = [];
 
   const dayBuckets = new Map();
@@ -181,10 +203,17 @@ function buildStats(qs) {
     byProject[proj] = byProject[proj] || emptyAgg();
     accum(byProject[proj], ev);
 
-    if (ev.skill) {
-      bySkill[ev.skill] = bySkill[ev.skill] || emptyAgg();
-      accum(bySkill[ev.skill], ev);
-    }
+    const skill = ev.skill || 'unlabeled';
+    bySkill[skill] = bySkill[skill] || emptyAgg();
+    accum(bySkill[skill], ev);
+    const workflow = ev.workflow || ev.skill || 'unlabeled';
+    byWorkflow[workflow] = byWorkflow[workflow] || emptyAgg();
+    accum(byWorkflow[workflow], ev);
+    if (ev.agent) { byAgent[ev.agent] = byAgent[ev.agent] || emptyAgg(); accum(byAgent[ev.agent], ev); }
+    if (ev.phase) { byPhase[ev.phase] = byPhase[ev.phase] || emptyAgg(); accum(byPhase[ev.phase], ev); }
+    if (ev.complexity) { byComplexity[ev.complexity] = byComplexity[ev.complexity] || emptyAgg(); accum(byComplexity[ev.complexity], ev); }
+    const mode = ev.mode || 'unknown';
+    byMode[mode] = byMode[mode] || emptyAgg(); accum(byMode[mode], ev);
 
     const dayKey = new Date(ev.ts * 1000).toISOString().slice(0, 10);
     if (!dayBuckets.has(dayKey)) dayBuckets.set(dayKey, emptyAgg());
@@ -200,7 +229,8 @@ function buildStats(qs) {
     ...a,
     cost_brl: a.cost_usd * rate,
     cache_hit_pct: cacheHitPct(a),
-    tokens_per_turn: tokensPerTurn(a)
+    tokens_per_turn: tokensPerTurn(a),
+    avg_latency_ms: a.turns ? Math.round(a.latency_ms / a.turns) : 0,
   });
 
   return {
@@ -212,6 +242,11 @@ function buildStats(qs) {
     by_model:   Object.fromEntries(Object.entries(byModel).map(([k, v]) => [k, decorate(v)])),
     by_project: Object.fromEntries(Object.entries(byProject).map(([k, v]) => [k, decorate(v)])),
     by_skill:   Object.fromEntries(Object.entries(bySkill).map(([k, v]) => [k, decorate(v)])),
+    by_workflow: Object.fromEntries(Object.entries(byWorkflow).map(([k, v]) => [k, decorate(v)])),
+    by_agent: Object.fromEntries(Object.entries(byAgent).map(([k, v]) => [k, decorate(v)])),
+    by_phase: Object.fromEntries(Object.entries(byPhase).map(([k, v]) => [k, decorate(v)])),
+    by_complexity: Object.fromEntries(Object.entries(byComplexity).map(([k, v]) => [k, decorate(v)])),
+    by_mode: Object.fromEntries(Object.entries(byMode).map(([k, v]) => [k, decorate(v)])),
     timeline: timeline.map(t => ({ ...t, cost_brl: t.cost_usd * rate })),
     meta: {
       events_count: events.length,
@@ -245,6 +280,16 @@ function json(res, status, body) {
     'Content-Length': Buffer.byteLength(data)
   });
   res.end(data);
+}
+
+if (process.argv[2] === '--quote-model') {
+  process.stdout.write(JSON.stringify(priceFor(process.argv[3] || 'unknown')) + '\n');
+  process.exit(0);
+}
+
+if (process.argv[2] === '--stats-file') {
+  process.stdout.write(JSON.stringify(buildStats({}, readEventsFile(process.argv[3]))) + '\n');
+  process.exit(0);
 }
 
 const server = http.createServer((req, res) => {

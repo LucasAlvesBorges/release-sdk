@@ -6,26 +6,26 @@
 
 Comandos `/release:*` context-aware roteiam automaticamente para os agents certos baseado nos seus arquivos e ROADMAP. Um SDK, três stacks (Django · React · React Native).
 
-**Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador de 32 regras que despacha pro skill `/release:*` certo, imprime a rota escolhida + razão antes de invocar, faz fallback pra `AskUserQuestion` quando a confiança é baixa.
+**Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador leve que lê estado só quando precisa desempatar, imprime a rota escolhida e nunca ativa loops implicitamente.
 
-**Versão atual: v0.24.1** — 3 skills especialistas por stack (`django-expert` · `react-expert` · `react-native-expert`) que auto-disparam pela sua stack; invocação curta `/release:*`; 37 agents (taxonomia: nome sem prefixo = merged stack-dispatched, `django-*` Django-puro, `react-*` React-puro; spawnados via `release:<nome>` — ex. `release:tdd-executor`). Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+**Versão atual: v0.25.0** — fluxos adaptativos C0–C4, especialistas sob demanda, invocação curta `/release:*` e distribuições próprias para Claude Code e Codex. Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
 
 ---
 
-## Skills especialistas por stack (v0.20.0)
+## Skills especialistas por stack
 
-**O SDK identifica a stack pelos seus arquivos/keywords e aciona o especialista sênior certo — automaticamente.** Quatro skills especialistas — 3 de codificação por stack (`SKILL.md` denso + `references/*.md` sob demanda) + 1 de segurança ofensiva cross-stack — com boas práticas + design patterns, espelhando o calibre do `django-expert`:
+Quatro especialistas compactos ficam disponíveis para dúvidas realmente específicas da stack. Os fluxos `spec`, `plan`, `execute`, `quick`, `loop` e `review` não carregam uma segunda persona apenas porque encontraram Django ou React; referências aprofundadas são abertas somente para a superfície afetada.
 
-| Skill | Stack | Dispara em (keywords) |
-|-------|-------|-----------------------|
-| `django-expert` | Django 4/5 + DRF | Django, DRF, viewset, serializer, queryset, N+1, `models.py`, `select_related`… |
-| `react-expert` | React 19 + TSX (web) | React, hook, TSX, Zustand, TanStack Query, react-hook-form, Vite, Vitest… |
-| `react-native-expert` | React Native 0.7x + Expo | React Native, Expo, expo-router, FlatList/FlashList, Reanimated, EAS, MMKV… |
-| `security-expert` | Cross-stack (Django · React · RN) | segurança, XSS, CSRF, IDOR, token, mass assignment, OWASP, pentest, SSL pinning… |
+| Skill | Uso |
+|-------|-----|
+| `django-expert` | decisão específica de Django/DRF, ORM, migrations ou concorrência |
+| `react-expert` | estado, renderização, acessibilidade, segurança ou testes web |
+| `react-native-expert` | fronteiras nativas/Expo, lifecycle, storage, navegação ou performance mobile |
+| `security-expert` | investigação ofensiva explicitamente autorizada e delimitada |
 
-- **Sem detector novo:** a "identificação de stack" são os `MANDATORY TRIGGERS` no frontmatter de cada `SKILL.md` — o mesmo mecanismo que já ativa qualquer skill do Claude Code.
-- **Disambiguação explícita:** `react-expert` **cede** pro `react-native-expert` quando detecta `react-native`/`expo`/primitivas RN (mobile é do RN); ambos deferem ao `django-expert` no lado da API DRF. Cross-links `[[…]]` entre os três.
-- **Persona que injeta padrões enquanto você codifica** — não é reviewer pós-fato (esses são os agents `code-reviewer` / `security-auditor` / `architecture-reviewer`). Cobre: arquitetura, estado, performance, segurança e testes de cada stack.
+- Cada entrada principal tem cerca de 200–320 palavras e roteia para `references/*.md` por assunto.
+- O especialista resolve uma incerteza estreita e devolve o controle ao workflow dono da tarefa.
+- Auditoria completa continua em `/release:security`; revisão de diff, em `/release:review`.
 
 > Distribuição: os experts vivem em `skills/` do plugin e chegam via `autoUpdate` após publicação. Os experts globais do usuário (`~/.claude/skills/django-expert` e `security-auditor`) foram **arquivados** (`~/.claude/archived-global-experts/`) — o SDK não usa experts globais; a fonte é só o repo/plugin. O `security-expert` é a persona de segurança ofensiva author-time (dispara em intenção de auditoria/pentest, não preempta os experts de stack em implementação de rotina; cobre backend + web + mobile — ver `references/mobile.md`); distinto do agent `security-auditor` (worker spawnado por `/release:security`).
 
@@ -37,43 +37,30 @@ Comandos `/release:*` context-aware roteiam automaticamente para os agents certo
 
 1. `/release:init` — captura visão, trava stack backend + frontend, modelo de auth, padrões proibidos → `PROJECT.md` (LOCK-01..LOCK-12)
 2. `/release:roadmap` — decompõe milestone em fases vertical-slice → `ROADMAP.md`
-3. Por fase: `/release:discuss` → `/release:plan` → `/release:execute` → `/release:verify`
-4. Decisões travadas em `discuss` viram D-XX em CONTEXT.md, referenciadas por toda task de PLAN.md, verificadas contra o codebase real
+3. Por fase: `/release:spec` → `/release:plan` → `/release:execute` → `/release:verify`; `discuss` só retoma dúvidas abertas
+4. Decisões D-XX vivem no SPEC compacto, são referenciadas pelo PLAN e verificadas contra o codebase real
 
 Zero suposição silenciosa. Zero "v1 / placeholder / vai ser ligado depois". Zero mudança não-rastreável.
 
 ---
 
-## Orquestração por tier de modelo (v0.19.0)
+## Orquestração adaptativa de custo
 
-**Toda operação roda como um loop, sobre uma hierarquia de dois tiers de modelo.** Fonte única de verdade: `bin/release-model-lib.sh` (contrato em `bin/test-model-lib.sh`, 23 asserts). Doctrine LOCKED herdada por todas as skills: `/release:auto`.
+`bin/release-economy-lib.sh` classifica C0–C4 e escolhe o menor fluxo compatível com o risco:
 
-```
-          ┌─ evaluate ─┐                                    Worker loop
-          ↓            │                             ┌──────────────────┐
-   ┌──────────────┐   │            fan out           │  Worker 1 (Opus) │↺
-   │ Orchestrator │───┼──────────────────────────────┤  build→check→fix │
-   │   (Fable)    │   │                               ├──────────────────┤
-   │ plan · loop  │───┴───────────────────────────────┤  Worker 2 (Opus) │↺
-   └──────────────┘↺  Main loop                        ├──────────────────┤
-                                                       │  Worker N (Opus) │↺
-                                                       └──────────────────┘
-```
+| Perfil | Escopo típico | Execução |
+|---|---|---|
+| lean (C0/C1) | trivial/bem delimitado | inline, teste focado, sem subagent |
+| standard (C2) | feature moderada | um planner ou worker, passagem única, gate final |
+| strict (C3/C4) | arquitetura ou risco real | checker independente e paralelismo só com 3+ tasks disjuntas |
 
-- **Orchestrator** (a sessão que roda a skill) tem o **main loop**: planeja → **fan-out** pra N workers → **avalia** o trabalho → re-despacha. NUNCA escreve código.
-- **Workers** (makers/fixers/auditores/debuggers) rodam **um degrau abaixo**, cada um com seu **worker loop** interno (build → self-check → fix). NUNCA decidem o próprio "done".
-- Todo **checker/verifier** roda no **tier do orquestrador** — um modelo *acima* do maker avalia o maker. Assim "o orquestrador loopa pra avaliar os workers" é literal **e** maker≠checker (anti-viés) vale por construção.
+Auth, pagamentos, privacidade e tenancy têm piso C3; migração destrutiva/data loss, C4. O perfil padrão de Claude é `opus-sonnet`; checker C0–C2 usa um turno independente no tier de worker e só C3/C4 sobe ao tier do orquestrador. Effort é `low/medium/high/max` por complexidade. No Codex, coordenação comum usa Terra/medium; Frontier fica reservado a decisões realmente complexas ou críticas.
 
-**Dois perfis, derivados do model da SUA sessão** (o orquestrador se auto-identifica):
+`quick` e `execute` não entram em loop automaticamente. `/release:loop` ou `execute --loop` são explícitos e limitados a 1/2/3 correções por perfil, com teto padrão de USD 5.
 
-| Perfil | Sessão em | Orquestrador/checker | Worker | Quando |
-|--------|-----------|----------------------|--------|--------|
-| `fable-opus` (primário) | **Fable** | Fable | **Opus** | você tem Fable |
-| `opus-sonnet` (fallback) | **Opus** | Opus | **Sonnet** | Fable indisponível |
-
-Derivar o perfil do model da sessão **garante que nunca se spawna um tier que você não tem** — workers são sempre exatamente um degrau abaixo do orquestrador. Tudo roda em **effort máximo** (`$CLAUDE_EFFORT`). Exceção única: `test-discover` (`pytest --collect-only`, zero julgamento) fica em Haiku de propósito.
-
-**Perfil auto-detectado do model da sessão — zero configuração, o SDK nunca pergunta.** O orquestrador (o LLM) já sabe o próprio model e deriva o perfil sozinho; toda skill imprime `→ models: …` no início pra transparência. Override raro (cost-control / headless): env `RELEASE_MODEL_PROFILE` ou `.release-planning/MODELS.yml` (`profile: fable-opus|opus-sonnet`) — a lib lê ambos, sem comando. Skills fiadas nativamente: `execute` (+ `wave-executor` → `tdd-executor`/`code-fixer`/`phase-verifier`/`test-runner`/`test-discover`), `loop`, `quick`, `security`, `debug`.
+`/release:tokens` mede custo por workflow, agente, fase, complexidade e modo, junto com latência,
+spawns e execuções de gate. Isso permite comparar o custo real de C1/C2 com `strict`/`loop` sem
+gravar o conteúdo das mensagens.
 
 ---
 
@@ -110,11 +97,10 @@ Derivar o perfil do model da sessão **garante que nunca se spawna um tier que v
 │                     →  CLAUDE.md (bloco delimitado release-sdk injetado)  │
 ├───────────────────────────────────────────────────────────────────────────┤
 │  POR FASE                              backend         frontend           │
-│  /release:spec {NN}     →  SPEC.md (score de ambiguidade)                 │
-│  /release:discuss {NN}  →  CONTEXT.md (D-01..10)    (D-11..20)            │
-│  /release:plan {NN}     →  {NN}-PLAN/  (manifest.md + W1..WN wave files)  │
-│                            fullstack: -BACKEND/ + -FRONTEND/ dirs         │
-│  /release:execute {NN}  →  TDD: RED → GREEN → REFACTOR → SECURITY         │
+│  /release:spec {NN}     →  SPEC.md compacto (AC + D-XX + riscos)          │
+│  /release:discuss {NN}  →  atualiza só dúvidas HIGH/MED no mesmo SPEC     │
+│  /release:plan {NN}     →  um {NN}-PLAN.md com 2–8 tasks verticais        │
+│  /release:execute {NN}  →  uma passagem + testes focados + gate final     │
 │                            Django: pytest, ruff                           │
 │                            React:  vitest, tsc                            │
 │  /release:verify {NN}   →  VERIFICATION.md (PASS / GAPS_FOUND)            │
@@ -272,7 +258,7 @@ Derivar o perfil do model da sessão **garante que nunca se spawna um tier que v
 ### Django-specific (lógica pura Django)
 | Agent | Papel |
 |---|---|
-| `django-discuss-orchestrator` | 10-dim questionnaire backend (models, multi-tenancy, Celery, F(), select_for_update, etc) — spawned por `/release:discuss` |
+| `django-discuss-orchestrator` | Compatibilidade para discussões Django legadas; o fluxo novo atualiza SPEC sem questionário fixo |
 | `django-checklist-verifier` | Q1-Q7 verifier Django — spawned por `/release:checklist` |
 
 ---
@@ -291,13 +277,8 @@ Derivar o perfil do model da sessão **garante que nunca se spawna um tier que v
 | Hook | Evento | Propósito |
 |---|---|---|
 | `django-validate-commit.sh` | PreToolUse:Bash | Enforcement de Conventional Commits (ambas stacks) |
-| `django-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — avisa em edit de core Django sem teste |
-| `django-tenant-scope-check.sh` | PreToolUse:Write/Edit | Avisa quando Model novo pula TenantModel |
-| `django-prompt-guard.js` | PreToolUse:Write/Edit | Escaneia `.release-planning/` por padrões de prompt injection |
-| `react-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — avisa em edit de component React sem teste |
-| `react-security-guard.js` | PreToolUse:Write/Edit | Avisa em localStorage token, dangerouslySetInnerHTML, eval |
-| `release-read-injection-scanner.js` | PreToolUse:Read | Escaneia files lidos por padrões de prompt-injection |
-| `release-context-monitor.js` | PostToolUse:* | Tracking de tool-call count; avisa em 50/100/150 pra summarizar ou `/release:pause-work` |
+| `release-edit-guard.js` | PreToolUse:Write/Edit | Um único processo: teste focado, tenant scope, prompt injection e segurança React |
+| `release-token-collector.js` | PostToolUse:* | Lê apenas bytes novos do transcript e alimenta o dashboard de custo |
 
 ---
 
@@ -412,28 +393,19 @@ cd ~/meu-projeto
 /release:phase add "Lista de invoices com filtro e export CSV"
   # → adiciona Phase 01 ao ROADMAP, cria diretório da fase
 
-# 3. Discuss — perguntas Django + React
-/release:discuss 01
-  # → backend: contrato API, escopo de tenant, estratégia ORM
-  # → frontend: estrutura de component, slice Zustand, key TanStack Query, schema Zod
-  # → trava D-01..D-22 em CONTEXT.md
+# 3. Spec — resultado, critérios e decisões que realmente mudam implementação
+/release:spec 01
+  # → um 01-SPEC.md compacto; pergunta só o que não dá pra inferir
 
-# 4. Plan ambos os lados
+# 4. Um plan fullstack
 /release:plan 01
-  # → detecta: FULLSTACK
-  # → backend: PLAN-BACKEND.md (pytest TDD, Q1-Q7, 9 security)
-  # → frontend: PLAN-FRONTEND.md (vitest TDD, RC1-RC7, 9 security)
-  # → integration check: campos do serializer ↔ schema Zod alinhados?
+  # → um 01-PLAN.md, normalmente 2–8 tasks verticais
+  # → lint estrutural determinístico; checker LLM só em risco C3/C4
 
-# 5. Executa backend primeiro (API antes de UI)
-/release:execute 01 --backend
-  # → RED → GREEN → REFACTOR → SECURITY
-  # → pytest + ruff gated por commit
-
-# 6. Executa frontend
-/release:execute 01 --frontend
-  # → RED → GREEN → REFACTOR → SECURITY
-  # → vitest + tsc gated por commit
+# 5. Executa tudo uma vez
+/release:execute 01
+  # → testes focados durante build + um gate fullstack final + auto-land seguro
+  # → use --loop somente quando quiser correção autônoma limitada
 
 # 7. Verifica ambos
 /release:verify 01
@@ -510,22 +482,12 @@ Se você não quer decorar 32 comandos, use o roteador:
 ├── audit-fix-log.md                        # log de loop /release:audit-fix
 └── phases/
     └── {NN}-{slug}/
-        ├── {NN}-SPEC.md                    # output do spec (score de ambiguidade)
-        ├── {NN}-CONTEXT.md                 # output do discuss (D-XX backend + frontend)
-        ├── {NN}-ASSUMPTIONS.md             # output de assumptions-analyzer
-        ├── {NN}-RESEARCH.md                # output do researcher (single-stack)
-        ├── {NN}-PLAN/                      # v0.11.0+ wave-split DIR
-        │   ├── manifest.md                  # must_haves + threat_model 9-cat + waves table
-        │   ├── W1-red-tests.md              # ~200-600 linhas, 3-5 tasks (hard cap 600)
-        │   ├── W2-{subsystem}.md
-        │   ├── ...
-        │   └── WN-verify.md
-        ├── {NN}-PLAN-BACKEND/               # (fullstack: lado Django — dir de waves)
-        ├── {NN}-PLAN-FRONTEND/              # (fullstack: lado React — dir de waves)
-        ├── {NN}-PLAN.md                    # legacy single-file (pré-v0.11) OR fullstack orchestration < 200 linhas
-        ├── {NN}-PLAN-CHECK.md              # plan-checker veredito pre-execute (inclui wave budget audit)
+        ├── {NN}-SPEC.md                    # outcome + AC + D-XX + riscos
+        ├── {NN}-PLAN.md                    # 2–8 tasks verticais; backend/frontend juntos
+        ├── {NN}-CONTEXT.md                 # opcional: compatibilidade com fases antigas
+        ├── {NN}-PLAN-CHECK.md              # opcional: review strict C3/C4
         ├── {NN}-CONVERGENCE-LOG.md         # iterações de /release:plan-review-convergence
-        ├── {NN}-PATTERNS.md                # output de pattern-mapper
+        ├── {NN}-PATTERNS.md                # legado/opt-in; não gerado no fluxo padrão
         ├── {NN}-UI-SPEC.md                 # contrato design UI (fases frontend)
         ├── {NN}-UI-CHECK.md                # react-ui-checker veredito pre-impl
         ├── {NN}-UI-REVIEW.md               # react-ui-auditor audit scored

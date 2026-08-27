@@ -1,323 +1,64 @@
 ---
 name: auto
 description: >
-  Freeform-intent router for release-sdk. Reads the user's prompt + `.release-planning/`
-  state and dispatches to the right `/release:*` skill (or proposes inline execution for
-  trivial work). Always prints the chosen route + a 1-line reason before invoking, so the
-  user can abort. Falls back to `AskUserQuestion` when classification confidence is low.
-  Use when: the user describes an intent without specifying a command, or invokes
-  `/release:auto <freeform prompt>`.
+  Cheap freeform router for release-sdk. Classifies the user's intent, reads only the state needed
+  to break a tie, prints one route/reason line, and dispatches exactly one release skill.
 ---
 
-## Agent Policy (LOCKED — applies to all routed skills)
+# /release:auto — lightweight intent router
 
-NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. This applies to every skill this router dispatches to.
+`/release:auto <intent>` routes; it never implements, spawns workers, edits state or commits.
+Downstream skills own complexity, models and execution. Use `release-*` agents only.
 
-**Substitution map** (`gsd-<x>` → `release-<x>`):
-- `gsd-debugger` → `release:debugger`
-- `gsd-planner` → `release-planner`
-- `gsd-executor` → `release-executor`
-- `gsd-code-reviewer` → `release:code-reviewer`
-- `gsd-verifier` → `release-verifier`
-- `gsd-phase-researcher` → `release-phase-researcher`
-- `gsd-pattern-mapper` → `release:pattern-mapper`
-- `gsd-plan-checker` → `release:plan-checker`
-- `gsd-ui-researcher` → `release:react-ui-researcher`
-- `gsd-ui-checker` → `release:react-ui-checker`
-- `gsd-ui-auditor` → `release:react-ui-auditor`
-- `gsd-code-fixer` → `release:code-fixer`
-- `gsd-security-auditor` → `release:security-auditor`
-- `gsd-doc-writer` → `release:doc-writer`
-- `gsd-roadmapper` → `release-roadmapper`
-- (general rule) `gsd-<name>` → `release-<name>`
+## Routing
 
-Substituting `gsd-*` bypasses release-sdk hooks/audit/stack-dispatch and corrupts plugin isolation. If the matching `release-*` agent is missing, abort and surface the gap — do **not** fall back.
+1. If the prompt names `/release:X`, dispatch X unchanged.
+2. Match the first clear intent group below. Do not scan the repository when words alone decide it.
+3. Read at most the first 80 lines of `.release-planning/STATE.md` only when active phase/stage is
+   needed. Check directory existence only for `init` versus `import`.
+4. Print `→ /release:{skill} — {short reason}` and dispatch exactly once with the original args.
+5. If two materially different routes remain plausible, ask one question with the two candidates.
 
----
-
-## Model-Tier Orchestration (LOCKED — applies to every routed skill)
-
-Every operation runs as a **loop** on a two-tier model hierarchy. Source of truth: `bin/release-model-lib.sh`. Full doctrine + topology diagram: README → "Model-tier orchestration".
-
-**The topology.** The **orchestrator** (THIS session — the main loop: *plan → fan out → evaluate → re-dispatch*) fans work out to **N workers**, each running its own inner **worker loop** (build → self-check → fix). The orchestrator NEVER authors code; a worker NEVER decides its own "done". Every **checker/verifier** runs on the **orchestrator tier** — a model *above* the maker evaluates the maker's work, so "the orchestrator loops to evaluate the workers" is literal AND maker≠checker (anti-confirmation-bias) holds by construction.
-
-**Profile = your own session model — auto-derived, NEVER ask the user.** You already know your model from your system prompt ("You are powered by …"). Derive the profile from it silently:
-- You are **Fable** → profile `fable-opus`: workers = **Opus**, orchestrator/checkers = **Fable**.
-- You are **Opus** (Fable unavailable) → profile `opus-sonnet`: workers = **Sonnet**, orchestrator/checkers = **Opus**.
-- Any other session model → nearest match: treat a model at/above Opus as `fable-opus` behavior only if it truly has Fable workers, else `opus-sonnet`. When unsure, `opus-sonnet` (the safe floor).
-
-Deriving from the session model guarantees a spawn NEVER requests a tier the user lacks (workers are always exactly one rung below the orchestrator). bash cannot read the session model (no env var — only `$CLAUDE_EFFORT`), so YOU set it from self-knowledge; there is nothing to prompt the user for.
-
-**At the start of any spawning operation, resolve tiers ONCE:**
-```bash
-find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
-MODEL_LIB="$(find_lib release-model-lib.sh)"; [ -f "$MODEL_LIB" ] && . "$MODEL_LIB"
-# You know your own model → set the profile from it (silent auto-detect; do NOT ask the user):
-#   → you are Opus (no Fable):  export RELEASE_MODEL_PROFILE=opus-sonnet
-#   → you are Fable:            leave the default (fable-opus)
-# A user's explicit RELEASE_MODEL_PROFILE env or .release-planning/MODELS.yml `profile:` pin ALWAYS wins
-# (the rare cost-control / headless override — the lib reads both; no command needed to set them).
-WORKER_MODEL="$(release_worker_model)"; CHECKER_MODEL="$(release_checker_model)"
-ORCH_MODEL="$(release_orchestrator_model)"; MECH_MODEL="$(release_mechanical_model)"
-echo "→ models: $(release_model_summary)"    # transparency: prints the active mapping every run
-```
-
-**Then EVERY spawn passes an explicit `model:`** — never rely on inherited defaults (an unset model would run a worker at the orchestrator tier). Role → model, all at **maximum effort**:
-
-| Role | Agents | `model:` |
-|------|--------|----------|
-| Maker / fixer / auditor / debugger (worker loop) | `tdd-executor`, `code-fixer`, `test-runner`, `security-auditor`, `advanced-threat-auditor`, `*-security-retro`, `debugger` | `$WORKER_MODEL` |
-| Fan-out sub-orchestrator + checker/verifier | `wave-executor`, `phase-verifier`, `loop-goal-verifier` | `$CHECKER_MODEL` |
-| Collection-only (the ONE effort exception) | `test-discover` | `$MECH_MODEL` |
-
-**Per-task refinement (v0.22.0).** `$WORKER_MODEL` is the **ceiling** for makers, not a flat rate.
-When a PLAN task carries a `complexity:` label, `release:wave-executor` resolves that spawn's tier
-with `release_worker_model_for <complexity>`: `simple` → one rung below `$WORKER_MODEL` with a hard
-floor at sonnet, `standard`/`complex`/unlabelled → `$WORKER_MODEL`. It can only **demote** — no label
-routes a spawn above the tier this session handed down, and haiku never authors code. `code-fixer`
-is exempt (a fix is diagnosis on failed evidence): always `$WORKER_MODEL`.
-
-Also instruct every worker spawn to "operate at maximum rigor / max effort" in its prompt (subagent effort is not yet a spawnable param; `$CLAUDE_EFFORT` on this session is already `max`). If the lib is unreachable, fall back to the frontmatter defaults (worker→sonnet, checker→opus) and say so.
-
----
-
-# /release:auto — Intent Router
-
-One entry point. User describes what they want; this skill picks the right
-`/release:*` command, shows reasoning, dispatches.
-
-## Usage
-
-```
-/release:auto fix the bug where invoice export crashes on PDFs >10MB
-/release:auto add a new endpoint to list archived projects
-/release:auto where am I
-/release:auto tela de configurações de empresa
-/release:auto import this GSD repo
-```
-
-The arg is freeform — no syntax, no flags. Empty arg = same as `/release:status`.
-
----
-
-## Execution flow
-
-### Step 1 — State scan (always, parallel)
-
-Run these reads in parallel (Bash + Read). Skip gracefully if a path is missing:
-
-| Probe | Purpose |
+| Intent | Route |
 |---|---|
-| `test -d .release-planning && ls .release-planning/` | release-sdk initialized? |
-| `test -d .planning && ls .planning/` | GSD source present? (import signal) |
-| Read `.release-planning/STATE.md` (first 60 lines) | active phase, stage, cursor |
-| `git status --short \| head -20` | uncommitted work? |
-| `git log --oneline -3` | recent activity |
+| empty, status, where/onde, next/próximo | `status` |
+| import GSD / `.planning` exists but release is not initialized | `import` |
+| init/bootstrap/new project | `init` |
+| bug, crash, traceback, broken, investigate | `debug` |
+| UI/screen/page/modal/component design | `ui-phase` |
+| LLM/prompt/RAG/embedding/provider model | `ai-phase` |
+| security/vulnerability/threat/OWASP | `secure-phase` if the phase is already built; else `security` |
+| review diff/code | `review` |
+| UAT/did it work/validate behavior | `verify-work` |
+| missing/add tests or coverage gap | `add-tests`; use `validate-phase` only for a phase-wide audit |
+| execute/run plan/finish phase | `execute`; add `--loop` only if autonomy is explicit |
+| plan/break into tasks | `plan` |
+| discuss/open questions/tradeoffs | `discuss` |
+| explicit keep-fixing/loop on bounded goal | `loop` |
+| ship/PR | `ship` |
+| parallel session/worktree | `session` |
+| land/merge back held work | `land` |
+| docs/README | `docs-update` |
+| pause/save context | `pause-work` |
+| resume/continue saved session | `resume-work` |
+| undo/revert/rollback | `undo` |
+| run all remaining phases | `autonomous` |
+| milestone start/finish/audit | `new-milestone`, `complete-milestone`, or `audit-milestone` |
+| map/analyze repository | `map-codebase` |
+| bounded audit-finding cleanup | `audit-fix` |
+| post-mortem/what went wrong | `forensics` |
 
-Record:
-- `release_initialized` (bool)
-- `gsd_present` (bool)
-- `active_phase` (NN or null)
-- `active_stage` (string or null) — one of: `spec`, `discussed`, `planned`, `executing`, `verified`, `shipped`
-- `dirty_worktree` (bool)
+## Feature-size fallback
 
-### Step 2 — Classify intent
+When no intent row matches, classify the requested change without estimating the whole repository:
 
-Apply rules in order. First match wins. Cite the rule that fired in the dispatch line.
+- C0: obvious single-file/docs/rename/import cleanup, roughly under 30 LOC → `fast`.
+- C1/C2: bounded behavior, normally up to 10 related files, no unresolved product/architecture
+  choice and no risk floor → `quick`.
+- C3/C4, broad feature, unknown public behavior, architecture, auth/authorization, payments,
+  privacy, tenancy, destructive migration or data-loss risk → `spec`.
 
-| # | Signal in prompt | State condition | Route |
-|---|---|---|---|
-| 1 | "import GSD", "port .planning", "switch from GSD" | `gsd_present == true` AND `release_initialized == false` | `/release:import` |
-| 2 | empty arg OR "where am I", "status", "what's next", "onde estou", "próximo" | — | `/release:status` |
-| 3 | "new project", "bootstrap", "init", "comecei do zero" | `release_initialized == false` | `/release:init` |
-| 4 | "ship", "merge", "PR", "publica", "abre PR" | `active_stage == verified` | `/release:ship` |
-| 5 | "bug", "broken", "fails", "investigate", "stack trace", "crash", "quebra", "falha", contains pasted error/traceback | — | `/release:debug` |
-| 6 | "tela", "screen", "modal", "página", "component", "UI design" | — | `/release:ui-phase` |
-| 7 | "LLM", "GPT", "prompt", "embedding", "Claude", "Anthropic", "OpenAI", "RAG" | — | `/release:ai-phase` |
-| 8 | "security", "vulnerab", "audit", "OWASP", "auth bypass", "threat" | `active_stage in {executing, verified, shipped}` | `/release:secure-phase` |
-| 9 | "security", "vulnerab" — without a shipped/verified phase | — | `/release:security` |
-| 9a | advanced threat surface: "race condition", "TOCTOU", "SSRF", "deserialization", "pickle", "command injection", "SSTI", "XXE", "JWT forgery", "alg confusion", "SQL injection", "image bomb", "decompression bomb", "pixel flood", "ImageTragick", "zip slip", "AWS", "S3", "IAM", "IMDS", "169.254", "presigned URL", "cloud security", "subdomain takeover" | — | `/release:security` — advanced threat surface → full security audit (incl. release:advanced-threat-auditor A1-A13 / RA1-RA5) |
-| 10 | "review", "code review", "diff review" | `active_stage in {executing, verified}` | `/release:review` |
-| 11 | "test gap", "missing tests", "UAT failed", "add tests" | `active_phase != null` | `/release:verify` |
-| 12 | "verify", "UAT", "did it work", "validar" | `active_phase != null` | `/release:verify-work` |
-| 13 | "parallel", "session", "paralelo", "domínio", "worktree", "branch off", "sessões simultâneas" | — | `/release:session` |
-| 13a | "land", "aterrissa", "merge back", "land the quick/phase", "finish the held merge", "/release:land" | a held / `--no-merge` unit exists (a `quick/*`, `feat/*`, or `session/*` worktree whose branch is not yet on base) | `/release:land` |
-| 14 | "checklist", "RC1", "RC7", "Q1", "Q7" | — | `/release:checklist` |
-| 14a | "/release:loop", "loop this", "keep fixing until green", "drive it to done", "build-test-fix loop", "deixa rodando até passar", "itera até ficar verde" — closed loop on a bounded FREEFORM task with NO phase (goal = the prompt). For a PHASE, `/release:execute` already loops → rule 15. (NOT "audit-to-fix loop" → 29; NOT "run all phases" → 21) | `active_phase == null` AND a bounded buildable goal | `/release:loop` |
-| 15 | "execute", "run plan", "roda fase", "termina", "loop the phase", "drive phase to done", "keep fixing until green" + a phase | `active_stage in {planned, executing}` | `/release:execute` — LOOPS by default (build→gate→checker→fix→land; `--once` = single-pass) |
-| 16 | "plan", "break into tasks", "task list", "RC1-RC7" | `active_stage == discussed` | `/release:plan` |
-| 17 | "discuss", "explore tradeoffs", "open questions" | `active_stage == spec` | `/release:discuss` |
-| 18 | "new feature", "design", "spec", "como modelar", "what should X do" | — | `/release:spec` |
-| 19 | bounded multi-file change (3-10 files, no new design): "add field X to model + migration + serializer", "swap library X for Y in {dirs}", "wire CSRF passthrough" | — | `/release:quick` |
-| 20 | trivial single-file edit: "rename X to Y", "add log line", "fix typo", "tweak comment", "change variable", "remove unused import" — single-file feel, <30 LOC | — | `/release:fast` |
-| 21 | "run all remaining phases", "executa tudo", "termina o milestone", "walk away and finish" | `active_stage in {verified, shipped}` and ROADMAP has more phases | `/release:autonomous` |
-| 22 | "analyze repo", "map codebase", "scan stack", "what's in this repo" | — | `/release:map-codebase` |
-| 23 | "add test", "regression test for", "coverage for", "test gap fill" — additive testing on existing code | — | `/release:add-tests` |
-| 24 | "nyquist", "coverage audit", "validate coverage", "≥2 tests per req" | `active_phase != null` | `/release:validate-phase` |
-| 25 | "peer review plan", "cross-AI plan", "convergence", "have codex/gemini review the plan" | `active_stage == planned` | `/release:plan-review-convergence` |
-| 26 | "audit UI", "review UI debt", "UI quality scorecard", "6-pillar UI" | `active_phase != null` AND phase has UI | `/release:ui-review` |
-| 27 | "audit eval", "AI eval coverage", "eval-review", "are the rubrics covered" | `active_phase != null` AND phase has AI | `/release:eval-review` |
-| 28 | "post-mortem", "what went wrong", "diagnose the failure", "forensics" | something in STATE history shows failure | `/release:forensics` |
-| 29 | "burn down debt", "fix all issues", "audit-to-fix loop", "clean up the auditor findings" | `active_stage in {verified, shipped}` | `/release:audit-fix` |
-| 30 | "UAT status", "outstanding UATs", "cross-phase UAT", "which UATs still pending" | — | `/release:audit-uat` |
-| 31 | "update README", "regenerate docs", "refresh ARCHITECTURE.md", "docs out of date" | — | `/release:docs-update` |
-| 32 | "pause", "save state", "context handoff", "stopping for the day", "before /clear", "wrap for now" | — | `/release:pause-work` |
-| 33 | "resume", "pick up where I left off", "continue from yesterday", "restore session", session-id pattern `YYYY-MM-DD-HHhMM` | `.release-planning/sessions/` exists with ≥1 dir | `/release:resume-work` |
-| 34 | "undo", "rollback", "revert", "desfaz fase", "revert plan", "rollback phase" | `dirty_worktree == false` | `/release:undo` |
-| 35 | "MVP", "vertical slice", "thin slice", "user story", "SPIDR", "narrow scope", "smallest viable" | `active_phase != null` AND phase status is `not-started` | `/release:mvp-phase` |
-| 36 | "new milestone", "next version", "start v1.1", "start v2.0", "começar próximo release", "kick off milestone" | current milestone has 0 phases in `executing`/`planned` | `/release:new-milestone` |
-| 37 | "complete milestone", "close milestone", "finish v1.0", "fechar milestone", "ship milestone" | all phases in current milestone at stage `shipped` | `/release:complete-milestone` |
-| 38 | "milestone health", "audit milestone", "milestone status", "REQ coverage", "is the milestone ready" | current milestone has ≥1 phase | `/release:audit-milestone` |
-| 39 | anything else | — | `<ambiguous>` (Step 3 fallback) |
-
-### Step 3 — Confidence + fallback
-
-After Step 2 picks a route, score confidence:
-
-- **HIGH**: at least 2 signals from rule body matched (e.g., both keyword AND state condition) → dispatch directly.
-- **MED**: single keyword match with no state condition → dispatch but print a softer reason ("matched keyword X; if wrong, abort and re-run with explicit command").
-- **LOW** OR route == `<ambiguous>`: do NOT dispatch. Use `AskUserQuestion` with the top 2 candidate routes + an "Other (type command)" escape:
-
-```
-Question: "Intent unclear. Which /release:* command?"
-Options:
-  - "/release:spec — define a new feature"  (description: "...")
-  - "/release:status — show current state"  (description: "...")
-  - "Other — let me type the command"       (description: "...")
-```
-
-User pick → dispatch. "Other" → exit cleanly with the candidate list printed.
-
-### Step 4 — Dispatch protocol
-
-Before invoking the chosen skill, print ONE line:
-
-```
-→ /release:auto routing to {chosen_skill} — reason: {rule N, "signal: ...", state: "..."}
-```
-
-Then invoke via the `Skill` tool with the chosen skill name and the original freeform arg
-as `args`. Do NOT modify the user prompt. Do NOT inject extra context. The downstream skill
-reads `.release-planning/STATE.md` on its own.
-
-(Inline execution is no longer a route in this skill — rule 19 dispatches to `/release:quick`
-and rule 20 dispatches to `/release:fast`, both of which own their own inline / agent flow.
-`/release:auto` itself never does the work directly.)
-
----
-
-## Constraints
-
-- **One dispatch per invocation.** Never call two `Skill` tools in a row. If the chosen
-  skill needs follow-up, the user re-invokes `/release:auto` after it finishes.
-- **Never auto-commit on routing.** The chosen skill owns its own commits — including
-  `/release:fast` and `/release:quick`. `/release:auto` itself never touches the worktree.
-- **Never modify `.release-planning/STATE.md` directly.** State transitions belong to the
-  dispatched skill.
-- **Never write to `.planning/`.** That's GSD-owned (see `release:import-orchestrator`).
-- **Print the route before dispatch.** No silent routing — the user must always see the
-  decision and have time to abort.
-- **Fall back loudly.** LOW confidence → `AskUserQuestion`, never a silent guess.
-- **No infinite loops.** If the chosen skill itself ends up re-invoking `/release:auto`,
-  abort with: `"Route loop detected: {chosen_skill} → /release:auto. Exiting."`
-
----
-
-## Example — HIGH confidence dispatch
-
-```
-/release:auto fix the bug where invoice export crashes on PDFs >10MB
-
-→ State: release_initialized=true, active_phase=03-invoice-pdf-export,
-         active_stage=executing, dirty_worktree=false
-→ Match: rule 5 (signal: "bug" + "crashes")
-→ Confidence: HIGH (keyword × 2)
-→ /release:auto routing to /release:debug — reason: bug report with crash signal during active phase
-[dispatches to /release:debug with the original prompt as args]
-```
-
-## Example — MED confidence dispatch
-
-```
-/release:auto add archive endpoint
-
-→ State: release_initialized=true, active_phase=null
-→ Match: rule 18 (signal: "add" + implicit "new feature")
-→ Confidence: MED (single keyword; no active phase context)
-→ /release:auto routing to /release:spec — reason: looks like a new feature request;
-  if wrong, abort and run /release:auto with a clearer intent
-[dispatches to /release:spec]
-```
-
-## Example — LOW confidence fallback
-
-```
-/release:auto check the celery thing
-
-→ State: release_initialized=true, active_phase=02-celery-tasks, active_stage=executing
-→ Match: no clear rule (could be debug, review, verify, secure-phase)
-→ Confidence: LOW
-→ AskUserQuestion: "Intent unclear. Which /release:* command?"
-   Options:
-     - "/release:review — code-review the active phase"
-     - "/release:verify-work — run UAT against the phase"
-     - "Other — let me type the command"
-```
-
-## Example — Import detection
-
-```
-/release:auto onde estou
-
-→ State: release_initialized=false, gsd_present=true
-→ Match: rule 1 (gsd source detected, release-sdk not initialized — bridge needed first)
-→ Confidence: HIGH (state-driven)
-→ /release:auto routing to /release:import — reason: GSD .planning/ present but
-  .release-planning/ missing; run import before any other /release:* command
-[dispatches to /release:import]
-```
-
-## Example — Trivial single-file edit
-
-```
-/release:auto rename `EmpresaSerializer.user_email` to `owner_email`
-
-→ State: release_initialized=true, dirty_worktree=false
-→ Match: rule 20 (trivial rename; single-symbol scope)
-→ Confidence: HIGH
-→ /release:auto routing to /release:fast — reason: single-file rename, < 30 LOC
-[dispatches to /release:fast]
-```
-
-## Example — Bounded multi-file change
-
-```
-/release:auto add `archived_at` to Invoice model + migration + serializer + admin
-
-→ State: release_initialized=true, active_phase=03-invoice-pdf-export, active_stage=executing
-→ Match: rule 19 (bounded scope: 4 files, no new design)
-→ Confidence: HIGH
-→ /release:auto routing to /release:quick — reason: multi-file (4) but bounded; no SPEC needed
-[dispatches to /release:quick]
-```
-
----
-
-## Notes
-
-- This skill is meta: it does NOT itself plan, execute, or modify project state. It only
-  routes. All real work happens in the dispatched skill.
-- For users who prefer explicit commands: `/release:auto` is opt-in; nothing else in
-  release-sdk depends on it.
-- GSD analog: this mirrors `gsd-progress` ("unified situational command"). release-sdk
-  now ships native equivalents for the high-traffic verbs (`/release:debug`,
-  `/release:quick`, `/release:fast`, `/release:ship`, `/release:autonomous`,
-  `/release:map-codebase`, `/release:add-tests`, `/release:validate-phase`,
-  `/release:plan-review-convergence`, `/release:ui-review`, `/release:eval-review`,
-  `/release:forensics`, `/release:audit-fix`, `/release:audit-uat`,
-  `/release:docs-update`, `/release:pause-work`, `/release:resume-work`,
-  `/release:undo`, `/release:mvp-phase`, `/release:new-milestone`,
-  `/release:complete-milestone`, `/release:audit-milestone`) so routing stays inside the `/release:*` namespace.
-  `/gsd:*` is no longer a fallback path here.
-- Future work: train a tiny embeddings-based classifier from real routing logs to replace
-  the heuristic table. For now, the table is good enough and auditable.
+Confidence is HIGH when scope or two independent signals agree, MED for one clear signal, LOW when
+the candidates imply different scopes. Dispatch HIGH/MED; ask only for LOW. Never run a five-command
+state probe, paste state into the downstream prompt, invoke two skills, or make `execute` loop unless
+the user explicitly requested autonomous correction.

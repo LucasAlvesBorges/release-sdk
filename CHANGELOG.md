@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.25.0] — 2026-08-27
+
+### Changed — adaptive token-economy workflow
+
+- `spec` now owns scope, acceptance and decisions in one compact artifact; `discuss` is a resume/
+  amendment path instead of a second discovery pipeline.
+- `plan` uses one planner and deterministic structural lint by default. Research, pattern mapping and
+  an LLM checker are conditional on C3/C4 risk. New fullstack plans use one file.
+- `quick` and `execute` are single-pass by default, run focused tests plus one cached gate, and avoid
+  test-agent fleets. Parallel waves require at least three independent, file-disjoint strict tasks.
+- `loop` is explicit, delta-only, capped at 1/2/3 correction rounds by complexity and USD 5 by default.
+- Claude defaults to the cost-safe `opus-sonnet` profile, proportional effort and worker-tier C0–C2
+  checking. Codex uses compact runtime contracts, smaller output budgets and Terra/medium for normal
+  planning/coordination.
+- Five edit hooks were consolidated into `release-edit-guard.js`; per-read scanning and the per-tool
+  context-monitor process left the hot path. Token collection now advances by byte offset rather than
+  reparsing a 256 KiB tail.
+- Added shared economy policy, deterministic PLAN lint, cached GREEN gates and conservative pricing
+  fallbacks for new Opus/Fable model IDs.
+- Token telemetry now attributes workflow, child agent, phase, C0–C4 complexity and mode, and records
+  per-event latency, spawn count and gate executions. The dashboard and `--stats-file` aggregation
+  expose those dimensions while retaining the old `skill` field.
+- Stack experts were reduced to compact opt-in entry points with progressive references. Routine
+  workflow execution no longer loads a second expert persona automatically.
+- `verify` consumes the shared committed-tree gate cache and runs cross-phase integration only with
+  `--integration`. `review` uses one unified fullstack reviewer by default and splits only in strict
+  C3/C4 scopes with disjoint files.
+- AI/UI contracts are inline for established C1/C2 patterns. Framework comparison, external
+  research and strict UI checking are opt-in or limited to unresolved C3/C4 decisions.
+- `session` now loads one subcommand reference instead of a multi-thousand-word embedded shell
+  manual; deprecated `workstreams` is a short compatibility alias. Seven inactive legacy hooks and
+  eleven duplicated agent-policy blocks were removed from source and generated packages.
+
 ## [0.24.1] — 2026-08-11
 
 Fixes from an independent adversarial audit of v0.22.0..v0.24.0. The transversal finding: the suites

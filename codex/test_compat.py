@@ -152,7 +152,7 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertEqual(json.loads(second.stdout)["updated"], 0)
             self.assertEqual(sentinel.read_text(), 'name = "unrelated"\n')
 
-    def test_apply_patch_adapter_reaches_security_guard(self) -> None:
+    def test_apply_patch_adapter_reaches_consolidated_edit_guard(self) -> None:
         if not shutil.which("node"):
             self.skipTest("node unavailable")
         payload = {
@@ -165,7 +165,7 @@ class CodexCompatibilityTests(unittest.TestCase):
             [
                 "node",
                 str(PLUGIN / "hooks" / "codex-edit-adapter.js"),
-                str(PLUGIN / "hooks" / "react-security-guard.js"),
+                str(PLUGIN / "hooks" / "release-edit-guard.js"),
             ],
             input=json.dumps(payload),
             capture_output=True,
@@ -173,25 +173,104 @@ class CodexCompatibilityTests(unittest.TestCase):
             check=True,
         )
         output = json.loads(result.stdout)
-        self.assertIn("AUTH TOKEN", output["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("AUTH_TOKEN_STORAGE", output["hookSpecificOutput"]["additionalContext"])
 
-    def test_context_monitor_uses_plugin_data(self) -> None:
+    def test_runtime_hooks_use_one_edit_scan_and_no_per_call_context_monitor(self) -> None:
+        runtime = json.loads((PLUGIN / "hooks" / "hooks.json").read_text())
+        serialized = json.dumps(runtime)
+        self.assertEqual(serialized.count("release-edit-guard.js"), 1)
+        self.assertNotIn("django-workflow-guard.js", serialized)
+        self.assertNotIn("react-security-guard.js", serialized)
+        self.assertNotIn("release-context-monitor.js", serialized)
+
+    def test_legacy_hooks_are_not_shipped(self) -> None:
+        retired = {
+            "django-prompt-guard.js",
+            "django-tenant-scope-check.sh",
+            "django-workflow-guard.js",
+            "react-security-guard.js",
+            "react-workflow-guard.js",
+            "release-context-monitor.js",
+            "release-read-injection-scanner.js",
+        }
+        shipped = {path.name for path in (PLUGIN / "hooks").iterdir()}
+        self.assertTrue(retired.isdisjoint(shipped), retired & shipped)
+
+    def test_token_collector_advances_by_byte_offset(self) -> None:
         if not shutil.which("node"):
             self.skipTest("node unavailable")
         with tempfile.TemporaryDirectory() as temporary:
-            payload = {"session_id": "codex-test-session", "cwd": str(REPO_ROOT)}
-            environment = os.environ.copy()
-            environment["PLUGIN_DATA"] = temporary
-            subprocess.run(
-                ["node", str(PLUGIN / "hooks" / "release-context-monitor.js")],
-                input=json.dumps(payload),
-                capture_output=True,
-                text=True,
-                check=True,
-                env=environment,
+            root = Path(temporary)
+            transcript = root / "transcript.jsonl"
+            transcript.write_text(
+                json.dumps({
+                    "type": "user",
+                    "message": {"content": "Base directory for this skill: /skills/quick\n# /release:quick"},
+                }) + "\n" +
+                json.dumps({
+                    "type": "assistant", "uuid": "u1", "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"model": "claude-sonnet-4-6", "usage": {"input_tokens": 10, "output_tokens": 2}},
+                }) + "\n"
             )
-            state = Path(temporary) / "context-monitor" / "release-context-monitor-codex-test-session.json"
-            self.assertTrue(state.exists())
+            environment = os.environ.copy()
+            environment["PLUGIN_DATA"] = str(root / "plugin-data")
+            environment["RELEASE_TOKEN_PORT"] = "9"
+            payload = {"session_id": "incremental-test", "transcript_path": str(transcript), "cwd": str(root)}
+            command = ["node", str(PLUGIN / "hooks" / "release-token-collector.js")]
+            subprocess.run(command, input=json.dumps(payload), text=True, check=True, env=environment)
+
+            cursor_path = root / "plugin-data" / "token-tracker" / "cursors" / "incremental-test.json"
+            first = json.loads(cursor_path.read_text())
+            self.assertEqual(first["last_uuid"], "u1")
+            self.assertEqual(first["byte_offset"], transcript.stat().st_size)
+            self.assertEqual(first["skill"], "release:quick")
+
+            with transcript.open("a") as stream:
+                stream.write(json.dumps({
+                    "type": "assistant", "uuid": "u2", "timestamp": "2026-01-01T00:00:01Z",
+                    "message": {"model": "claude-opus-4-8", "usage": {"input_tokens": 5, "output_tokens": 1}},
+                }) + "\n")
+            subprocess.run(command, input=json.dumps(payload), text=True, check=True, env=environment)
+            second = json.loads(cursor_path.read_text())
+            self.assertEqual(second["last_uuid"], "u2")
+            self.assertGreater(second["byte_offset"], first["byte_offset"])
+
+    def test_token_collector_attributes_subagent_context(self) -> None:
+        if not shutil.which("node"):
+            self.skipTest("node unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            transcript = root / "agent-reviewer.jsonl"
+            transcript.write_text(json.dumps({
+                "type": "assistant",
+                "uuid": "agent-u1",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "attributionSkill": "release:review",
+                "attributionAgent": "release:code-reviewer",
+                "agentId": "agent-42",
+                "message": {
+                    "model": "claude-sonnet-4-6",
+                    "content": [{"type": "text", "text": "phase_number: 7 C3"}],
+                    "usage": {"input_tokens": 10, "output_tokens": 2},
+                },
+            }) + "\n")
+            environment = os.environ.copy()
+            environment["PLUGIN_DATA"] = str(root / "plugin-data")
+            environment["RELEASE_TOKEN_PORT"] = "9"
+            payload = {"session_id": "subagent-test", "transcript_path": str(transcript), "cwd": str(root)}
+            subprocess.run(
+                ["node", str(PLUGIN / "hooks" / "release-token-collector.js")],
+                input=json.dumps(payload), text=True, check=True, env=environment,
+            )
+            cursor = json.loads((
+                root / "plugin-data" / "token-tracker" / "cursors" /
+                "subagent-test-agent-reviewer.json"
+            ).read_text())
+            self.assertEqual(cursor["skill"], "release:review")
+            self.assertEqual(cursor["agent"], "release:code-reviewer")
+            self.assertEqual(cursor["phase"], "07")
+            self.assertEqual(cursor["complexity"], "C3")
+            self.assertEqual(cursor["mode"], "agent")
 
     def _run_agents_md_guard(self, cwd: Path, file_path: str) -> subprocess.CompletedProcess:
         payload = {"tool_name": "Write", "tool_input": {"file_path": file_path}, "cwd": str(cwd)}

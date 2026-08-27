@@ -98,24 +98,24 @@ AGENT_MODEL_OVERRIDES = {
     "codebase-mapper": (MODEL_TERRA, "medium", "explorer_deep"),
     "debugger": (MODEL_TERRA, "high", "explorer_deep"),
     "django-checklist-verifier": (MODEL_LUNA, "low", "tester"),
-    "django-discuss-orchestrator": (MODEL_FRONTIER, "high", "planner"),
+    "django-discuss-orchestrator": (MODEL_TERRA, "medium", "planner"),
     "django-security-retro": (MODEL_FRONTIER, "high", "security_reviewer"),
     "doc-classifier": (MODEL_LUNA, "low", "tester"),
     "doc-verifier": (MODEL_TERRA, "medium", "reviewer"),
     "doc-writer": (MODEL_TERRA, "medium", "worker"),
     "eval-auditor": (MODEL_TERRA, "high", "reviewer"),
-    "feature-planner": (MODEL_FRONTIER, "high", "planner"),
+    "feature-planner": (MODEL_TERRA, "medium", "planner"),
     "feature-researcher": (MODEL_TERRA, "medium", "explorer_deep"),
     "framework-selector": (MODEL_FRONTIER, "high", "planner"),
     "import-orchestrator": (MODEL_FRONTIER, "high", "planner"),
     "integration-checker": (MODEL_TERRA, "medium", "reviewer"),
     "intel-updater": (MODEL_LUNA, "medium", "explorer_fast"),
-    "loop-goal-verifier": (MODEL_TERRA, "high", "reviewer"),
+    "loop-goal-verifier": (MODEL_TERRA, "medium", "reviewer"),
     "milestone-auditor": (MODEL_TERRA, "high", "reviewer"),
     "nyquist-auditor": (MODEL_LUNA, "low", "tester"),
     "pattern-mapper": (MODEL_LUNA, "medium", "explorer_fast"),
-    "phase-verifier": (MODEL_TERRA, "high", "reviewer"),
-    "plan-checker": (MODEL_TERRA, "high", "reviewer"),
+    "phase-verifier": (MODEL_TERRA, "medium", "reviewer"),
+    "plan-checker": (MODEL_TERRA, "medium", "reviewer"),
     "react-security-retro": (MODEL_FRONTIER, "high", "security_reviewer"),
     "react-ui-auditor": (MODEL_TERRA, "medium", "reviewer"),
     "react-ui-checker": (MODEL_TERRA, "medium", "reviewer"),
@@ -127,19 +127,19 @@ AGENT_MODEL_OVERRIDES = {
     "test-discover": (MODEL_LUNA, "low", "tester"),
     "test-runner": (MODEL_LUNA, "low", "tester"),
     "uat-conductor": (MODEL_TERRA, "medium", "worker"),
-    "wave-executor": (MODEL_FRONTIER, "high", "planner"),
+    "wave-executor": (MODEL_TERRA, "medium", "planner"),
 }
 
 # Output token budget per role_class — codex/contracts/routing-policy.md §9.
 BUDGET_BY_CLASS = {
     "explorer_fast": 700,
     "explorer_deep": 1200,
-    "planner": 1500,
+    "planner": 1000,
     "worker_lite": 700,
-    "worker": 1200,
+    "worker": 1000,
     "worker_complex": 1500,
     "tester": 700,
-    "reviewer": 1200,
+    "reviewer": 900,
     "security_reviewer": 1500,
     "docs_researcher": 700,
     "handoff_writer": 500,
@@ -220,29 +220,8 @@ def transform_common(text: str) -> str:
     return text
 
 
-def transform_context_monitor(text: str) -> str:
-    start = text.find("function resolveCacheDir() {")
-    end = text.find("\nlet input = '';", start)
-    if start < 0 or end < 0:
-        raise ValueError("release-context-monitor.js layout changed")
-    replacement = """function resolveCacheDir() {
-  const primary = process.env.PLUGIN_DATA
-    ? path.join(process.env.PLUGIN_DATA, 'context-monitor')
-    : path.join('/tmp', 'release-sdk-codex-context-monitor');
-  try {
-    fs.mkdirSync(primary, { recursive: true });
-  } catch {}
-  return primary;
-}
-"""
-    text = text[:start] + replacement + text[end:]
-    return text.replace("so Claude can proactively summarize", "so Codex can proactively summarize")
-
-
 def transform_hook(path: Path, text: str) -> str:
     text = transform_common(text)
-    if path.name == "release-context-monitor.js":
-        text = transform_context_monitor(text)
     if path.name == "release-token-collector.js":
         old = "const STATE_DIR = path.join(os.homedir(), '.claude', 'token-tracker', 'cursors');"
         new = (
@@ -409,8 +388,8 @@ def build_manifest(output: Path) -> None:
         "skills": "./skills/",
         "interface": {
             "displayName": "Release SDK",
-            "shortDescription": "Structured delivery workflows with Codex subagents",
-            "longDescription": "Plan, implement, review, secure, and verify Django, React, and React Native work using Codex-native skills and specialized subagents.",
+            "shortDescription": "Adaptive, token-efficient delivery workflows",
+            "longDescription": "Compact spec, plan and proportional execution for Django, React and React Native, with bounded Codex subagents, focused verification and risk-based review.",
             "developerName": legacy["author"]["name"],
             "category": "Developer Tools",
             "capabilities": ["Read", "Write"],

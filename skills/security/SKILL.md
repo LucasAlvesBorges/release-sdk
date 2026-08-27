@@ -46,7 +46,7 @@ CHECKER_MODEL="$( [ -f "$MODEL_LIB" ] && release_checker_model || echo opus   )"
    APPENDS its `## Advanced Threat Audit` section to the same per-phase SECURITY.md — no separate file).
 5. Merge into SECURITY.md with per-stack category tables.
 6. **Orchestrator evaluation (checker tier — the "loop to evaluate the workers" leg).** YOU, on the
-   orchestrator/checker tier, review the merged findings before finalizing: reject false positives,
+   parent session, review the merged findings before finalizing: reject false positives,
    confirm each OPEN cites real evidence (a HOLLOW status-code-only test is itself a finding, never a
    PASS), and reconcile severity. This is maker≠checker — the auditors found; a model *above* them
    adjudicates. If `--fix` is passed, spawn `release:code-fixer { model: $WORKER_MODEL, ... }` on the

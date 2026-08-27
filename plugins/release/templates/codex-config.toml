@@ -36,10 +36,10 @@ prefer_read_only_parallelism = true
 [budgets]
 explorer_fast_output_tokens = 700
 explorer_deep_output_tokens = 1200
-planner_output_tokens = 1500
-worker_output_tokens = 1200
+planner_output_tokens = 1000
+worker_output_tokens = 1000
 tester_output_tokens = 700
-reviewer_output_tokens = 1200
+reviewer_output_tokens = 900
 security_reviewer_output_tokens = 1500
 handoff_output_tokens = 500
 max_retry_same_configuration = 1

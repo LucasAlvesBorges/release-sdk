@@ -6,9 +6,9 @@
 
 Context-aware `/release:*` commands route automatically to the right agents based on your files and ROADMAP. One SDK, two stacks.
 
-**Entry point:** `/release:auto <plain-language intent>` — 32-rule router that dispatches to the right `/release:*` skill, prints the chosen route + reason before invoking, falls back to `AskUserQuestion` on low confidence.
+**Entry point:** `/release:auto <plain-language intent>` — lightweight router that reads state only to break ties, prints the selected route, and never enables loops implicitly.
 
-**Current version: v0.17.0** — short `/release:*` invocation, 42 skills, 37 agents (taxonomy: unprefixed name = merged stack-dispatched, `django-*` Django-pure, `react-*` React-pure; spawned via `release:<name>` — e.g. `release:tdd-executor`). See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
+**Current version: v0.25.0** — short `/release:*` invocation with isolated Claude Code and Codex distributions. See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 
 ---
 
@@ -18,10 +18,24 @@ Context-aware `/release:*` commands route automatically to the right agents base
 
 1. `/release:init` — capture vision, lock backend + frontend stack, auth model, forbidden patterns → `PROJECT.md` (LOCK-01..LOCK-12)
 2. `/release:roadmap` — decompose milestone into vertical-slice phases → `ROADMAP.md`
-3. Per phase: `/release:discuss` → `/release:plan` → `/release:execute` → `/release:verify`
-4. Decisions locked in `discuss` become D-XX in CONTEXT.md, referenced by every PLAN.md task, verified against the actual codebase
+3. Per phase: `/release:spec` → `/release:plan` → `/release:execute` → `/release:verify`; `discuss` only resumes unresolved decisions
+4. D-XX decisions live in the compact SPEC, are referenced by PLAN tasks, and are verified against the codebase
 
 No silent assumptions. No "v1 / placeholder / will be wired later". No untraceable changes.
+
+## Adaptive cost policy
+
+The shared C0–C4 policy keeps C0/C1 work inline, uses one planner or worker for normal C2 work, and
+reserves independent checking or parallel workers for real C3/C4 risk. Auth, payments, privacy and
+tenancy floor at C3; destructive migrations and data-loss risk floor at C4. `quick` and `execute`
+are single-pass by default. Loops are explicit and capped at 1/2/3 correction rounds plus a default
+USD 5 ceiling. Claude defaults to `opus-sonnet`; Codex uses Terra/medium for normal coordination and
+reserves Frontier for genuinely complex or critical decisions.
+
+Stack experts are compact, opt-in references. Routine `spec`, `plan`, `execute`, `quick`, `loop`,
+and `review` work does not load an additional expert persona merely because Django or React is
+present. `/release:tokens` attributes cost to workflow, agent, phase, complexity and mode, including
+latency, child spawns and gate runs without storing message content.
 
 ---
 
@@ -52,9 +66,10 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 │                     →  STATE.md (cursor)                                  │
 ├──────────────────────────────────────────────────────────────────────────┤
 │  PER PHASE                            backend        frontend             │
-│  /release:discuss {NN}  →  CONTEXT.md (D-01..10)    (D-11..20)           │
-│  /release:plan {NN}     →  PLAN.md or PLAN-BACKEND.md + PLAN-FRONTEND.md │
-│  /release:execute {NN}  →  TDD: RED → GREEN → REFACTOR → SECURITY        │
+│  /release:spec {NN}     →  compact SPEC.md (AC + D-XX + risks)           │
+│  /release:discuss {NN}  →  update unresolved HIGH/MED in the same SPEC   │
+│  /release:plan {NN}     →  one PLAN.md with 2–8 vertical tasks           │
+│  /release:execute {NN}  →  single pass + focused tests + one final gate  │
 │                            Django: pytest, ruff                           │
 │                            React:  vitest, tsc                            │
 │  /release:verify {NN}   →  VERIFICATION.md (PASS/GAPS_FOUND)             │
@@ -239,13 +254,8 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 | Hook | Event | Purpose |
 |---|---|---|
 | `django-validate-commit.sh` | PreToolUse:Bash | Conventional Commits enforcement (both stacks) |
-| `django-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — warns on Django core file edit without test |
-| `django-tenant-scope-check.sh` | PreToolUse:Write/Edit | Warns when new Model skips TenantModel |
-| `django-prompt-guard.js` | PreToolUse:Write/Edit | Scans .release-planning/ for prompt injection patterns |
-| `react-workflow-guard.js` | PreToolUse:Write/Edit | TDD advisory — warns on React component edit without test |
-| `react-security-guard.js` | PreToolUse:Write/Edit | Warns on localStorage token storage, dangerouslySetInnerHTML, eval |
-| `release-read-injection-scanner.js` | PreToolUse:Read | Scans files read for prompt-injection patterns (ignore-previous, role overrides, hidden text) |
-| `release-context-monitor.js` | PostToolUse:* | Tracks tool-call count; warns at 50/100/150 to summarize or `/release:pause-work` |
+| `release-edit-guard.js` | PreToolUse:Write/Edit | One process for focused-test, tenant, prompt-injection and React-security advice |
+| `release-token-collector.js` | PostToolUse:* | Reads only new transcript bytes and feeds the cost dashboard |
 
 ---
 
@@ -359,28 +369,19 @@ cd ~/my-project
 /release:phase add "Invoice list page with filter and CSV export"
   # → adds Phase 01 to ROADMAP, creates phase directory
 
-# 3. Discuss — Django + React questions
-/release:discuss 01
-  # → backend: API contract, tenant scope, ORM strategy
-  # → frontend: component structure, Zustand slice, TanStack Query key, Zod schema
-  # → locks D-01..D-22 in CONTEXT.md
+# 3. Spec — outcome, acceptance and implementation-changing decisions
+/release:spec 01
+  # → one compact 01-SPEC.md; asks only what cannot be inferred
 
-# 4. Plan both sides
+# 4. One fullstack plan
 /release:plan 01
-  # → detects: FULLSTACK
-  # → backend: PLAN-BACKEND.md (pytest TDD, Q1-Q7, 9 security)
-  # → frontend: PLAN-FRONTEND.md (vitest TDD, RC1-RC7, 9 security)
-  # → integration check: serializer fields ↔ Zod schema aligned?
+  # → one 01-PLAN.md, normally 2–8 vertical tasks
+  # → deterministic structure lint; LLM checker only for C3/C4 risk
 
-# 5. Execute backend first (API before UI)
-/release:execute 01 --backend
-  # → RED → GREEN → REFACTOR → SECURITY
-  # → pytest + ruff gated per commit
-
-# 6. Execute frontend
-/release:execute 01 --frontend
-  # → RED → GREEN → REFACTOR → SECURITY
-  # → vitest + tsc gated per commit
+# 5. Execute once
+/release:execute 01
+  # → focused build tests + one final fullstack gate + safe auto-land
+  # → add --loop only when bounded autonomous correction is wanted
 
 # 7. Verify both
 /release:verify 01
@@ -425,16 +426,12 @@ cd ~/my-project
 ├── audit-fix-log.md                        # /release:audit-fix loop log
 └── phases/
     └── {NN}-{slug}/
-        ├── {NN}-SPEC.md                    # spec output (ambiguity score)
-        ├── {NN}-CONTEXT.md                 # discuss output (D-XX backend + frontend)
-        ├── {NN}-ASSUMPTIONS.md             # assumptions-analyzer output
-        ├── {NN}-RESEARCH.md                # researcher output (single-stack)
-        ├── {NN}-PLAN.md                    # planner output (single-stack)
-        ├── {NN}-PLAN-BACKEND.md            # (fullstack: Django side)
-        ├── {NN}-PLAN-FRONTEND.md           # (fullstack: React side)
-        ├── {NN}-PLAN-CHECK.md              # plan-checker pre-execute verdict
+        ├── {NN}-SPEC.md                    # outcome + AC + D-XX + risks
+        ├── {NN}-PLAN.md                    # 2–8 vertical tasks, backend/frontend together
+        ├── {NN}-CONTEXT.md                 # optional legacy compatibility
+        ├── {NN}-PLAN-CHECK.md              # optional strict C3/C4 review
         ├── {NN}-CONVERGENCE-LOG.md         # /release:plan-review-convergence iterations
-        ├── {NN}-PATTERNS.md                # pattern-mapper output
+        ├── {NN}-PATTERNS.md                # legacy/opt-in; not created by the default flow
         ├── {NN}-UI-SPEC.md                 # UI design contract (frontend phases)
         ├── {NN}-UI-CHECK.md                # react-ui-checker pre-impl verdict
         ├── {NN}-UI-REVIEW.md               # react-ui-auditor scored audit

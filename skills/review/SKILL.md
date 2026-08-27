@@ -1,98 +1,27 @@
 ---
 name: review
-description: >
-  Context-aware adversarial code review. Analyzes file paths to split .py files to code-reviewer
-  and .tsx/.ts files to code-reviewer. Produces a unified REVIEW.md with sections per stack.
-  Use when: reviewing PR diff, auditing recently-modified files, pre-merge quality gate.
+description: Diff-scoped adversarial review using one unified reviewer by default; strict mode may split truly independent high-risk surfaces.
 ---
 
-## Agent Policy (LOCKED)
+# `/release:review`
 
-NEVER spawn `gsd-*` agents — only `release-*`. Orphan `gsd-*` may appear in `subagent_type` list from prior installs or imported projects; ignore them. Rule: `gsd-<x>` → `release-<x>`. Substituting bypasses release-sdk hooks/audit and corrupts plugin isolation.
-
----
-
-# /release:review — Adversarial Code Review (Django + React)
-
-Routes files to the correct reviewer based on extension. Produces unified REVIEW.md.
+Review a bounded diff once and report only merge-relevant defects.
 
 ## Usage
 
-```
-/release:review                              # review all files changed vs main
-/release:review backend/apps/financeiro/     # Django-only path
-/release:review src/features/Invoices/       # React-only path
-/release:review --diff main..HEAD            # git diff
-/release:review --depth=deep                 # deep review both stacks
-/release:review --fix                        # apply fixes after review
-```
-
-> Previously: `--gsd-context` flag. Removed in v0.4.0 — use `/release:import` once to convert GSD planning files; all skills then assume release-sdk native format.
-
-## Routing logic
-
-0. Load LOCK constraints: read `.release-planning/RELEASE-LOCKS.md` if exists (GSD import), else `.release-planning/PROJECT.md`. Pass active LOCKs to each reviewer as forbidden-pattern context.
-1. Resolve files to review (from args, git diff, or changed since last commit).
-2. Split by extension:
-   - `.py` → `django_files` → spawn `release:code-reviewer`
-   - `.tsx`, `.ts`, `.jsx`, `.js` → `react_files` → spawn `release:code-reviewer`
-   - Other → skip (lock files, migrations, .md)
-3. Run reviewers in parallel if both sets present.
-4. Merge findings into single REVIEW.md with `## Django Findings` and `## React Findings` sections.
-5. Report combined totals: `{N} Django blockers, {M} React blockers`.
-
-## Fullstack integration check
-
-When BOTH Django and React files are in scope (e.g., reviewing a feature that adds API + UI):
-1. Check API contract alignment: does the Django serializer field set match the Zod schema in React?
-2. Check auth consistency: Django uses httpOnly cookie? React doesn't read token from localStorage?
-3. Report mismatches as `## Integration Issues` section in REVIEW.md.
-
-## Output
-
-```
-REVIEW.md (or path specified by --review-path):
-  Frontmatter: totals per stack
-  ## Django Findings
-    ### Blockers (CR-XX)
-    ### Warnings (WR-XX)
-  ## React Findings
-    ### Blockers (CR-XX)
-    ### Warnings (WR-XX)
-  ## Integration Issues (if fullstack)
-```
-
-## Example
-
-```
+```text
+/release:review [path]
 /release:review --diff main..HEAD
-
-→ Changed files:
-    backend/apps/financeiro/serializers.py  → Django
-    backend/apps/financeiro/views.py        → Django
-    src/features/Invoices/InvoiceList.tsx   → React
-    src/hooks/useInvoices.ts                → React
-
-→ Spawning release:code-reviewer (2 files, depth=standard)...
-→ Spawning release:code-reviewer (2 files, depth=standard)... [parallel]
-
-→ Django findings: 1 BLOCKER (mass assignment in serializer), 2 WARNINGS
-→ React findings: 0 BLOCKERS, 3 WARNINGS (missing memo, missing error state, key={index})
-
-→ Integration check:
-  InvoiceSerializer.fields: [id, amount, status, created_at]
-  InvoiceSchema (Zod): z.object({ id, amount, status, createdAt }) ← camelCase mismatch
-  ⚠️ INTEGRATION: Django serializer uses snake_case, React schema uses camelCase.
-     Ensure API client transforms keys (axios + camelcase-keys) or align naming.
-
-→ REVIEW.md written at .release-planning/review/REVIEW.md
-   Total: 1 BLOCKER, 5 WARNINGS, 1 INTEGRATION ISSUE
-→ Run /release:review --fix to apply auto-fixes.
+/release:review --strict
+/release:review --fix
 ```
 
+## Flow
 
----
+1. Resolve one canonical file list from the path/diff (default: merge base to HEAD). Exclude generated artifacts, lock files, planning output, dependencies, coverage, and unrelated files. Read active project locks once.
+2. Infer `django`, `react`, `mobile`, or `fullstack` from in-scope files and call one `release:code-reviewer` with the file paths, stack, diff/range, and locks. The unified reviewer owns cross-file and API/UI seam checks; do not send the same diff to multiple reviewers.
+3. Split only with `--strict` on a C3/C4 change whose independent, disjoint surfaces materially benefit from specialists. Give each reviewer non-overlapping paths and merge deduplicated results once.
+4. Write `.release-planning/review/REVIEW.md` (or `--review-path`) containing blockers and warnings with exact `file:line`, impact, evidence, and smallest fix. A clean review says which surfaces were inspected.
+5. With `--fix`, send only accepted finding IDs and their paths to one `release:code-fixer`. Re-run focused checks for touched behavior, then `run_gate_cached "$repo" full`; review only the resulting delta once. Never restart the entire review fleet.
 
-## Stack dispatch
-
-This skill spawns merged `release-*` agents. Stack is inferred from `.release-planning/PROJECT.md` `stack:` field (`django` | `react` | `fullstack`). For fullstack phases, per-phase stack is read from the phase frontmatter. Agents apply matching stack-specific rules.
+Depth is evidence-driven: pattern scan for small C0/C1 diffs, per-file reasoning for C2, and cross-boundary tracing for C3/C4 or `--strict`. Do not flag style preferences, speculative performance work, or missing abstractions without demonstrated impact.

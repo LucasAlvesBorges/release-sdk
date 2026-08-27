@@ -1,7 +1,7 @@
 {
   "name": "release",
-  "description": "Full-stack acceleration kit (Django + React + React Native) — stack-expert coding skills (django-expert, react-expert, react-native-expert) that auto-trigger by stack, context-aware routing, adversarial code review, 9-category + always-on advanced-threat security audit (SSRF/deserialization/exploit-grade SQLi/race-TOCTOU/image-DoS/AWS-IaC), TDD-first execution, RC1-RC7 + Q1-Q7 author checklists, N+1 detection, race-condition guards, XSS/auth-token security.",
-  "version": "0.24.1",
+  "description": "Adaptive Django, React and React Native delivery for Claude Code: compact spec/plan, proportional C0-C4 execution, explicit bounded loops, focused tests, worktree isolation and security checks.",
+  "version": "0.25.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
@@ -42,42 +42,11 @@
         ]
       },
       {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-read-injection-scanner.js\"",
-            "timeout": 3,
-            "statusMessage": "Scanning for injection patterns..."
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/django-workflow-guard.js\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/django-prompt-guard.js\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/django-tenant-scope-check.sh\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/react-workflow-guard.js\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/react-security-guard.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-edit-guard.js\"",
             "timeout": 5
           }
         ]
@@ -87,12 +56,6 @@
       {
         "matcher": ".*",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-context-monitor.js\"",
-            "timeout": 3,
-            "statusMessage": "Tracking context..."
-          },
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-token-collector.js\"",

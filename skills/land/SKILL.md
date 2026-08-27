@@ -8,13 +8,6 @@ description: >
   Trigger words: "land", "aterrissa", "merge back the quick/phase", "finish the held merge".
 ---
 
-## Agent Policy (LOCKED)
-
-NEVER spawn `gsd-*` agents — only `release-*`. This skill spawns no agents; it runs the shared
-merge-back engine directly.
-
----
-
 # /release:land — finish a deferred merge-back
 
 `/release:quick` and `/release:execute` auto-land on green. When the base checkout was **dirty**, the

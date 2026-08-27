@@ -77,6 +77,9 @@ OUT="$(RELEASE_TOKEN_PORT=9 loop_token_spend 0.50)"
 eq "daemon down → bare 'TOKENS=' (empty spend)" "TOKENS=" "$OUT"
 hasnt "no spurious stop when meter unavailable" "$OUT" "LOOP=stop"
 
+echo "── #10 default iteration budget is cost-safe ──"
+eq "omitted max stops at iteration 2" "LOOP=stop reason=budget-iters" "$(loop_guard 2 '' a b)"
+
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

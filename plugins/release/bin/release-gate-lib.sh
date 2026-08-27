@@ -94,6 +94,26 @@ release_default_gate() {  # $1 stack, $2 root → echoes `name: command` lines (
   esac
 }
 
+release_default_quick_gate() { # $1 stack, $2 root → cheap checks; focused tests ran in the maker
+  local stack="$1" root="$2" mp="manage.py" pyroot="." feroot="."
+  [ -f "$root/backend/manage.py" ] && { mp="backend/manage.py"; pyroot="backend"; }
+  [ -f "$root/frontend/package.json" ] && feroot="frontend"
+  case "$stack" in
+    django)
+      printf 'lint: ruff check %s\n' "$pyroot"
+      printf 'migrate: python %s makemigrations --check --dry-run\n' "$mp"
+      ;;
+    react)
+      printf 'lint: npm --prefix %s run lint\n' "$feroot"
+      ;;
+    fullstack)
+      release_default_quick_gate django "$root"
+      release_default_quick_gate react "$root"
+      ;;
+    *) : ;;
+  esac
+}
+
 release_gate_config() {  # $1 root → path to VERIFY-GATE.yml if present, else empty
   local f="$1/.release-planning/VERIFY-GATE.yml"
   [ -f "$f" ] && printf '%s' "$f"
@@ -106,6 +126,33 @@ release_resolve_gate() {  # $1 root → the resolved `name: command` lines (conf
   else
     release_default_gate "$(release_detect_stack "$root")" "$root"
   fi
+}
+
+release_resolve_quick_gate() { # $1 root
+  local root="$1" cfg="$1/.release-planning/VERIFY-QUICK.yml"
+  if [ -f "$cfg" ]; then
+    grep -vE '^[[:space:]]*(#|$)' "$cfg"
+  else
+    release_default_quick_gate "$(release_detect_stack "$root")" "$root"
+  fi
+}
+
+_release_gate_hash() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 | awk '{print $1}'
+  else sha256sum | awk '{print $1}'
+  fi
+}
+
+release_gate_fingerprint() { # <root> <full|quick>; empty when the tree is dirty
+  local root="$1" mode="${2:-full}" tree steps
+  git -C "$root" diff --quiet 2>/dev/null || return 0
+  git -C "$root" diff --cached --quiet 2>/dev/null || return 0
+  [ -z "$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.release-planning/' | head -1)" ] || return 0
+  tree="$(git -C "$root" rev-parse 'HEAD^{tree}' 2>/dev/null)" || return 0
+  if [ "$mode" = quick ]; then steps="$(release_resolve_quick_gate "$root")"
+  else steps="$(release_resolve_gate "$root")"
+  fi
+  printf '%s\n%s\n%s\n%s\n' "$mode" "$tree" "${RELEASE_EXEC_PREFIX:-}" "$steps" | _release_gate_hash
 }
 
 # ── baseline bridge (v0.23.0) ────────────────────────────────────────────────────────────────────
@@ -137,10 +184,8 @@ _gate_all_failures_are_baseline() {  # $1 root, $2 step name, $3 output → 0 wh
 }
 
 # ── public: run the gate ─────────────────────────────────────────────────────────────────────────
-run_gate() {  # [root] [phase]
-  local root failfast="${GATE_FAILFAST:-1}" steps line name cmd out rc verdict="" any=0 red=0 ev=""
-  root="$(release_gate_root "${1:-}")"
-  steps="$(release_resolve_gate "$root")"
+_release_run_gate_steps() { # <root> <steps>
+  local root="$1" steps="$2" failfast="${GATE_FAILFAST:-1}" line name cmd out rc verdict="" any=0 red=0 ev=""
   [ -n "$steps" ] || { echo "GATE="; return 0; }   # nothing resolved → caller decides
 
   while IFS= read -r line; do
@@ -176,4 +221,45 @@ EOF
   [ "$red" = 1 ] && verdict=RED || verdict=GREEN
   echo "GATE=$verdict"
   return 0
+}
+
+run_gate() {  # [root] [phase]
+  local root steps
+  root="$(release_gate_root "${1:-}")"
+  steps="$(release_resolve_gate "$root")"
+  _release_run_gate_steps "$root" "$steps"
+}
+
+run_quick_gate() { # [root] — no broad suite; maker already ran focused tests
+  local root steps
+  root="$(release_gate_root "${1:-}")"
+  steps="$(release_resolve_quick_gate "$root")"
+  _release_run_gate_steps "$root" "$steps"
+}
+
+run_gate_cached() { # [root] [full|quick] — reuses GREEN evidence for an unchanged committed tree
+  local root mode fingerprint cache_dir cache_file out
+  root="$(release_gate_root "${1:-}")"; mode="${2:-full}"
+  if [ "${RELEASE_GATE_CACHE:-1}" = 0 ]; then
+    [ "$mode" = quick ] && run_quick_gate "$root" || run_gate "$root"
+    return 0
+  fi
+  fingerprint="$(release_gate_fingerprint "$root" "$mode")"
+  cache_dir="$root/.release-planning/.gate-cache"
+  cache_file="$cache_dir/${fingerprint}.out"
+  if [ -n "$fingerprint" ] && [ -f "$cache_file" ]; then
+    echo "GATE_CACHE=hit"
+    command cat "$cache_file"
+    return 0
+  fi
+  if [ "$mode" = quick ]; then out="$(run_quick_gate "$root")"; else out="$(run_gate "$root")"; fi
+  printf '%s\n' "$out"
+  case "$out" in
+    *GATE=GREEN*)
+      if [ -n "$fingerprint" ]; then
+        mkdir -p "$cache_dir"
+        printf '%s\n' "$out" > "$cache_file"
+      fi
+      ;;
+  esac
 }

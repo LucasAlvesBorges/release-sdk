@@ -1,6 +1,6 @@
 # React Frontend Security Reference
 
-The browser is a hostile, fully-inspectable environment. This pairs with the Release `react-security-guard` hook and the `security-auditor`. For the Django side, see [[django-expert]] `references/security.md`.
+The browser is a hostile, fully-inspectable environment. The consolidated `release-edit-guard` covers high-signal edit-time patterns; deeper evidence belongs to `security-auditor`. For the Django side, see [[django-expert]] `references/security.md`.
 
 ## Table of Contents
 
