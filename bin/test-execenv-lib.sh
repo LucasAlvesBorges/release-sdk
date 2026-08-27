@@ -22,6 +22,9 @@
 #   #15 run_test_bounded reports a hang structurally instead of silence
 #   #16 migration hook renders (or stays empty when unconfigured)
 #   #17 env slots: opt-in reuse, stable labels, stable per-slot worktree paths
+#   #18 phase-local config overrides the project default
+#   #19 harness modes reject missing/ambiguous ownership
+#   #20 phase preparation provisions managed envs once and leaves external runners external
 #
 # Run: bash bin/test-execenv-lib.sh
 set -euo pipefail
@@ -61,6 +64,7 @@ eq "env cap 0 (no envs to cap — host-local exec)" "0" "$(release_execenv_max_p
 echo "── #2 config discovery + first-colon-only parsing ──"
 cat > "$ROOT/.release-planning/EXEC-ENV.yml" <<EOF
 # comment line: ignored
+test_harness: managed
 test_env_provision: touch {worktree}/.provisioned-{label} && printf 'ready %s' {label} > {worktree}/.state
   test_env_teardown: rm -f {worktree}/.provisioned-{label}
 test_exec_prefix: docker exec app-{label} -v {worktree}/backend:/app
@@ -106,6 +110,7 @@ eq "label reached the command" "ready w1_t02" "$(cat "$WT/.state")"
 
 echo "── #7 provision failure → evidence file with the real output ──"
 cat > "$ROOT/.release-planning/EXEC-ENV.yml" <<'EOF'
+test_harness: managed
 test_env_provision: echo "boom: db template missing" >&2; exit 7
 test_env_teardown: exit 3
 EOF
@@ -123,6 +128,7 @@ echo "── #8 teardown is best-effort and never fatal ──"
 eq "non-zero teardown reported, not raised" "EXECENV_TEARDOWN=failed" \
    "$(execenv_teardown "$ROOT" "$WT" bad)"
 cat > "$ROOT/.release-planning/EXEC-ENV.yml" <<'EOF'
+test_harness: managed
 test_env_provision: true
 test_env_teardown: printf 'gone-{label}' > TEARDOWN_MARK
 EOF
@@ -133,27 +139,29 @@ eq "teardown ran with the label rendered" "gone-zz" "$(cat "$ROOT/TEARDOWN_MARK"
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 echo "── #9 exec prefix ──"
 cat > "$ROOT/.release-planning/EXEC-ENV.yml" <<'EOF'
+test_harness: managed
 test_env_provision: true
 test_exec_prefix: docker exec app-{label}
 EOF
 eq "rendered prefix" "docker exec app-w2_t07" "$(execenv_prefix "$ROOT" "$WT" w2_t07)"
 cat > "$ROOT/.release-planning/EXEC-ENV.yml" <<'EOF'
+test_harness: managed
 test_env_provision: true
 EOF
 eq "no prefix configured → empty (host-local exec)" "" "$(execenv_prefix "$ROOT" "$WT" w2_t07)"
 
 echo "── #10 env cap ──"
-printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "active, unset → machine default (16 cores → 8)" "8" \
    "$(RELEASE_EXEC_CORES=16 release_execenv_max_parallel "$ROOT")"
-printf 'test_env_provision: true\ntest_env_max_parallel: 2\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_max_parallel: 2\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "explicit override honored" "2" "$(release_execenv_max_parallel "$ROOT")"
-printf 'test_env_provision: true\ntest_env_max_parallel: lots\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_max_parallel: lots\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "junk value → machine default (4 cores → 2)" "2" \
    "$(RELEASE_EXEC_CORES=4 release_execenv_max_parallel "$ROOT")"
 
 echo "── #11 kill switch ──"
-printf 'test_env_provision: touch {worktree}/SHOULD_NOT_EXIST\ntest_exec_prefix: docker exec x\n' \
+printf 'test_harness: managed\ntest_env_provision: touch {worktree}/SHOULD_NOT_EXIST\ntest_exec_prefix: docker exec x\n' \
   > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "DISABLE=1 → off"     "EXECENV=off" "$(RELEASE_EXECENV_DISABLE=1 release_execenv_active "$ROOT")"
 eq "DISABLE=1 → skipped" "EXECENV_PROVISION=skipped" \
@@ -176,12 +184,12 @@ case "$CORES" in ''|*[!0-9]*|0) no "detected core count is a positive integer" "
 echo "── #13 scheduler cap (env-independent, never unlimited) ──"
 eq "no EXEC-ENV.yml at all → machine default, NOT unlimited" "8" \
    "$(RELEASE_EXEC_CORES=16 release_sched_max_parallel "$BARE")"
-printf 'test_env_provision: true\ntest_env_max_parallel: 3\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_max_parallel: 3\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "explicit config below default wins" "3" "$(RELEASE_EXEC_CORES=16 release_sched_max_parallel "$ROOT")"
-printf 'test_env_provision: true\ntest_env_max_parallel: 12\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_max_parallel: 12\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "explicit config above default also wins (user sized their machine)" "12" \
    "$(RELEASE_EXEC_CORES=16 release_sched_max_parallel "$ROOT")"
-printf 'test_env_provision: true\ntest_env_max_parallel: 0\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_max_parallel: 0\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "0 = unlimited ENVS is not unlimited AGENTS → machine default" "2" \
    "$(RELEASE_EXEC_CORES=4 release_sched_max_parallel "$ROOT")"
 SC="$(RELEASE_EXEC_CORES=1 release_sched_max_parallel "$BARE")"
@@ -189,14 +197,17 @@ SC="$(RELEASE_EXEC_CORES=1 release_sched_max_parallel "$BARE")"
   || no "scheduler cap is always >=1" "got [$SC]"
 
 echo "── #14 test timeout ──"
-printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "unset → 900s default" "900" "$(release_test_timeout "$ROOT")"
-printf 'test_env_provision: true\ntest_timeout: 120\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_timeout: 120\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "config honored" "120" "$(release_test_timeout "$ROOT")"
-printf 'test_env_provision: true\ntest_timeout: forever\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_timeout: forever\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "junk → safe default" "900" "$(release_test_timeout "$ROOT")"
 eq "no config at all → default" "900" "$(release_test_timeout "$BARE")"
 eq "0 → no timeout runner" "" "$(release_timeout_cmd 0)"
+if [ "$(release_timeout_available 30)" = yes ]; then
+  has "a timeout backend is available" "$(release_timeout_available 30)" "yes"
+fi
 if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
   has "runner prefix carries the bound + a KILL follow-up" "$(release_timeout_cmd 30)" "30"
   has "kill-after is set (a SIGTERM-ignoring runner still dies)" "$(release_timeout_cmd 30)" "-k 10"
@@ -205,12 +216,12 @@ else
 fi
 
 echo "── #15 run_test_bounded: a hang is reported, not silent ──"
-printf 'test_env_provision: true\ntest_timeout: 1\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_timeout: 1\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 OUT="$(run_test_bounded "$ROOT" 'printf "ok\n"' "$ROOT")"
 has "fast command → not hung" "$OUT" "TEST_HUNG=false"
 has "rc reported" "$OUT" "TEST_RC=0"
 has "boundedness is reported honestly" "$OUT" "TEST_BOUNDED="
-if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+if [ "$(release_timeout_available 1)" = yes ]; then
   has "a timeout binary exists → bounded true" "$OUT" "TEST_BOUNDED=true"
 else
   has "no timeout binary → bounded FALSE (never claim a bound that was not applied)" "$OUT" "TEST_BOUNDED=false"
@@ -220,7 +231,7 @@ eq "output captured to a file that survives the subshell" "ok" "$(cat "$OUTF")"
 OUT="$(run_test_bounded "$ROOT" 'exit 3' "$ROOT")"
 has "plain failure is NOT a hang" "$OUT" "TEST_HUNG=false"
 has "failure rc surfaced" "$OUT" "TEST_RC=3"
-if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+if [ "$(release_timeout_available 1)" = yes ]; then
   OUT="$(run_test_bounded "$ROOT" 'sleep 5' "$ROOT")"
   has "hung command flagged" "$OUT" "TEST_HUNG=true"
   has "the command is named (so the report is actionable)" "$OUT" "TEST_CMD=sleep 5"
@@ -231,19 +242,19 @@ else
 fi
 
 echo "── #16 migration hook ──"
-printf 'test_env_provision: true\ntest_env_migrate: docker exec app-{label} python {worktree}/backend/manage.py migrate\n' \
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_migrate: docker exec app-{label} python {worktree}/backend/manage.py migrate\n' \
   > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "rendered with label + worktree" "docker exec app-w1_t02 python $WT/backend/manage.py migrate" \
    "$(execenv_migrate_cmd "$ROOT" "$WT" w1_t02)"
-printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "unset → empty (host-local projects run manage.py directly)" "" "$(execenv_migrate_cmd "$ROOT" "$WT" l)"
 
 echo "── #17 env slots (reuse instead of re-provision) ──"
-printf 'test_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
-eq "unset → off (per-task provisioning, unchanged)" "EXECENV_REUSE=off" "$(release_execenv_reuse "$ROOT")"
-printf 'test_env_provision: true\ntest_env_reuse: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "managed defaults to reuse" "EXECENV_REUSE=on" "$(release_execenv_reuse "$ROOT")"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_reuse: true\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "opt-in honored" "EXECENV_REUSE=on" "$(release_execenv_reuse "$ROOT")"
-printf 'test_env_provision: true\ntest_env_reuse: maybe\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_env_reuse: maybe\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
 eq "junk → off (never guess into reuse)" "EXECENV_REUSE=off" "$(release_execenv_reuse "$ROOT")"
 eq "no config at all → off" "EXECENV_REUSE=off" "$(release_execenv_reuse "$BARE")"
 L1="$(release_execenv_slot_label 1723-99 1)"; L2="$(release_execenv_slot_label 1723-99 2)"
@@ -254,6 +265,62 @@ case "$L1" in *[!a-z0-9_]*) no "slot label is container/db safe" "got [$L1]";; *
 eq "slot path is stable + per-slot" "/tmp/wtbase/slot-s2" "$(release_execenv_slot_path /tmp/wtbase 2)"
 ne "two slots never share a path" "$(release_execenv_slot_path /tmp/wtbase 1)" \
    "$(release_execenv_slot_path /tmp/wtbase 2)"
+
+echo "── #18 phase-local config override ──"
+PHASE_CFG="$ROOT/.release-planning/phases/42-fast-gate"
+mkdir -p "$PHASE_CFG"
+printf 'test_harness: external\ntest_exec_prefix: bash scripts/phase-runner.sh\ntest_timeout: 77\n' \
+  > "$PHASE_CFG/EXEC-ENV.yml"
+printf 'test_harness: managed\ntest_env_provision: true\ntest_exec_prefix: docker exec global\ntest_timeout: 900\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "global config remains the fallback" "$ROOT/.release-planning/EXEC-ENV.yml" \
+   "$(release_execenv_config "$ROOT")"
+eq "phase config wins when selected" "$PHASE_CFG/EXEC-ENV.yml" \
+   "$(RELEASE_PHASE_CONFIG_DIR="$PHASE_CFG" release_execenv_config "$ROOT")"
+eq "phase timeout comes from the selected config" "77" \
+   "$(RELEASE_PHASE_CONFIG_DIR="$PHASE_CFG" release_test_timeout "$ROOT")"
+
+echo "── #19 harness modes + ownership preflight ──"
+printf 'test_env_provision: true\ntest_exec_prefix: docker exec ambiguous\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "ambiguous config is invalid" "invalid" "$(release_test_harness "$ROOT")"
+has "ambiguous config fails preflight" "$(release_execenv_preflight "$ROOT")" \
+    "EXECENV_PREFLIGHT=failed"
+printf 'test_harness: external\ntest_exec_prefix: bash scripts/runner.sh\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+eq "external runner mode is explicit" "external" "$(release_test_harness "$ROOT")"
+eq "external mode is not provisioned by the SDK" "EXECENV=off" \
+   "$(release_execenv_active "$ROOT")"
+printf 'test_harness: external\ntest_env_provision: docker up\ntest_exec_prefix: bash runner.sh\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+has "mixed external + managed ownership is rejected" "$(release_execenv_preflight "$ROOT")" \
+    "EXECENV_PREFLIGHT=failed"
+printf 'test_harness: nonsense\n' > "$ROOT/.release-planning/EXEC-ENV.yml"
+has "unknown harness is rejected" "$(release_execenv_preflight "$ROOT")" \
+    "EXECENV_PREFLIGHT=failed"
+
+echo "── #20 stable phase preparation ──"
+printf 'test_harness: managed\ntest_env_provision: touch {worktree}/prepared-{label}\ntest_env_teardown: rm -f {worktree}/prepared-{label}\ntest_exec_prefix: docker exec app-{label}\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+OUT="$(execenv_phase_prepare "$ROOT" "$WT" 'phase42/session-abc')"
+has "managed phase preparation succeeds" "$OUT" "EXECENV_PHASE_PREPARE=ok"
+has "managed phase reports ownership" "$OUT" "EXECENV_HARNESS=managed"
+LABEL="$(printf '%s\n' "$OUT" | sed -n 's/^EXECENV_LABEL=//p')"
+eq "phase label is stable and sanitized" "phase42_session_abc" "$LABEL"
+[ -f "$WT/prepared-$LABEL" ] && ok "managed phase was provisioned" \
+  || no "managed phase was provisioned" "missing $WT/prepared-$LABEL"
+has "phase prefix uses the stable label" "$OUT" "EXECENV_PREFIX=docker exec app-$LABEL"
+eq "managed teardown owns cleanup" "EXECENV_TEARDOWN=ok" \
+   "$(execenv_phase_teardown "$ROOT" "$WT" "$LABEL")"
+
+printf 'test_harness: external\ntest_exec_prefix: bash scripts/runner.sh\n' \
+  > "$ROOT/.release-planning/EXEC-ENV.yml"
+OUT="$(execenv_phase_prepare "$ROOT" "$WT" 'phase42/session-abc')"
+has "external phase preparation succeeds" "$OUT" "EXECENV_PHASE_PREPARE=ok"
+has "external phase reports ownership" "$OUT" "EXECENV_HARNESS=external"
+has "external prefix is returned" "$OUT" "EXECENV_PREFIX=bash scripts/runner.sh"
+eq "external runner owns its teardown" "EXECENV_TEARDOWN=skipped" \
+   "$(execenv_phase_teardown "$ROOT" "$WT" "$LABEL")"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

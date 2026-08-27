@@ -36,6 +36,10 @@ phase engine here.
 
 ## Freeform mode
 
+Before building, prepare one stable harness with `execenv_phase_prepare "$ROOT" "$LWT"
+"loop_${SESSION_ID}"`; export and pass its prefix to every maker/fixer and gate invocation. Reject
+ambiguous EXEC-ENV ownership before any worker.
+
 1. Reject feature/architecture scope and C3/C4 work without a SPEC.
 2. Create one isolated `loop/<label>` worktree, or work in place inside a release session.
 3. Build once inline for C0/C1 or with one `release:tdd-executor` for C2.
@@ -45,7 +49,8 @@ phase engine here.
 6. On GREEN, run `release:loop-goal-verifier` once. It reuses the cached gate and checks only the
    requested behavior. On gaps, send only the gap IDs/evidence to the fixer.
 7. Re-run the cached gate/checker until PASS or `loop_guard`/budget stops.
-8. GREEN+PASS → land unless `--no-land`; otherwise retain the worktree and report the exact blocker.
+8. GREEN+PASS → tear down the managed env once and land unless `--no-land`; otherwise retain the
+   worktree/environment and report the exact blocker.
 
 Each round must change the git tree or stop as no-progress. A checker is a separate turn but uses the
 worker tier for C0-C2 and the orchestrator tier only for C3/C4.

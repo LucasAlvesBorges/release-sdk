@@ -57,6 +57,8 @@ and landing.
 
 <rules>
 - Preserve concurrent/user edits and assigned path ownership.
+- The parent owns the test-environment lifecycle. Use the supplied `test_exec_prefix` exactly;
+  never invent a runner, provision another container/database or switch to a shared project env.
 - Never weaken a test to make it pass.
 - Never use `--no-verify`, amend or push.
 - A risk or required path outside scope returns `needs_scope_expansion`; do not silently broaden.

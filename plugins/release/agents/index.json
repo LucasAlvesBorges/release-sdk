@@ -339,7 +339,7 @@
     "model": "gpt-5.6-terra",
     "reasoning_effort": "medium",
     "output_token_budget": 1000,
-    "description": "Strict-only fan-out coordinator for compact/legacy plans with at least three genuinely independent file-disjoint tasks. Slices task context, isolates writers, serializes landing and runs no test-agent fleet."
+    "description": "Strict-only fan-out coordinator for current-contract plans with at least three genuinely independent file-disjoint tasks. Slices task context, isolates writers, serializes landing and runs no test-agent fleet."
   },
   {
     "name": "release-agents-md-builder",

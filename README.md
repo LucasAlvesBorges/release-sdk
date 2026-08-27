@@ -8,7 +8,7 @@ Comandos `/release:*` context-aware roteiam automaticamente para os agents certo
 
 **Porta de entrada:** **`/release:auto <sua intenção em linguagem natural>`** — roteador leve que lê estado só quando precisa desempatar, imprime a rota escolhida e nunca ativa loops implicitamente.
 
-**Versão atual: v0.25.1** — fluxos adaptativos C0–C4, especialistas sob demanda, invocação curta `/release:*` e distribuições próprias para Claude Code e Codex. Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
+**Versão atual: v0.26.0** — fluxos adaptativos C0–C4, especialistas sob demanda, invocação curta `/release:*` e distribuições próprias para Claude Code e Codex. Veja [CHANGELOG.md](./CHANGELOG.md) pra evolução completa.
 
 ---
 

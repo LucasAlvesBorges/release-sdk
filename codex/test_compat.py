@@ -96,6 +96,23 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertNotIn("/release:discuss", text, path)
             self.assertNotIn("/django:discuss", text, path)
 
+    def test_execute_preserves_phase_test_environment_contract(self) -> None:
+        source = (REPO_ROOT / "skills" / "execute" / "SKILL.md").read_text()
+        generated = (PLUGIN / "skills" / "execute" / "SKILL.md").read_text()
+        for contract in (
+            "harness_scope: project|phase|host",
+            "RELEASE_PHASE_CONFIG_DIR",
+            "release_execenv_preflight",
+            "execenv_phase_prepare",
+            "EXECENV_PREFIX",
+            "RELEASE_EXEC_PREFIX",
+            "run_gate_cached \"$PHASE_WT\" full",
+            "execenv_phase_teardown",
+        ):
+            self.assertIn(contract, source)
+            self.assertIn(contract, generated)
+        self.assertTrue((PLUGIN / "bin" / "release-timeout.py").is_file())
+
     def test_all_agents_are_valid_toml(self) -> None:
         source = sorted((REPO_ROOT / "agents").glob("*.md"))
         roles = sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md"))

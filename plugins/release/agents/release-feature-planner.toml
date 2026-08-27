@@ -39,9 +39,15 @@ default and a wave executor only when strict parallelism is justified.
 3. Map every AC-XX to at least one task and every task to an AC-XX.
 4. Create 2-8 vertical behavior tasks. A task contains its test, implementation, refactor and only
    the security checks triggered by its surface.
-5. Declare exact files, real data dependencies and a focused verification command.
-6. Use one fullstack plan with ordered backend/frontend tasks; do not create dual pipelines.
-7. Write `{phase_dir}/{NN}-PLAN.md`, normally <=300 lines and always <=600.
+5. Inspect the real project test harness before writing verification. Declare `harness_scope` in
+   PLAN frontmatter: `project` when the root EXEC-ENV/VERIFY-GATE are correct for this phase,
+   `phase` when isolation/topology differs, or `host` when no environment is required. For `phase`,
+   write `{phase_dir}/EXEC-ENV.yml` and `{phase_dir}/VERIFY-GATE.yml` with one explicit owner.
+6. Declare exact files, real data dependencies and a focused verification command. Commands name
+   the tool (`pytest`, `vitest`, `manage.py`) and never embed a phase runner; execute supplies the
+   selected prefix. A phase-specific runner is a planning artifact, not application source.
+7. Use one fullstack plan with ordered backend/frontend tasks; do not create dual pipelines.
+8. Write `{phase_dir}/{NN}-PLAN.md`, normally <=300 lines and always <=600.
 </workflow>
 
 <task_format>
@@ -75,6 +81,8 @@ file collision is not a dependency. Record the critical path.
 - No RESEARCH.md, PATTERNS.md, wave directory or separate RED/GREEN/REFACTOR/SECURITY tasks.
 - No generic Q1-Q7/RC1-RC7 repetition. Apply only checks relevant to touched surfaces.
 - Do not reread the whole repository or invent future work.
+- Never reuse a root harness labelled/configured for another phase. Choose `harness_scope: phase`
+  and emit the two local configs instead.
 - On revision, edit only findings and preserve stable task IDs when possible.
 </rules>
 '''

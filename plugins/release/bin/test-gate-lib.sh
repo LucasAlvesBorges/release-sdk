@@ -14,6 +14,9 @@
 #   #7  GATE_FAILFAST=0: every step runs even after a red
 #   #8  first-colon split: a command containing a colon runs intact
 #   #9  unknown stack + no config → empty `GATE=` verdict (caller decides)
+#   #14 phase-local gate config overrides the project default
+#   #15 every step announces itself and honors EXEC-ENV test_timeout
+#   #16 successful steps survive a later RED and are reused on an unchanged tree
 #
 # Run: bash bin/test-gate-lib.sh
 set -euo pipefail
@@ -174,6 +177,42 @@ has "second run cache hit" "$OUT" "GATE_CACHE=hit"
 printf 'dirty\n' >> "$C/tracked.txt"
 OUT="$(run_gate_cached "$C")"
 hasnt "dirty tree never reuses cache" "$OUT" "GATE_CACHE=hit"
+
+echo "── #14 phase-local gate override ──"
+PG="$SBX/phase-gate"; mkdir -p "$PG/.release-planning/phases/42-fast-gate"
+printf 'global: false\n' > "$PG/.release-planning/VERIFY-GATE.yml"
+printf 'phase: true\n' > "$PG/.release-planning/phases/42-fast-gate/VERIFY-GATE.yml"
+OUT="$(RELEASE_PHASE_CONFIG_DIR="$PG/.release-planning/phases/42-fast-gate" run_gate "$PG")"
+has "phase-local gate selected" "$OUT" "GATE_STEP=phase PASS"
+hasnt "global gate ignored while override exists" "$OUT" "GATE_STEP=global"
+
+echo "── #15 observable + bounded steps ──"
+BD="$SBX/bounded"; mkdir -p "$BD/.release-planning"
+printf 'test_harness: host\ntest_timeout: 1\n' > "$BD/.release-planning/EXEC-ENV.yml"
+printf 'slow: sleep 5\n' > "$BD/.release-planning/VERIFY-GATE.yml"
+if [ "$(release_timeout_available 1)" = yes ]; then
+  OUT="$(run_gate "$BD")"
+  has "step start is observable before its verdict" "$OUT" "GATE_STEP_START=slow"
+  has "timeout is a distinct gate result" "$OUT" "GATE_STEP=slow TIMEOUT"
+  eq "timeout turns the gate RED" "RED" "$(verdict "$OUT")"
+else
+  ok "bounded gate timeout skipped (no timeout binary on this host)"
+fi
+
+echo "── #16 per-step GREEN cache after a later RED ──"
+SCROOT="$SBX/step-cache"; MARKS="$SBX/step-cache-marks"
+mkdir -p "$SCROOT/.release-planning" "$MARKS"; git -C "$SCROOT" init -q
+git -C "$SCROOT" config user.email test@example.com; git -C "$SCROOT" config user.name Test
+printf 'tracked\n' > "$SCROOT/tracked.txt"; git -C "$SCROOT" add tracked.txt; git -C "$SCROOT" commit -qm init
+cat > "$SCROOT/.release-planning/VERIFY-GATE.yml" <<YML
+cheap: printf x >> '$MARKS/cheap'
+late: false
+YML
+OUT="$(run_gate "$SCROOT")"
+has "cheap step passed before late RED" "$OUT" "GATE_STEP=cheap PASS"
+OUT="$(run_gate "$SCROOT")"
+has "unchanged cheap step reused" "$OUT" "GATE_STEP=cheap PASS_CACHED"
+eq "cached step did not execute twice" "1" "$(wc -c < "$MARKS/cheap" | tr -d ' ')"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

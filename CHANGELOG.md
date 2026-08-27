@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-08-27
+
+### Changed — explicit, reusable test harnesses
+
+- Plans now declare `harness_scope`, and phase-specific execution owns local
+  `EXEC-ENV.yml` and `VERIFY-GATE.yml` contracts instead of embedding ad hoc runners.
+- Managed test environments are stable for the phase, reuse provisioned databases by
+  default, and receive the same execution prefix across workers and resumed shells.
+- Gate steps are observable and time-bounded, and successful steps are cached while the
+  tree and execution-environment fingerprint remain unchanged.
+- Ambiguous legacy harness configurations are rejected instead of silently mixing SDK
+  provisioning with project-specific test runners.
+
 ## [0.25.0] — 2026-08-27
 
 ### Changed — adaptive token-economy workflow

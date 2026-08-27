@@ -76,6 +76,8 @@ blocker and stop without touching PLAN. This is the only normal pre-planner stop
 3. Give `release:feature-planner` paths, not copied file bodies, and state that decisions are settled.
    Spawn it exactly once. It produces one `{NN}-PLAN.md` for django, react
    or fullstack. Fullstack uses backend/frontend sections in the same plan and a declared order.
+   It must inspect the current test environment, declare `harness_scope: project|phase|host`, and
+   emit phase-local EXEC-ENV/VERIFY-GATE when the project harness is stale or unsuitable.
 4. Run `node "$RELEASE_PLUGIN_ROOT/bin/release-plan-lint.js" "{NN}-PLAN.md"`.
 5. On lint failure, ask the same planner to correct only the reported structural defects. One retry.
 6. For strict work, run `release:plan-checker` after lint. It reviews acceptance coverage and actual
@@ -112,6 +114,9 @@ execution: serial | parallel
 - verification: focused deterministic command
 - risk: none | auth | tenancy | migration | external-input | ...
 ```
+
+Verification commands never embed a container/phase runner. The selected harness prefix is runtime
+state owned by execute, not application code owned by a task.
 
 Use `execution: parallel` only for at least three genuinely independent, file-disjoint tasks and
 only in strict mode. File collision is scheduling metadata, not a fake dependency.

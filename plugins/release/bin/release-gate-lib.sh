@@ -18,7 +18,8 @@
 #   run_gate [root] [phase]
 #       Runs the project's verify-gate commands IN ORDER against <root> (default: repo top-level).
 #       Resolves commands from <root>/.release-planning/VERIFY-GATE.yml, else a stack default.
-#       Echoes one `GATE_STEP=<name> <PASS|PASS_BASELINE|FAIL>` line per step run, and on the FIRST failure a
+#       Echoes `GATE_STEP_START=<name> TEST_TIMEOUT=<seconds>` before each uncached step, then one
+#       `GATE_STEP=<name> <PASS|PASS_CACHED|PASS_BASELINE|FAIL|TIMEOUT>` verdict. On the FIRST failure a
 #       `GATE_EVIDENCE=<file>` line (captured stdout+stderr), then exactly one terminal
 #       `GATE=<GREEN|RED>` (or empty `GATE=` when nothing could be resolved). ALWAYS returns 0 —
 #       the verdict lives in the echo, exactly like land_branch in release-merge-lib.sh, so
@@ -49,6 +50,10 @@
 # PASS_BASELINE. In zsh `$0` is the sourced file at top level (it is the FUNCTION name inside a
 # function, which is why this must be captured here and not lazily).
 _RELEASE_GATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
+if ! command -v run_test_bounded >/dev/null 2>&1; then
+  _RELEASE_GATE_EXECENV_LIB="${RELEASE_LIB_DIR:-$_RELEASE_GATE_LIB_DIR}/release-execenv-lib.sh"
+  [ -f "$_RELEASE_GATE_EXECENV_LIB" ] && . "$_RELEASE_GATE_EXECENV_LIB"
+fi
 
 # ── helpers ─────────────────────────────────────────────────────────────────────────────────────
 release_gate_root() {  # resolve a sane repo root from an optional arg, else cwd's top-level
@@ -115,7 +120,13 @@ release_default_quick_gate() { # $1 stack, $2 root → cheap checks; focused tes
 }
 
 release_gate_config() {  # $1 root → path to VERIFY-GATE.yml if present, else empty
-  local f="$1/.release-planning/VERIFY-GATE.yml"
+  local root="$1" phase_dir="${RELEASE_PHASE_CONFIG_DIR:-}" f
+  if [ -n "$phase_dir" ]; then
+    case "$phase_dir" in /*) ;; *) phase_dir="$root/$phase_dir" ;; esac
+    f="$phase_dir/VERIFY-GATE.yml"
+    [ -f "$f" ] && { printf '%s' "$f"; return 0; }
+  fi
+  f="$root/.release-planning/VERIFY-GATE.yml"
   [ -f "$f" ] && printf '%s' "$f"
 }
 
@@ -129,7 +140,12 @@ release_resolve_gate() {  # $1 root → the resolved `name: command` lines (conf
 }
 
 release_resolve_quick_gate() { # $1 root
-  local root="$1" cfg="$1/.release-planning/VERIFY-QUICK.yml"
+  local root="$1" phase_dir="${RELEASE_PHASE_CONFIG_DIR:-}" cfg=""
+  if [ -n "$phase_dir" ]; then
+    case "$phase_dir" in /*) ;; *) phase_dir="$root/$phase_dir" ;; esac
+    [ -f "$phase_dir/VERIFY-QUICK.yml" ] && cfg="$phase_dir/VERIFY-QUICK.yml"
+  fi
+  [ -n "$cfg" ] || cfg="$root/.release-planning/VERIFY-QUICK.yml"
   if [ -f "$cfg" ]; then
     grep -vE '^[[:space:]]*(#|$)' "$cfg"
   else
@@ -144,7 +160,7 @@ _release_gate_hash() {
 }
 
 release_gate_fingerprint() { # <root> <full|quick>; empty when the tree is dirty
-  local root="$1" mode="${2:-full}" tree steps
+  local root="$1" mode="${2:-full}" tree steps env_material="" env_cfg=""
   git -C "$root" diff --quiet 2>/dev/null || return 0
   git -C "$root" diff --cached --quiet 2>/dev/null || return 0
   [ -z "$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.release-planning/' | head -1)" ] || return 0
@@ -152,7 +168,27 @@ release_gate_fingerprint() { # <root> <full|quick>; empty when the tree is dirty
   if [ "$mode" = quick ]; then steps="$(release_resolve_quick_gate "$root")"
   else steps="$(release_resolve_gate "$root")"
   fi
-  printf '%s\n%s\n%s\n%s\n' "$mode" "$tree" "${RELEASE_EXEC_PREFIX:-}" "$steps" | _release_gate_hash
+  if command -v release_execenv_config >/dev/null 2>&1; then
+    env_cfg="$(release_execenv_config "$root")"
+    [ -n "$env_cfg" ] && env_material="$(command cat "$env_cfg" 2>/dev/null)"
+  fi
+  printf '%s\n%s\n%s\n%s\n%s\n' "$mode" "$tree" "${RELEASE_EXEC_PREFIX:-}" \
+    "$steps" "$env_material" | _release_gate_hash
+}
+
+_release_gate_step_fingerprint() { # <root> <name> <cmd>; empty for dirty/disabled runs
+  local root="$1" name="$2" cmd="$3" tree env_material="" env_cfg=""
+  [ "${RELEASE_GATE_CACHE:-1}" != 0 ] && [ "${RELEASE_GATE_STEP_CACHE:-1}" != 0 ] || return 0
+  git -C "$root" diff --quiet 2>/dev/null || return 0
+  git -C "$root" diff --cached --quiet 2>/dev/null || return 0
+  [ -z "$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.release-planning/' | head -1)" ] || return 0
+  tree="$(git -C "$root" rev-parse 'HEAD^{tree}' 2>/dev/null)" || return 0
+  if command -v release_execenv_config >/dev/null 2>&1; then
+    env_cfg="$(release_execenv_config "$root")"
+    [ -n "$env_cfg" ] && env_material="$(command cat "$env_cfg" 2>/dev/null)"
+  fi
+  printf '%s\n%s\n%s\n%s\n%s\n' "$tree" "$name" "$cmd" "${RELEASE_EXEC_PREFIX:-}" \
+    "$env_material" | _release_gate_hash
 }
 
 # ── baseline bridge (v0.23.0) ────────────────────────────────────────────────────────────────────
@@ -186,7 +222,9 @@ _gate_all_failures_are_baseline() {  # $1 root, $2 step name, $3 output → 0 wh
 # ── public: run the gate ─────────────────────────────────────────────────────────────────────────
 _release_run_gate_steps() { # <root> <steps>
   local root="$1" steps="$2" failfast="${GATE_FAILFAST:-1}" line name cmd out rc verdict="" any=0 red=0 ev=""
+  local meta outf hung bounded elapsed timeout step_fp step_cache cache_dir
   [ -n "$steps" ] || { echo "GATE="; return 0; }   # nothing resolved → caller decides
+  cache_dir="$root/.release-planning/.gate-cache/steps"
 
   while IFS= read -r line; do
     case "$line" in *:*) ;; *) continue;; esac      # skip any line without a `name:` colon
@@ -195,9 +233,48 @@ _release_run_gate_steps() { # <root> <steps>
     cmd="$(printf '%s'  "$cmd"  | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [ -n "$cmd" ] || continue
     any=1
-    out="$( ( cd "$root" && eval "$cmd" ) </dev/null 2>&1 )"; rc=$?   # </dev/null: never block on a prompt
-    if [ "$rc" = 0 ]; then
+    step_fp="$(_release_gate_step_fingerprint "$root" "$name" "$cmd")"
+    step_cache="$cache_dir/${step_fp}.pass"
+    if [ -n "$step_fp" ] && [ -f "$step_cache" ]; then
+      echo "GATE_STEP=$name PASS_CACHED"
+      continue
+    fi
+
+    timeout=0
+    command -v release_test_timeout >/dev/null 2>&1 && timeout="$(release_test_timeout "$root")"
+    echo "GATE_STEP_START=$name TEST_TIMEOUT=$timeout"
+    if command -v run_test_bounded >/dev/null 2>&1; then
+      meta="$(run_test_bounded "$root" "$cmd" "$root")"
+      outf="$(printf '%s\n' "$meta" | sed -n 's/^TEST_OUTPUT=//p')"
+      rc="$(printf '%s\n' "$meta" | sed -n 's/^TEST_RC=//p')"
+      hung="$(printf '%s\n' "$meta" | sed -n 's/^TEST_HUNG=//p')"
+      bounded="$(printf '%s\n' "$meta" | sed -n 's/^TEST_BOUNDED=//p')"
+      elapsed="$(printf '%s\n' "$meta" | sed -n 's/^TEST_ELAPSED=//p')"
+      [ -n "$rc" ] || rc=1
+      [ -n "$outf" ] && [ -f "$outf" ] && out="$(command cat "$outf")" || out=""
+      [ -n "$outf" ] && rm -f "$outf"
+    else
+      out="$( ( cd "$root" && eval "$cmd" ) </dev/null 2>&1 )"; rc=$?
+      hung=false; bounded=false; elapsed=""
+    fi
+
+    if [ "$hung" = true ]; then
+      echo "GATE_STEP=$name TIMEOUT"; red=1
+      echo "GATE_TIMEOUT=$timeout GATE_BOUNDED=$bounded GATE_ELAPSED=${elapsed:-unknown}"
+      if [ -z "$ev" ]; then
+        ev="$(mktemp -t release-gate-XXXXXX)"
+        { printf '# GATE TIMEOUT — step: %s\n# command: %s\n# timeout: %s\n# exit: %s\n\n' \
+            "$name" "$cmd" "$timeout" "$rc"
+          printf '%s\n' "$out"; } > "$ev"
+        echo "GATE_EVIDENCE=$ev"
+      fi
+      [ "$failfast" = 1 ] && break
+    elif [ "$rc" = 0 ]; then
       echo "GATE_STEP=$name PASS"
+      if [ -n "$step_fp" ]; then
+        mkdir -p "$cache_dir"
+        printf 'step=%s\ncommand=%s\n' "$name" "$cmd" > "$step_cache"
+      fi
     elif _gate_all_failures_are_baseline "$root" "$name" "$out"; then
       # Every failing test in this step is a KNOWN pre-existing failure (release-baseline-lib.sh).
       # A repo that inherits 44 reds would otherwise be RED forever and the loop would burn its
@@ -238,7 +315,7 @@ run_quick_gate() { # [root] — no broad suite; maker already ran focused tests
 }
 
 run_gate_cached() { # [root] [full|quick] — reuses GREEN evidence for an unchanged committed tree
-  local root mode fingerprint cache_dir cache_file out
+  local root mode fingerprint cache_dir cache_file out tmp
   root="$(release_gate_root "${1:-}")"; mode="${2:-full}"
   if [ "${RELEASE_GATE_CACHE:-1}" = 0 ]; then
     [ "$mode" = quick ] && run_quick_gate "$root" || run_gate "$root"
@@ -252,8 +329,11 @@ run_gate_cached() { # [root] [full|quick] — reuses GREEN evidence for an uncha
     command cat "$cache_file"
     return 0
   fi
-  if [ "$mode" = quick ]; then out="$(run_quick_gate "$root")"; else out="$(run_gate "$root")"; fi
-  printf '%s\n' "$out"
+  tmp="$(mktemp -t release-gate-run-XXXXXX)"
+  if [ "$mode" = quick ]; then run_quick_gate "$root" | command tee "$tmp"
+  else run_gate "$root" | command tee "$tmp"
+  fi
+  out="$(command cat "$tmp")"; rm -f "$tmp"
   case "$out" in
     *GATE=GREEN*)
       if [ -n "$fingerprint" ]; then

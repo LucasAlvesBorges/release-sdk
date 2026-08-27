@@ -15,7 +15,9 @@ model: sonnet
 3. Verify tasks honor D-XX/LOCK values and do not implement out-of-scope work.
 4. Inspect only files/analogs needed to judge disputed assumptions.
 5. For each declared risk surface, require the matching focused negative test or static check.
-6. Report PASS, WARN or BLOCK with compact path/line evidence.
+6. Verify `harness_scope` matches the actual project/phase config, every selected EXEC-ENV declares
+   one owner, and task verification does not embed a competing runner.
+7. Report PASS, WARN or BLOCK with compact path/line evidence.
 </workflow>
 
 <blockers>
@@ -25,6 +27,8 @@ model: sonnet
 - Outbound URL, deserialization, shell, raw SQL, media processing or IaC surface lacks its specific
   exploit/static gate.
 - Fullstack consumer/provider contracts disagree.
+- Harness scope is absent, points at phase-labelled stale project config, lacks required phase-local
+  EXEC-ENV/VERIFY-GATE files, or task commands introduce a second lifecycle owner.
 </blockers>
 
 <rules>
