@@ -62,9 +62,19 @@ SDK never also provisions it. `host` is explicit host-local execution. Pass `PHA
 worker as `test_exec_prefix`; parallel execution uses stable reusable slots, never a new env per
 task unless `test_env_reuse: false` is explicitly justified.
 
+Environment lifecycle is session-scoped, not commit-scoped. A new commit or HEAD change invalidates
+test evidence/cache keys only; it is never a reason to call `execenv_phase_prepare` again, change
+`PHASE_LABEL`/`PHASE_PREFIX`, clone a database, or restart the harness. Serial/standard workers must
+only consume the phase prefix and must never call `execenv_phase_prepare`, `execenv_provision` or
+`execenv_teardown`. In strict parallel execution the wave coordinator alone may provision one
+stable environment per active slot, reuse that slot across tasks, and tear it down at the phase
+boundary. Per-task provisioning is permitted only when the selected EXEC-ENV explicitly contains
+`test_env_reuse: false`; report that exception and its justification in SUMMARY.
+
 Tool calls use fresh shells. In every later shell that dispatches tests or calls the gate, re-source
 the libraries and re-export both `RELEASE_PHASE_CONFIG_DIR` and `RELEASE_EXEC_PREFIX`; never assume
-an earlier export survived.
+an earlier export survived. Re-exporting the saved prefix is not reprovisioning: do not rerun the
+prepare block merely because a fresh shell or new HEAD is observed.
 
 ## Dispatch
 

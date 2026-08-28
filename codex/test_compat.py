@@ -106,6 +106,11 @@ class CodexCompatibilityTests(unittest.TestCase):
             "execenv_phase_prepare",
             "EXECENV_PREFIX",
             "RELEASE_EXEC_PREFIX",
+            "Environment lifecycle is session-scoped, not commit-scoped.",
+            "A new commit or HEAD change invalidates",
+            "must never call `execenv_phase_prepare`, `execenv_provision` or",
+            "Per-task provisioning is permitted only when",
+            "`test_env_reuse: false`",
             "run_gate_cached \"$PHASE_WT\" full",
             "execenv_phase_teardown",
         ):
