@@ -96,26 +96,28 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertNotIn("/release:discuss", text, path)
             self.assertNotIn("/django:discuss", text, path)
 
-    def test_execute_preserves_phase_test_environment_contract(self) -> None:
+    def test_execute_uses_existing_dev_harness_without_provisioning(self) -> None:
         source = (REPO_ROOT / "skills" / "execute" / "SKILL.md").read_text()
         generated = (PLUGIN / "skills" / "execute" / "SKILL.md").read_text()
         for contract in (
-            "harness_scope: project|phase|host",
-            "RELEASE_PHASE_CONFIG_DIR",
-            "release_execenv_preflight",
-            "execenv_phase_prepare",
-            "EXECENV_PREFIX",
+            "checkout already mounted by the project's development",
+            "test_harness: external",
+            "managed test environments are disabled",
             "RELEASE_EXEC_PREFIX",
-            "Environment lifecycle is session-scoped, not commit-scoped.",
-            "A new commit or HEAD change invalidates",
-            "must never call `execenv_phase_prepare`, `execenv_provision` or",
-            "Per-task provisioning is permitted only when",
-            "`test_env_reuse: false`",
-            "run_gate_cached \"$PHASE_WT\" full",
-            "execenv_phase_teardown",
+            "Never call `execenv_phase_prepare`, `execenv_provision`, `execenv_teardown`",
+            "run_gate_cached \"$ROOT\" full",
+            "There is no environment cleanup because the SDK created none.",
         ):
             self.assertIn(contract, source)
             self.assertIn(contract, generated)
+        for obsolete in (
+            "harness_scope: project|phase|host",
+            'PREP="$(execenv_phase_prepare',
+            "execenv_phase_teardown \"$ROOT\"",
+            "release:wave-executor` only when",
+        ):
+            self.assertNotIn(obsolete, source)
+            self.assertNotIn(obsolete, generated)
         self.assertTrue((PLUGIN / "bin" / "release-timeout.py").is_file())
 
     def test_all_agents_are_valid_toml(self) -> None:

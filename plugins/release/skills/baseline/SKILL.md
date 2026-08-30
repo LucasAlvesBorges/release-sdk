@@ -86,7 +86,7 @@ is a NEW failure — that is how a fresh bug hides behind an old red.
 2. **Refuse to capture on a dirty tree, and warn loudly when not on the project's base branch** —
    a baseline captured on top of half-finished work excuses your own breakage forever. State the
    branch + SHA you captured on; they go into `captured_on`.
-3. Run each suite (with `$RELEASE_EXEC_PREFIX` when the project uses per-worktree envs), parse the
+3. Run each suite (with `$RELEASE_EXEC_PREFIX` when the project uses its stable dev runner), parse the
    failures with `baseline_parse_failures` from `bin/release-baseline-lib.sh`, write the file.
 4. Print the count per suite and, when a previous baseline existed, the delta:
    `+3 newly excused, -7 fixed since <date>`.

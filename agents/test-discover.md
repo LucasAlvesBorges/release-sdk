@@ -14,9 +14,8 @@ color: "#A78BFA"
   - react default: `src/`
 - scope_filter: optional glob (e.g. `backend/apps/scheduling/`) — narrow discovery to subset
 - output_path: required — where to write the JSON inventory
-- test_exec_prefix: optional string (default "") — v0.22.0; prepend to the discovery command when the
-  suite runs inside a provisioned per-worktree env (collection imports the app, so it needs the same
-  env as execution). Empty ⇒ host-local, unchanged. Referred to below as `$TP`.
+- test_exec_prefix: optional string (default ""); prepend the project's stable existing dev runner
+  to discovery. Empty means host-local. Never provision an environment. Referred to below as `$TP`.
 </inputs>
 
 <role>

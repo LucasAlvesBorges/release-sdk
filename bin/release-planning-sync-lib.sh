@@ -16,7 +16,7 @@
 # its SUMMARY that way.
 #
 # THE ASYMMETRY IS DELIBERATE
-#   IN  — inputs the run needs to READ (plan, locks, project, state, exec-env). Overwrites freely:
+#   IN  — inputs the run needs to READ (plan, locks, project, state, stable dev runner). Overwrites freely:
 #         the main checkout is the source of truth for inputs.
 #   OUT — outputs the run PRODUCED (SUMMARY / WAVE-SUMMARY / VERIFICATION / CHECK / AUDIT / UAT …).
 #         NEVER copies scratch (PLAN-SLICE-*, .exec-start-sha, test-inventory, sweep-B*.json) and

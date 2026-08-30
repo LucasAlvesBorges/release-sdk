@@ -3,7 +3,7 @@ name: loop
 description: >
   Explicit bounded build→gate→check→fix loop. It is never implied by execute or quick. Uses cached
   gate evidence, delta-only fixer prompts, complexity-based iteration limits and a default spend
-  ceiling. Phase mode delegates to execute --loop; freeform mode owns one isolated worktree.
+  ceiling. Phase mode delegates to execute --loop; freeform mode uses the development checkout.
 ---
 
 # /release:loop — explicit autonomous correction
@@ -36,21 +36,22 @@ phase engine here.
 
 ## Freeform mode
 
-Before building, prepare one stable harness with `execenv_phase_prepare "$ROOT" "$LWT"
-"loop_${SESSION_ID}"`; export and pass its prefix to every maker/fixer and gate invocation. Reject
-ambiguous EXEC-ENV ownership before any worker.
+Before building, consume the same stable project dev runner as `execute`/`quick`; export and pass
+its prefix to every maker/fixer and gate invocation. Reject managed or phase-local EXEC-ENV before
+any worker. Never provision or tear down containers/databases.
 
 1. Reject feature/architecture scope and C3/C4 work without a SPEC.
-2. Create one isolated `loop/<label>` worktree, or work in place inside a release session.
+2. Work in the current dev checkout. Outside a release session require a clean tree and create an
+   in-place `loop/<label>` branch; never create a sibling worktree.
 3. Build once inline for C0/C1 or with one `release:tdd-executor` for C2.
-4. Run `run_gate_cached "$LWT" full`.
+4. Run `run_gate_cached "$ROOT" full`.
 5. On RED, pass only the failing command, short relevant excerpt and evidence path to
    `release:code-fixer`. Do not resend the transcript or successful gate output.
 6. On GREEN, run `release:loop-goal-verifier` once. It reuses the cached gate and checks only the
    requested behavior. On gaps, send only the gap IDs/evidence to the fixer.
 7. Re-run the cached gate/checker until PASS or `loop_guard`/budget stops.
-8. GREEN+PASS → tear down the managed env once and land unless `--no-land`; otherwise retain the
-   worktree/environment and report the exact blocker.
+8. GREEN+PASS → land unless `--no-land`; otherwise retain the branch/evidence and report the exact
+   blocker. The existing dev environment remains untouched.
 
 Each round must change the git tree or stop as no-progress. A checker is a separate turn but uses the
 worker tier for C0-C2 and the orchestrator tier only for C3/C4.

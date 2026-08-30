@@ -1,19 +1,19 @@
 ---
 name: wave-executor
-description: Strict-only fan-out coordinator for current-contract plans with at least three genuinely independent file-disjoint tasks. Slices task context, isolates writers, serializes landing and runs no test-agent fleet.
+description: Compatibility coordinator for legacy parallel plans. Current workflows use one serial worker in the shared development checkout.
 tools: Agent, Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---
 
 <inputs>
 - cwd, plan_path, branch, session_id, worker_model
-- cfg_root, phase_config_dir, phase_prefix, progress_mirror (optional)
+- cfg_root, test_exec_prefix, progress_mirror (optional)
 </inputs>
 
 <preconditions>
-Use only when profile=strict, task count >=3, PLAN explicitly says parallel, dependencies are valid,
-files are exact/disjoint for concurrent tasks, and test environments support the chosen concurrency.
-Otherwise return `serial_recommended` without spawning.
+Return `serial_recommended` whenever the project uses a shared development runner. Never create an
+environment to unlock parallelism. Legacy fan-out is allowed only when the caller already supplies
+fully independent host-local execution and exact disjoint paths.
 </preconditions>
 
 <workflow>
@@ -21,17 +21,14 @@ Otherwise return `serial_recommended` without spawning.
 2. Compute ready tasks. Unknown file footprints, migrations sharing an app, lockfiles and overlapping
    files collide and run alone.
 3. For each ready disjoint task, create an isolated worktree/branch and a compact task slice containing
-   only its action, files, acceptance, verification, relevant decisions and risks. Re-export
-   `RELEASE_PHASE_CONFIG_DIR`. Managed env reuse is the default: allocate stable slot labels/paths
-   with `release_execenv_slot_label` / `release_execenv_slot_path`, provision each active slot once,
-   and pass that slot's exact prefix. Never derive env identity from task HEAD.
+   only its action, files, acceptance, verification, relevant decisions and risks. Pass the caller's
+   exact host-local prefix; never allocate slots or call environment lifecycle commands.
 4. Spawn one `release:tdd-executor` per active task with explicit cwd/ownership/task_filter. Respect
-   the tighter of configured env capacity and session concurrency.
+   session concurrency.
 5. Harvest completions, verify commits exist, and cherry-pick serially in dependency order onto the
    phase branch. Never parallelize cherry-picks.
-6. With reuse on, reset/reassign the stable slot worktree after each landed task and tear the slot
-   env down only when the whole wave execution succeeds. With explicit `test_env_reuse: false`, tear
-   down a task env only after its commits land. On conflict, retain env/evidence/worktree.
+6. Remove a task worktree only after its commit lands. On conflict, retain evidence/worktree. The
+   coordinator never provisions or tears down Docker, databases or other test environments.
 7. Continue until all tasks land. The parent runs the single broad cached gate and checker.
 8. Write a compact WAVE-SUMMARY only when parallel execution actually occurred.
 </workflow>

@@ -1,148 +1,39 @@
 #!/usr/bin/env bash
-# release-execenv-lib.sh — per-worktree TEST ENVIRONMENT provisioning for /release:* execution.
+# release-execenv-lib.sh — stable project development runner for /release:* tests.
 #
-# SINGLE SOURCE OF TRUTH for "how do I get a working test environment inside THIS worktree?".
-# Sourced by:
-#   - agents/wave-executor.md    (provision one env per parallel sub-worktree, teardown after cherry-pick)
-#   - skills/execute/SKILL.md    (provision the env of the session-scoped phase worktree)
-#   - bin/test-execenv-lib.sh    (the contract test SOURCES this file — no faithful-slice drift)
-#
-# WHY THIS EXISTS
-# Wave parallelism assumes a task's tests can run inside the task's own git worktree. That holds
-# when tests run on the host. It does NOT hold when tests run inside a container/VM that mounts ONE
-# checkout and talks to ONE database: sub-worktree code is invisible to that container, so the only
-# safe behaviour was to force serial execution — losing the whole point of waves. A project that can
-# describe how to stand up (and tear down) a throwaway test environment for an arbitrary directory
-# gets parallelism back: the executor provisions one env per worktree and prefixes every test
-# command with that env's exec prefix.
-#
-# OPT-IN BY CONSTRUCTION: with no selected `EXEC-ENV.yml`, every function here is a no-op and
-# execution behaves exactly as before this lib existed (host-local exec, serial-on-collision).
-#
-# Public API (all echo a verdict and ALWAYS return 0 — house style; callers parse the echo):
-#   release_execenv_config <root>            → phase-local EXEC-ENV.yml when selected, otherwise
-#                                              the project default, else empty
-#   release_execenv_get <root> <key>         → raw (untemplated) value for key, else empty
-#   release_test_harness <root>              → managed | external | host | invalid. A selected
-#                                              config must declare ownership explicitly.
-#   release_execenv_preflight <root>         → validates that exactly one lifecycle owner exists
-#   release_execenv_active <root>            → `EXECENV=on` when a provision command is configured,
-#                                              else `EXECENV=off`
-#   release_execenv_label <raw>              → sanitized label: [a-z0-9_], ≤32 chars, never empty.
-#                                              Safe for BOTH container names and Postgres db names.
-#   release_execenv_render <tpl> <worktree> <label> [root]
-#                                            → `{worktree}` / `{label}` / `{root}` substituted
-#   release_exec_cores                       → usable core count (RELEASE_EXEC_CORES overrides)
-#   release_default_max_parallel             → min(8, max(1, cores/2)) — the machine-derived cap
-#   release_execenv_max_parallel <root>      → LIVE-ENV cap: configured value, else the machine
-#                                              default when provisioning is on, else 0 (= no envs)
-#   release_sched_max_parallel <root>        → READINESS-SCHEDULER cap: concurrent task spawns,
-#                                              env-independent. Explicit config wins; unset / `0`
-#                                              falls back to the machine default (never unlimited)
-#   execenv_provision <root> <worktree> <label>
-#                                            → runs test_env_provision once for that worktree.
-#                                              Echoes `EXECENV_PROVISION=<ok|skipped|failed>`; on
-#                                              failure also `EXECENV_EVIDENCE=<file>` (stdout+stderr).
-#   execenv_teardown <root> <worktree> <label>
-#                                            → runs test_env_teardown. Echoes
-#                                              `EXECENV_TEARDOWN=<ok|skipped|failed>`. Never fatal —
-#                                              a teardown failure must not lose the commits.
-#   execenv_prefix <root> <worktree> <label> → echoes the rendered test_exec_prefix (empty when
-#                                              unset ⇒ caller runs tests host-locally, as before)
-#   execenv_phase_prepare <root> <worktree> <session>
-#                                            → validates ownership, derives one stable session label,
-#                                              provisions managed envs once at the phase boundary and
-#                                              returns the prefix for every worker + final gate
-#   execenv_phase_teardown <root> <worktree> <label>
-#                                            → tears down only SDK-managed phase environments
-#   release_test_timeout <root>              → per-invocation test timeout in seconds (`test_timeout`,
-#                                              default 900; 0 = unbounded)
-#   release_timeout_cmd <seconds>            → `timeout`/`gtimeout` prefix, empty when unavailable
-#   release_timeout_available <seconds>      → `yes` when GNU timeout or the bundled Python fallback
-#                                              can enforce the configured bound
-#   run_test_bounded <root> <cmd> [cwd]      → runs a test command under that bound. Echoes
-#                                              `TEST_OUTPUT=<file>` (captured stdout+stderr — a file,
-#                                              because callers use `$( )` and a variable would not
-#                                              survive the subshell), `TEST_HUNG=<true|false>`,
-#                                              `TEST_ELAPSED=<s>`, `TEST_RC=<n>`, `TEST_BOUNDED=
-#                                              <true|false>` (false ⇒ no timeout binary, the run was
-#                                              NOT bounded), plus `TEST_TIMEOUT`/`TEST_CMD` on a
-#                                              hang. rc 124 = expiry; rc 137 = SIGKILL, which is
-#                                              ambiguous (timeout's -k, OOM killer, external kill) —
-#                                              reported with `TEST_KILLED=true` and a `TEST_NOTE`.
-#   execenv_migrate_cmd <root> <wt> <label>  → rendered `test_env_migrate` (empty when unset) — run
-#                                              by a task that CREATED a migration, before its tests
-#   release_execenv_reuse <root>             → `EXECENV_REUSE=on|off` (`test_env_reuse: true`) —
-#                                              keep N envs alive for the phase (SLOT model) instead
-#                                              of provisioning one per task
-#   release_execenv_slot_label <session> <i> → the stable label of slot i
-#   release_execenv_slot_path <wt_base> <i>  → the worktree path slot i owns (the env is pinned to
-#                                              this path; tasks are created AT it, never moved)
-#
-# Config format — project or phase-local EXEC-ENV.yml — an ORDERED flat map, one `key: value` per line,
-# split on the FIRST colon only (values routinely contain colons: `-v {worktree}/backend:/app`):
-#
-#       test_harness:          managed
-#       test_env_provision:    docker run -d --name app-{label} -v {worktree}/backend:/app app:test && docker exec app-{label} createdb-from-template test_{label}
-#       (ONE line per key — the parser is a flat first-colon split; a continuation line is silently
-#        dropped, so chain with && or call a script instead of wrapping)
-#       test_env_teardown:     docker rm -f app-{label} >/dev/null 2>&1 || true
-#       test_exec_prefix:      docker exec app-{label}
-#       test_env_max_parallel: 4
-#
-#   - Placeholders: `{worktree}` (absolute path of the worktree), `{label}` (unique, sanitized),
-#     `{root}` (absolute path of the main repo checkout).
-#   - `managed` means the SDK owns provision/teardown. `external` means `test_exec_prefix` is a
-#     self-contained runner and managed lifecycle keys are rejected. `host` means no env or prefix.
-#     A selected EXEC-ENV.yml must declare `test_harness`; ambiguity fails preflight.
-#   - `test_env_provision` MUST be synchronous (return only when the env can run tests) and
-#     idempotent (re-running for the same label must not fail) — the executor may retry.
-#   - Exit 0 = provisioned. Any non-zero exit ⇒ stop before workers; never fall back to another
-#     harness or shared environment.
-#   - `test_env_teardown` runs before the worktree is removed; make it tolerate a missing env.
-#   - `test_exec_prefix` is prepended to EVERY pytest / manage.py / vitest command the task executor
-#     runs. Leave it unset when the provisioned env is reachable from the host.
-#   - '#' comments and blank lines are ignored.
-#
-# Env overrides:
-#   RELEASE_EXECENV_TIMEOUT   seconds allowed for provision/teardown (default 600; 0 = no timeout)
-#   RELEASE_EXECENV_DISABLE=1 force every function to no-op (debug / bisect an env-related failure)
-#   RELEASE_PHASE_CONFIG_DIR  absolute or root-relative phase directory containing EXEC-ENV.yml
-#                             and VERIFY-GATE.yml overrides
+# The SDK consumes an environment that the developer already owns. It never provisions or tears
+# down Docker containers, Compose projects, databases, Redis instances, virtualenvs or phase-local
+# harnesses. With no project config, tests run on the host. With `.release-planning/EXEC-ENV.yml`,
+# the only active mode is `test_harness: external` plus a stable `test_exec_prefix`.
 
 _RELEASE_EXECENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
 
-# ── config resolution ────────────────────────────────────────────────────────────────────────────
-release_execenv_config() {  # $1 root → path to EXEC-ENV.yml if present, else empty
+release_execenv_config() {  # $1 root → project EXEC-ENV.yml or empty
   [ "${RELEASE_EXECENV_DISABLE:-0}" = 1 ] && return 0
-  local root="${1:-.}" phase_dir="${RELEASE_PHASE_CONFIG_DIR:-}" f
-  if [ -n "$phase_dir" ]; then
-    case "$phase_dir" in /*) ;; *) phase_dir="$root/$phase_dir" ;; esac
-    f="$phase_dir/EXEC-ENV.yml"
-    [ -f "$f" ] && { printf '%s' "$f"; return 0; }
-  fi
-  f="$root/.release-planning/EXEC-ENV.yml"
+  local f="${1:-.}/.release-planning/EXEC-ENV.yml"
   [ -f "$f" ] && printf '%s' "$f"
   return 0
 }
 
-release_execenv_get() {  # $1 root, $2 key → raw value (first match wins), else empty
-  local cfg line val; cfg="$(release_execenv_config "${1:-.}")"
+release_execenv_get() {  # $1 root, $2 key → raw value (first match wins)
+  local cfg line val
+  cfg="$(release_execenv_config "${1:-.}")"
   [ -n "$cfg" ] || return 0
   while IFS= read -r line; do
-    line="${line#"${line%%[![:space:]]*}"}"          # tolerate indented keys
-    case "$line" in \#*|'') continue;; esac
-    case "$line" in "$2":*) ;; *) continue;; esac
+    line="${line#"${line%%[![:space:]]*}"}"
+    case "$line" in \#*|'') continue ;; esac
+    case "$line" in "$2":*) ;; *) continue ;; esac
     val="${line#*:}"
-    # trim leading/trailing whitespace without a subshell-per-call
-    val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
-    printf '%s' "$val"; return 0
+    val="${val#"${val%%[![:space:]]*}"}"
+    val="${val%"${val##*[![:space:]]}"}"
+    printf '%s' "$val"
+    return 0
   done < "$cfg"
   return 0
 }
 
-release_test_harness() {  # $1 root → managed | external | host | invalid
-  local root="${1:-.}" mode cfg
+release_test_harness() {  # $1 root → host | external | managed | invalid
+  local root="${1:-.}" cfg mode
   cfg="$(release_execenv_config "$root")"
   [ -n "$cfg" ] || { printf 'host'; return 0; }
   mode="$(release_execenv_get "$root" test_harness)"
@@ -151,32 +42,38 @@ release_test_harness() {  # $1 root → managed | external | host | invalid
   return 0
 }
 
-release_execenv_preflight() {  # $1 root → structured ownership verdict
-  local root="${1:-.}" mode provision teardown prefix migrate
+release_execenv_preflight() {  # $1 root → validates a non-owning project dev runner
+  local root="${1:-.}" mode provision teardown migrate prefix
   mode="$(release_test_harness "$root")"
   provision="$(release_execenv_get "$root" test_env_provision)"
   teardown="$(release_execenv_get "$root" test_env_teardown)"
-  prefix="$(release_execenv_get "$root" test_exec_prefix)"
   migrate="$(release_execenv_get "$root" test_env_migrate)"
+  prefix="$(release_execenv_get "$root" test_exec_prefix)"
   echo "EXECENV_HARNESS=$mode"
   case "$mode" in
-    managed)
-      [ -n "$provision" ] || { echo "EXECENV_PREFLIGHT=failed"; echo "EXECENV_ERROR=managed_requires_test_env_provision"; return 0; }
-      ;;
     external)
-      [ -n "$prefix" ] || { echo "EXECENV_PREFLIGHT=failed"; echo "EXECENV_ERROR=external_requires_test_exec_prefix"; return 0; }
-      if [ -n "$provision$teardown$migrate" ]; then
+      [ -n "$prefix" ] || {
         echo "EXECENV_PREFLIGHT=failed"
-        echo "EXECENV_ERROR=external_runner_conflicts_with_managed_lifecycle"
+        echo "EXECENV_ERROR=external_requires_test_exec_prefix"
         return 0
-      fi
+      }
+      [ -z "$provision$teardown$migrate" ] || {
+        echo "EXECENV_PREFLIGHT=failed"
+        echo "EXECENV_ERROR=dev_runner_cannot_define_lifecycle_commands"
+        return 0
+      }
       ;;
     host)
-      if [ -n "$provision$teardown$prefix$migrate" ]; then
+      [ -z "$provision$teardown$migrate$prefix" ] || {
         echo "EXECENV_PREFLIGHT=failed"
         echo "EXECENV_ERROR=host_harness_cannot_define_environment_commands"
         return 0
-      fi
+      }
+      ;;
+    managed)
+      echo "EXECENV_PREFLIGHT=failed"
+      echo "EXECENV_ERROR=managed_harness_disabled_use_existing_dev"
+      return 0
       ;;
     *)
       echo "EXECENV_PREFLIGHT=failed"
@@ -188,25 +85,23 @@ release_execenv_preflight() {  # $1 root → structured ownership verdict
   return 0
 }
 
-release_execenv_active() {  # $1 root → EXECENV=on|off (only managed envs are provisioned here)
-  [ "$(release_test_harness "${1:-.}")" = managed ] && echo "EXECENV=on" || echo "EXECENV=off"
+release_execenv_active() {  # compatibility: SDK-owned live environments no longer exist
+  echo "EXECENV=off"
   return 0
 }
 
-# ── label + template rendering ───────────────────────────────────────────────────────────────────
-release_execenv_label() {  # $1 raw → [a-z0-9_], ≤32 chars, never empty, never leading digit
-  local s="${*:-env}"
+release_execenv_label() {  # compatibility renderer label: [a-z0-9_], ≤32 chars
+  local s="${*:-dev}"
   s="$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '_' | tr -s '_' \
        | sed -e 's/^_*//' -e 's/_*$//')"
-  [ -n "$s" ] || s=env
-  case "$s" in [0-9]*) s="e$s";; esac       # Postgres identifiers must not start with a digit
+  [ -n "$s" ] || s=dev
+  case "$s" in [0-9]*) s="e$s" ;; esac
   printf '%s' "${s:0:32}"
   return 0
 }
 
-release_execenv_render() {  # $1 template, $2 worktree, $3 label, [$4 root] → substituted string
-  local tpl="${1:-}" wt="${2:-}" label="${3:-}" root="${4:-}"
-  # Pure bash substitution — never sed: worktree paths contain '/' and may contain sed metacharacters.
+release_execenv_render() {  # $1 template, $2 worktree, $3 label, [$4 root]
+  local tpl="${1:-}" wt="${2:-}" label="${3:-dev}" root="${4:-}"
   tpl="${tpl//\{worktree\}/$wt}"
   tpl="${tpl//\{label\}/$label}"
   tpl="${tpl//\{root\}/$root}"
@@ -214,8 +109,15 @@ release_execenv_render() {  # $1 template, $2 worktree, $3 label, [$4 root] → 
   return 0
 }
 
-# ── concurrency caps ─────────────────────────────────────────────────────────────────────────────
-release_exec_cores() {  # → usable core count (RELEASE_EXEC_CORES overrides; 1 when undetectable)
+execenv_prefix() {  # $1 root, $2 worktree, $3 label → stable external prefix
+  local tpl
+  tpl="$(release_execenv_get "${1:-.}" test_exec_prefix)"
+  [ -n "$tpl" ] || return 0
+  release_execenv_render "$tpl" "${2:-}" "${3:-dev}" "${1:-.}"
+  return 0
+}
+
+release_exec_cores() {
   local n="${RELEASE_EXEC_CORES:-}"
   if [ -z "$n" ]; then
     n="$(getconf _NPROCESSORS_ONLN 2>/dev/null)" \
@@ -227,78 +129,53 @@ release_exec_cores() {  # → usable core count (RELEASE_EXEC_CORES overrides; 1
   return 0
 }
 
-# The machine-derived default cap: half the cores, clamped to [1, 8]. Half (not all) because each
-# slot is an agent + a test runner + possibly a container — they compete for the same cores; 8
-# because past that the serialized cherry-pick back-pressure, not the CPU, is the bottleneck.
-release_default_max_parallel() {  # → min(8, max(1, cores/2))
-  local c half; c="$(release_exec_cores)"; half=$(( c / 2 ))
+release_default_max_parallel() {  # legacy host-only scheduler bound
+  local c half
+  c="$(release_exec_cores)"
+  half=$(( c / 2 ))
   [ "$half" -lt 1 ] && half=1
   [ "$half" -gt 8 ] && half=8
   printf '%s' "$half"
   return 0
 }
 
-release_execenv_max_parallel() {  # $1 root → live-env cap (configured, else machine default; 0 when off)
-  local v; v="$(release_execenv_get "${1:-.}" test_env_max_parallel)"
-  case "$v" in
-    ''|*[!0-9]*) [ "$(release_execenv_active "${1:-.}")" = "EXECENV=on" ] \
-                   && release_default_max_parallel || echo 0 ;;
-    *)           echo "$v" ;;
-  esac
-  return 0
-}
+release_execenv_max_parallel() { echo 0; return 0; }
+release_sched_max_parallel() { release_default_max_parallel; return 0; }
 
-# The READINESS SCHEDULER's cap (v0.23.0 — wave-executor). Distinct from the env cap above: it
-# bounds concurrent TASK SPAWNS whether or not per-worktree envs are configured, so a repo with no
-# EXEC-ENV.yml gets a sane machine-derived bound instead of "unlimited". An EXPLICIT
-# `test_env_max_parallel` always wins (the user sized their own machine); `0` means "unlimited
-# envs", which is not a licence for unlimited agents — the machine default still applies.
-release_sched_max_parallel() {  # $1 root → concurrent task-spawn cap (≥1)
-  local cfg; cfg="$(release_execenv_get "${1:-.}" test_env_max_parallel)"
-  case "$cfg" in
-    ''|*[!0-9]*|0) release_default_max_parallel ;;   # unset / junk / "unlimited envs" → machine default
-    *)             printf '%s' "$cfg" ;;             # explicit config wins, above or below the default
-  esac
-  return 0
-}
-
-# ── test timeout + hang detection (v0.23.0) ──────────────────────────────────────────────────────
-# A hung test process is worse than a failing one: the runner produces no output, the orchestrator
-# has no signal, and a phase can sit dead for hours before anyone notices. Every test invocation
-# gets a wall-clock bound and a structured verdict.
-release_test_timeout() {  # $1 root → seconds (config `test_timeout`, default 900, 0 = unbounded)
-  local v; v="$(release_execenv_get "${1:-.}" test_timeout)"
+release_test_timeout() {  # $1 root → seconds; default 900; 0 = unbounded
+  local v
+  v="$(release_execenv_get "${1:-.}" test_timeout)"
   case "$v" in ''|*[!0-9]*) echo 900 ;; *) echo "$v" ;; esac
   return 0
 }
 
-release_timeout_cmd() {  # $1 seconds → the timeout runner prefix, or empty when unavailable/0
+release_timeout_cmd() {
   local t="${1:-0}"
   [ "$t" != 0 ] || return 0
-  if   command -v timeout  >/dev/null 2>&1; then printf 'timeout -k 10 %s' "$t"
+  if command -v timeout >/dev/null 2>&1; then printf 'timeout -k 10 %s' "$t"
   elif command -v gtimeout >/dev/null 2>&1; then printf 'gtimeout -k 10 %s' "$t"
   fi
   return 0
 }
 
-release_timeout_available() {  # $1 seconds → yes | no
+release_timeout_available() {
   local t="${1:-0}"
   [ "$t" != 0 ] || { echo no; return 0; }
   if [ -n "$(release_timeout_cmd "$t")" ]; then echo yes
-  elif command -v python3 >/dev/null 2>&1 && [ -f "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" ]; then echo yes
+  elif command -v python3 >/dev/null 2>&1 \
+    && [ -f "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" ]; then echo yes
   else echo no
   fi
   return 0
 }
 
-# Run a test command under the timeout and echo a structured verdict the caller can act on.
-# `timeout` exits 124 on expiry (137 when the KILL follow-up was needed) — that is the hang signal.
-run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → sets _TEST_OUT; echoes TEST_* verdict lines
+run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → structured TEST_* verdict
   local root="${1:-.}" cmd="${2:-}" cwd="${3:-.}" t runner rc start end elapsed builtin=0
-  t="$(release_test_timeout "$root")"; runner="$(release_timeout_cmd "$t")"
+  t="$(release_test_timeout "$root")"
+  runner="$(release_timeout_cmd "$t")"
   start="$(date +%s 2>/dev/null)"; : "${start:=0}"
   if [ -z "$runner" ] && [ "$t" != 0 ] && command -v python3 >/dev/null 2>&1 \
-     && [ -f "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" ]; then
+    && [ -f "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" ]; then
     builtin=1
     _TEST_OUT="$( ( cd "$cwd" 2>/dev/null && RELEASE_TIMEOUT_COMMAND="$cmd" \
       python3 "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" "$t" ) </dev/null 2>&1 )"; rc=$?
@@ -307,147 +184,51 @@ run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → sets _TEST_OUT; echoes
   fi
   end="$(date +%s 2>/dev/null)"; : "${end:=$start}"
   elapsed=$(( end - start ))
-  # The captured output goes to a FILE, not just a variable: callers run this inside `$( )`, where a
-  # shell variable set in the subshell would be lost. Same contract as GATE_EVIDENCE.
-  local outf; outf="$(mktemp -t release-test-XXXXXX)"; printf '%s\n' "$_TEST_OUT" > "$outf"
+  local outf
+  outf="$(mktemp -t release-test-XXXXXX)"
+  printf '%s\n' "$_TEST_OUT" > "$outf"
   echo "TEST_OUTPUT=$outf"
-  # Whether the run was actually bounded is part of the verdict: with no timeout binary the command
-  # ran unbounded, and a caller that reports `bounded: true` would be lying.
   if [ -n "$runner" ] || [ "$builtin" = 1 ]; then echo "TEST_BOUNDED=true"
   else echo "TEST_BOUNDED=false"
   fi
   case "$rc" in
-    124) echo "TEST_HUNG=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
-         echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc" ;;
-    137) # SIGKILL: the timeout's -k follow-up, OR an OOM kill / an external `kill -9`. Ambiguous by
-         # nature — reported as a hang only when a bound was actually in force, and flagged either way.
-         if [ -n "$runner" ] || [ "$builtin" = 1 ]; then echo "TEST_HUNG=true"; else echo "TEST_HUNG=false"; fi
-         echo "TEST_KILLED=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
-         echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc"
-         echo "TEST_NOTE=rc137 is SIGKILL — timeout follow-up, OOM killer, or external kill; check dmesg/docker events before assuming a hang" ;;
-    *)   echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc" ;;
+    124)
+      echo "TEST_HUNG=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+      echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc"
+      ;;
+    137)
+      if [ -n "$runner" ] || [ "$builtin" = 1 ]; then echo "TEST_HUNG=true"
+      else echo "TEST_HUNG=false"
+      fi
+      echo "TEST_KILLED=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+      echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc"
+      echo "TEST_NOTE=rc137 is SIGKILL — timeout follow-up, OOM killer, or external kill"
+      ;;
+    *)
+      echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc"
+      ;;
   esac
   return 0
 }
 
-# ── env slots: reuse instead of re-provision (v0.23.0) ───────────────────────────────────────────
-# Provisioning costs ~60s (container + DB clone). Doing it per TASK means a 19-task phase pays ~19
-# minutes for nothing but setup. The fix is to keep N envs alive for the whole phase and hand them
-# to tasks as they are dispatched.
-#
-# THE DESIGN, and why it is slots and not a rebinding pool: a container's bind mounts are fixed at
-# creation, so an env cannot be re-pointed at a different worktree. Instead the SLOT is stable and
-# the WORKTREE is placed where the slot already looks: slot `s1` is provisioned once against
-# `<wt_base>/slot-s1`, and each task dispatched into that slot gets its worktree created AT that
-# path. The env never moves; the code under it does. That needs no container-runtime feature, and a
-# project whose provision command cannot cope explicitly sets `test_env_reuse: false`.
-release_execenv_reuse() {  # $1 root → EXECENV_REUSE=on|off (managed defaults to reuse)
-  local v; v="$(release_execenv_get "${1:-.}" test_env_reuse)"
-  case "$v" in
-    false|no|0|off) echo "EXECENV_REUSE=off" ;;
-    true|yes|1|on|'') [ "$(release_test_harness "${1:-.}")" = managed ] \
-                        && echo "EXECENV_REUSE=on" || echo "EXECENV_REUSE=off" ;;
-    *) echo "EXECENV_REUSE=off" ;;
-  esac
-  return 0
-}
+# Compatibility entry points are deliberately non-mutating. Old workflow prompts fail safely
+# instead of running legacy lifecycle commands.
+execenv_provision() { echo "EXECENV_PROVISION=disabled"; return 0; }
+execenv_teardown() { echo "EXECENV_TEARDOWN=skipped"; return 0; }
+execenv_migrate_cmd() { return 0; }
+release_execenv_reuse() { echo "EXECENV_REUSE=off"; return 0; }
+release_execenv_slot_label() { release_execenv_label "s${2:-1}_${1:-dev}"; return 0; }
+release_execenv_slot_path() { printf '%s/slot-s%s' "${1:-.}" "${2:-1}"; return 0; }
 
-release_execenv_slot_label() {  # $1 session_id, $2 slot_index → stable, sanitized slot label
-  release_execenv_label "s${2:-1}_${1:-sess}"
-  return 0
-}
-
-release_execenv_slot_path() {  # $1 wt_base, $2 slot_index → the worktree path this slot owns
-  printf '%s/slot-s%s' "${1:-.}" "${2:-1}"
-  return 0
-}
-
-# ── migration hook (v0.23.0) ─────────────────────────────────────────────────────────────────────
-# `--reuse-db` does not apply a migration the task just created, and in a containerized env the
-# migration must run against THAT env's database clone. A task that generated a migration runs this
-# before its tests.
-execenv_migrate_cmd() {  # $1 root, $2 worktree, $3 label → rendered command (empty when unset)
-  local tpl; tpl="$(release_execenv_get "${1:-.}" test_env_migrate)"
-  [ -n "$tpl" ] || return 0
-  release_execenv_render "$tpl" "${2:-}" "${3:-}" "${1:-.}"
-  return 0
-}
-
-# ── internal: run a provision/teardown command with a timeout, capturing output ──────────────────
-_execenv_run() {  # $1 cmd, $2 cwd → sets _EXECENV_OUT / returns the command's rc
-  local cmd="$1" cwd="$2" t="${RELEASE_EXECENV_TIMEOUT:-600}" runner=""
-  if [ "$t" != 0 ]; then
-    if   command -v timeout  >/dev/null 2>&1; then runner="timeout $t"
-    elif command -v gtimeout >/dev/null 2>&1; then runner="gtimeout $t"
-    fi
-  fi
-  _EXECENV_OUT="$( ( cd "$cwd" 2>/dev/null && eval "$runner $cmd" ) </dev/null 2>&1 )"
-  return $?
-}
-
-# ── public: provision / teardown / prefix ────────────────────────────────────────────────────────
-execenv_provision() {  # $1 root, $2 worktree, $3 label
-  local root="${1:-.}" wt="${2:-}" label="${3:-}" tpl cmd rc ev
-  [ "$(release_test_harness "$root")" = managed ] \
-    || { echo "EXECENV_PROVISION=skipped"; return 0; }
-  tpl="$(release_execenv_get "$root" test_env_provision)"
-  [ -n "$tpl" ] || { echo "EXECENV_PROVISION=skipped"; return 0; }
-  [ -n "$wt" ] && [ -d "$wt" ] || { echo "EXECENV_PROVISION=failed"; return 0; }
-  cmd="$(release_execenv_render "$tpl" "$wt" "$label" "$root")"
-  _execenv_run "$cmd" "$wt"; rc=$?
-  if [ "$rc" = 0 ]; then
-    echo "EXECENV_PROVISION=ok"
-  else
-    ev="$(mktemp -t release-execenv-XXXXXX)"
-    { printf '# EXEC-ENV PROVISION FAILED — label: %s\n# worktree: %s\n# command: %s\n# exit: %s\n\n' \
-        "$label" "$wt" "$cmd" "$rc"
-      printf '%s\n' "$_EXECENV_OUT"; } > "$ev"
-    echo "EXECENV_PROVISION=failed"
-    echo "EXECENV_EVIDENCE=$ev"
-  fi
-  return 0
-}
-
-execenv_teardown() {  # $1 root, $2 worktree, $3 label  — best effort, never fatal
-  local root="${1:-.}" wt="${2:-}" label="${3:-}" tpl cmd rc
-  [ "$(release_test_harness "$root")" = managed ] \
-    || { echo "EXECENV_TEARDOWN=skipped"; return 0; }
-  tpl="$(release_execenv_get "$root" test_env_teardown)"
-  [ -n "$tpl" ] || { echo "EXECENV_TEARDOWN=skipped"; return 0; }
-  cmd="$(release_execenv_render "$tpl" "$wt" "$label" "$root")"
-  # cwd falls back to root: teardown must still run when the worktree is already gone.
-  [ -n "$wt" ] && [ -d "$wt" ] || wt="$root"
-  _execenv_run "$cmd" "$wt"; rc=$?
-  [ "$rc" = 0 ] && echo "EXECENV_TEARDOWN=ok" || echo "EXECENV_TEARDOWN=failed"
-  return 0
-}
-
-execenv_prefix() {  # $1 root, $2 worktree, $3 label → rendered exec prefix (may be empty)
-  local tpl; tpl="$(release_execenv_get "${1:-.}" test_exec_prefix)"
-  [ -n "$tpl" ] || return 0
-  release_execenv_render "$tpl" "${2:-}" "${3:-}" "${1:-.}"
-  return 0
-}
-
-execenv_phase_prepare() {  # $1 root, $2 worktree, $3 session → stable phase env context
-  local root="${1:-.}" wt="${2:-}" session="${3:-phase}" check mode label out prefix ev
+execenv_phase_prepare() {  # compatibility: external/host only, never provisions
+  local root="${1:-.}" wt="${2:-}" check mode label prefix
   check="$(release_execenv_preflight "$root")"
   case "$check" in
     *EXECENV_PREFLIGHT=ok*) ;;
     *) printf '%s\n' "$check"; echo "EXECENV_PHASE_PREPARE=failed"; return 0 ;;
   esac
   mode="$(release_test_harness "$root")"
-  label="$(release_execenv_label "$session")"
-  if [ "$mode" = managed ]; then
-    out="$(execenv_provision "$root" "$wt" "$label")"
-    case "$out" in
-      *EXECENV_PROVISION=ok*) ;;
-      *) printf '%s\n' "$out"; echo "EXECENV_HARNESS=$mode"; echo "EXECENV_LABEL=$label"
-         ev="$(printf '%s\n' "$out" | sed -n 's/^EXECENV_EVIDENCE=//p')"
-         [ -n "$ev" ] && echo "EXECENV_EVIDENCE=$ev"
-         echo "EXECENV_PHASE_PREPARE=failed"; return 0 ;;
-    esac
-  fi
+  label="$(release_execenv_label dev)"
   prefix="$(execenv_prefix "$root" "$wt" "$label")"
   echo "EXECENV_PHASE_PREPARE=ok"
   echo "EXECENV_HARNESS=$mode"
@@ -456,7 +237,4 @@ execenv_phase_prepare() {  # $1 root, $2 worktree, $3 session → stable phase e
   return 0
 }
 
-execenv_phase_teardown() {  # $1 root, $2 worktree, $3 label
-  execenv_teardown "${1:-.}" "${2:-}" "${3:-}"
-  return 0
-}
+execenv_phase_teardown() { echo "EXECENV_TEARDOWN=skipped"; return 0; }

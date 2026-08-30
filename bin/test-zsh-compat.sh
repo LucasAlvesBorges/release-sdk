@@ -95,7 +95,7 @@ both "loop_guard"        release-loop-lib.sh    'loop_guard 2 6 aaa bbb'
 both "loop_signature"    release-loop-lib.sh    'loop_signature "pytest failed: assert 1 == 2"'
 both "model summary"     release-model-lib.sh   'RELEASE_MODEL_PROFILE=fable-opus release_model_summary'
 both "per-task tier"     release-model-lib.sh   'RELEASE_MODEL_PROFILE=fable-opus release_worker_model_for simple'
-printf 'test_env_provision: true\ntest_env_max_parallel: 3\ntest_exec_prefix: docker exec app-{label}\n' \
+printf 'test_harness: external\ntest_exec_prefix: docker compose exec -T backend\n' \
   > "$ROOT/.release-planning/EXEC-ENV.yml"
 both "execenv config read"  release-execenv-lib.sh "release_execenv_get '$ROOT' test_exec_prefix"
 both "execenv caps"         release-execenv-lib.sh "release_sched_max_parallel '$ROOT'"

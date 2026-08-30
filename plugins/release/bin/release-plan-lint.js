@@ -29,18 +29,6 @@ for (const file of files) {
   const lines = text.split('\n');
   if (lines.length > 600) findings.push(`${file}: plan slice exceeds 600 lines`);
   const headings = [...text.matchAll(/^###\s+(T\d+)\s*(?:[—:-]|$).*$/gm)];
-  if (headings.length) {
-    const harness = text.match(/^harness_scope:\s*(\S+)\s*$/m);
-    if (!harness) findings.push(`${file}: missing harness_scope (project|phase|host)`);
-    else if (!['project', 'phase', 'host'].includes(harness[1])) {
-      findings.push(`${file}: invalid harness_scope ${harness[1]}`);
-    } else if (harness[1] === 'phase') {
-      const dir = path.dirname(file);
-      for (const required of ['EXEC-ENV.yml', 'VERIFY-GATE.yml']) {
-        if (!fs.existsSync(path.join(dir, required))) findings.push(`${file}: phase harness missing ${required}`);
-      }
-    }
-  }
   for (let i = 0; i < headings.length; i++) {
     const id = headings[i][1];
     const start = headings[i].index;

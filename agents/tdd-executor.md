@@ -71,8 +71,8 @@ optional cleanup task.
 
 <rules>
 - Preserve concurrent/user edits and assigned path ownership.
-- The parent owns the test-environment lifecycle. Use the supplied `test_exec_prefix` exactly;
-  never invent a runner, provision another container/database or switch to a shared project env.
+- Use the supplied stable project `test_exec_prefix` exactly. Never invent a runner, call Docker
+  lifecycle commands, provision a container/database or modify the development environment.
 - Never weaken a test to make it pass.
 - Never use `--no-verify`, amend or push.
 - A risk or required path outside scope returns `needs_scope_expansion`; do not silently broaden.

@@ -14,7 +14,6 @@ slug: {phase-slug}
 created: {YYYY-MM-DDTHH:MM:SSZ}
 revised: {YYYY-MM-DDTHH:MM:SSZ}
 status: ready                     # ready | executing | complete
-harness_scope: project            # project | phase | host
 context_ref: {NN}-CONTEXT.md
 research_ref: {NN}-RESEARCH.md
 patterns_ref: {NN}-PATTERNS.md

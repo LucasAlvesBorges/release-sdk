@@ -14,9 +14,10 @@
 #   #7  GATE_FAILFAST=0: every step runs even after a red
 #   #8  first-colon split: a command containing a colon runs intact
 #   #9  unknown stack + no config → empty `GATE=` verdict (caller decides)
-#   #14 phase-local gate config overrides the project default
+#   #14 phase-local gate config cannot override the project dev gate
 #   #15 every step announces itself and honors EXEC-ENV test_timeout
 #   #16 successful steps survive a later RED and are reused on an unchanged tree
+#   #17 stable project dev prefix is applied by the gate
 #
 # Run: bash bin/test-gate-lib.sh
 set -euo pipefail
@@ -178,13 +179,13 @@ printf 'dirty\n' >> "$C/tracked.txt"
 OUT="$(run_gate_cached "$C")"
 hasnt "dirty tree never reuses cache" "$OUT" "GATE_CACHE=hit"
 
-echo "── #14 phase-local gate override ──"
+echo "── #14 project gate remains authoritative ──"
 PG="$SBX/phase-gate"; mkdir -p "$PG/.release-planning/phases/42-fast-gate"
-printf 'global: false\n' > "$PG/.release-planning/VERIFY-GATE.yml"
-printf 'phase: true\n' > "$PG/.release-planning/phases/42-fast-gate/VERIFY-GATE.yml"
+printf 'global: true\n' > "$PG/.release-planning/VERIFY-GATE.yml"
+printf 'phase: false\n' > "$PG/.release-planning/phases/42-fast-gate/VERIFY-GATE.yml"
 OUT="$(RELEASE_PHASE_CONFIG_DIR="$PG/.release-planning/phases/42-fast-gate" run_gate "$PG")"
-has "phase-local gate selected" "$OUT" "GATE_STEP=phase PASS"
-hasnt "global gate ignored while override exists" "$OUT" "GATE_STEP=global"
+has "project gate selected" "$OUT" "GATE_STEP=global PASS"
+hasnt "phase-local gate ignored" "$OUT" "GATE_STEP=phase"
 
 echo "── #15 observable + bounded steps ──"
 BD="$SBX/bounded"; mkdir -p "$BD/.release-planning"
@@ -213,6 +214,16 @@ has "cheap step passed before late RED" "$OUT" "GATE_STEP=cheap PASS"
 OUT="$(run_gate "$SCROOT")"
 has "unchanged cheap step reused" "$OUT" "GATE_STEP=cheap PASS_CACHED"
 eq "cached step did not execute twice" "1" "$(wc -c < "$MARKS/cheap" | tr -d ' ')"
+
+echo "── #17 stable project dev prefix ──"
+DP="$SBX/dev-prefix"; mkdir -p "$DP/.release-planning"
+printf 'test_harness: external\ntest_exec_prefix: env RELEASE_DEV_RUNNER=active\n' \
+  > "$DP/.release-planning/EXEC-ENV.yml"
+printf '%s\n' "dev: python3 -c 'import os; assert os.environ[\"RELEASE_DEV_RUNNER\"] == \"active\"'" \
+  > "$DP/.release-planning/VERIFY-GATE.yml"
+PREFIX="$(execenv_prefix "$DP" "$DP" dev)"
+OUT="$(RELEASE_EXEC_PREFIX="$PREFIX" run_gate "$DP")"
+has "project prefix applied automatically" "$OUT" "GATE_STEP=dev PASS"
 
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

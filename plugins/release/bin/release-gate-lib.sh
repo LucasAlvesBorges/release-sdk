@@ -120,13 +120,7 @@ release_default_quick_gate() { # $1 stack, $2 root → cheap checks; focused tes
 }
 
 release_gate_config() {  # $1 root → path to VERIFY-GATE.yml if present, else empty
-  local root="$1" phase_dir="${RELEASE_PHASE_CONFIG_DIR:-}" f
-  if [ -n "$phase_dir" ]; then
-    case "$phase_dir" in /*) ;; *) phase_dir="$root/$phase_dir" ;; esac
-    f="$phase_dir/VERIFY-GATE.yml"
-    [ -f "$f" ] && { printf '%s' "$f"; return 0; }
-  fi
-  f="$root/.release-planning/VERIFY-GATE.yml"
+  local root="$1" f="$1/.release-planning/VERIFY-GATE.yml"
   [ -f "$f" ] && printf '%s' "$f"
 }
 
@@ -140,12 +134,7 @@ release_resolve_gate() {  # $1 root → the resolved `name: command` lines (conf
 }
 
 release_resolve_quick_gate() { # $1 root
-  local root="$1" phase_dir="${RELEASE_PHASE_CONFIG_DIR:-}" cfg=""
-  if [ -n "$phase_dir" ]; then
-    case "$phase_dir" in /*) ;; *) phase_dir="$root/$phase_dir" ;; esac
-    [ -f "$phase_dir/VERIFY-QUICK.yml" ] && cfg="$phase_dir/VERIFY-QUICK.yml"
-  fi
-  [ -n "$cfg" ] || cfg="$root/.release-planning/VERIFY-QUICK.yml"
+  local root="$1" cfg="$1/.release-planning/VERIFY-QUICK.yml"
   if [ -f "$cfg" ]; then
     grep -vE '^[[:space:]]*(#|$)' "$cfg"
   else
@@ -232,6 +221,7 @@ _release_run_gate_steps() { # <root> <steps>
     name="$(printf '%s' "$name" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     cmd="$(printf '%s'  "$cmd"  | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [ -n "$cmd" ] || continue
+    [ -z "${RELEASE_EXEC_PREFIX:-}" ] || cmd="$RELEASE_EXEC_PREFIX $cmd"
     any=1
     step_fp="$(_release_gate_step_fingerprint "$root" "$name" "$cmd")"
     step_cache="$cache_dir/${step_fp}.pass"

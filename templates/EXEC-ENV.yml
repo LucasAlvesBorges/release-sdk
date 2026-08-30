@@ -1,92 +1,18 @@
-# EXEC-ENV.yml — per-worktree TEST ENVIRONMENT for /release:* execution.
+# EXEC-ENV.yml — pointer to the project's existing development test runner.
 #
-# Copy to `.release-planning/EXEC-ENV.yml`, or to the phase directory as `EXEC-ENV.yml` when a
-# phase needs a different harness. Phase-local config wins over the project default. Use this ONLY
-# if your tests cannot run against an arbitrary
-# directory on the host (typically: pytest runs inside a container that mounts one checkout and
-# talks to one database). If your tests DO run on the host, delete this file — with no config the
-# executor behaves exactly as before (host-local exec).
+# Copy this file to `.release-planning/EXEC-ENV.yml` only when tests need a prefix. With no file,
+# `/release:*` runs commands directly on the host. The SDK never starts, recreates or tears down
+# Docker containers, databases, Redis instances, Compose projects or any other test environment.
 #
-# WHY: `/release:execute` fans tasks out into one git worktree per task. A container that mounts
-# the phase worktree cannot see those sub-worktrees, so the executor is forced back to SERIAL —
-# the slowest possible mode. Describe how to stand up a throwaway env for an arbitrary directory
-# and parallelism comes back: one env per worktree, torn down after its commits are cherry-picked.
+# The runner must already exist and must test the current checkout — the same checkout mounted by
+# the development setup. Keep lifecycle outside this contract. Keys such as `test_env_provision`,
+# `test_env_teardown` and `test_env_migrate`, plus phase-local EXEC-ENV files, are rejected by the
+# active workflows.
 #
-# Format: an ORDERED flat map, one `key: value` per line, split on the FIRST colon only (values
-# routinely contain colons: `-v {worktree}/backend:/app`). '#' comments and blank lines ignored.
+# Format: one `key: value` per line. The parser splits on the first colon. Commands stay plain in
+# PLAN/VERIFY-GATE; `/release:*` prepends `test_exec_prefix` to each test invocation.
 #
-# Placeholders:
-#   {worktree}  absolute path of the worktree being provisioned (this is what you must mount)
-#   {label}     unique, sanitized id for this env — [a-z0-9_], ≤32 chars, never digit-initial.
-#               Safe as a container name suffix AND as a Postgres database name.
-#   {root}      absolute path of the main repo checkout
-#
-# Contract:
-#   - test_harness is REQUIRED when this file exists:
-#       managed  SDK provisions one stable env for the phase and owns teardown (default choice)
-#       external test_exec_prefix is a self-contained stable runner; SDK lifecycle keys are forbidden
-#       host     tests intentionally run on the host; env/prefix commands are forbidden
-#     Ambiguous/mixed ownership is rejected before workers start.
-#   - test_env_provision MUST be synchronous (return only when the env can actually run tests)
-#     and idempotent (re-running for the same label must not fail). Exit 0 = provisioned; any
-#     non-zero exit ⇒ execution stops before workers; it never falls back to another harness.
-#   - test_env_teardown runs before the worktree is removed. Make it tolerate a missing env; a
-#     failing teardown is logged, never fatal (it must not cost you the commits).
-#   - test_exec_prefix is prepended to EVERY pytest / manage.py / vitest command the task
-#     executor runs. Leave it unset when the provisioned env is reachable from the host.
-#   - test_env_max_parallel caps how many envs exist at once. Default: min(8, cores/2) — half the
-#     cores because each slot is an agent + a test runner + a container competing for them, capped
-#     at 8 because past that the serialized cherry-pick, not the CPU, is the bottleneck. `0` =
-#     unlimited ENVS (it is NOT a licence for unlimited agents: the readiness scheduler still bounds
-#     concurrent task spawns by the machine default). Each env is a real container + database — this
-#     is the knob that keeps a 12-task wave from melting the machine.
-#     The same value caps the readiness scheduler's concurrent task spawns, with or without envs;
-#     set it explicitly (above or below the machine default) when you have sized your own box.
-#
-#   - test_env_migrate (v0.23.0) runs when a task CREATED a migration, before that task's tests.
-#     `--reuse-db` does not apply a new migration, and in a containerized env it must hit that env's
-#     database clone. Unset ⇒ the executor runs `manage.py migrate` host-locally.
-#   - managed environments are reused for the whole phase by default instead of provisioning one
-#     per task/commit — commonly saving ~60s per task. `test_env_reuse: false` is the explicit
-#     isolation escape hatch. SLOT model: each slot owns a fixed worktree path and its
-#     env is provisioned against that path once; dispatching a task resets that worktree in place
-#     (a container's bind mounts cannot be re-pointed, so the env never moves). Trade-off: cross-task
-#     database residue is real, so test_env_migrate becomes mandatory and your suite must tolerate a
-#     warm DB. Set `test_env_reuse: false` only when per-task isolation is required.
-#   - test_timeout bounds EVERY focused invocation and final-gate step in seconds (default 900,
-#     `0` = unbounded). The gate announces the step before execution and reports timeout distinctly.
-#     Raise it for a legitimately slow suite; do not disable it.
-#
-# Env overrides: RELEASE_EXECENV_TIMEOUT (seconds per provision/teardown, default 600; 0 = none),
-#                RELEASE_EXECENV_DISABLE=1 (kill switch — forces host-local exec everywhere).
-
-# ── Example: Django + pytest inside a per-worktree container with a cloned template DB ──────────
-# One key = ONE line (no YAML folded scalars — the parser is a flat first-colon split). Chain with
-# && and keep it on a single line; if it gets long, move it into a script and call that instead.
-#
-# test_harness: managed
-# test_env_provision: docker exec myapp-db createdb -T myapp_test_template test_{label} && docker run -d --name myapp-{label} --network myapp_default -v {worktree}/backend:/app -e DATABASE_URL=postgres://db/test_{label} myapp:test sleep infinity
-#
-# test_env_teardown: docker rm -f myapp-{label} >/dev/null 2>&1; docker exec myapp-db dropdb --if-exists test_{label} >/dev/null 2>&1; true
-#
-# test_exec_prefix: docker exec -w /app myapp-{label}
-#
-# test_env_max_parallel: 4
-#
-# test_env_migrate: docker exec -w /app myapp-{label} python manage.py migrate --noinput
-#
-# test_timeout: 900
-#
-# test_env_reuse: true
-
-# ── Example: host-local venv per worktree (no container) ────────────────────────────────────────
-# test_harness: managed
-# test_env_provision: python -m venv {worktree}/.venv && {worktree}/.venv/bin/pip install -q -r {worktree}/backend/requirements-dev.txt
-# test_env_teardown: rm -rf {worktree}/.venv
-# test_exec_prefix: {worktree}/.venv/bin/python -m
-# test_env_max_parallel: 3
-
-# ── Example: stable external runner (it owns lifecycle; no provision/teardown keys) ─────────────
+# Example (adapt service/file names to the project's existing dev setup):
 # test_harness: external
-# test_exec_prefix: bash scripts/test-runner.sh
-# test_timeout: 1800
+# test_exec_prefix: docker compose -f {root}/.devcontainer/docker-compose.yml exec -T backend
+# test_timeout: 900

@@ -13,8 +13,8 @@ model: sonnet
 </inputs>
 
 <role>
-Write the smallest plan that completely delivers the accepted outcome. The plan guides one worker by
-default and a wave executor only when strict parallelism is justified.
+Write the smallest plan that completely delivers the accepted outcome. The plan guides one serial
+worker in the project's development checkout.
 </role>
 
 <workflow>
@@ -28,13 +28,12 @@ default and a wave executor only when strict parallelism is justified.
    clean-code pass and only the security checks triggered by its surface. Keep refactoring inside
    the behavior task: meaningful naming, cohesive functions, flat control flow and removal of
    evidenced duplication; never create separate cleanup tasks as ceremony.
-5. Inspect the real project test harness before writing verification. Declare `harness_scope` in
-   PLAN frontmatter: `project` when the root EXEC-ENV/VERIFY-GATE are correct for this phase,
-   `phase` when isolation/topology differs, or `host` when no environment is required. For `phase`,
-   write `{phase_dir}/EXEC-ENV.yml` and `{phase_dir}/VERIFY-GATE.yml` with one explicit owner.
-6. Declare exact files, real data dependencies and a focused verification command. Commands name
-   the tool (`pytest`, `vitest`, `manage.py`) and never embed a phase runner; execute supplies the
-   selected prefix. A phase-specific runner is a planning artifact, not application source.
+5. Inspect the project's existing test commands before writing verification. Declare exact files,
+   real data dependencies and one focused command naming the tool (`pytest`, `vitest`, `manage.py`).
+   Execution supplies the stable project dev prefix.
+6. Never create or modify EXEC-ENV.yml, VERIFY-GATE.yml, Docker/Compose profiles, databases, Redis,
+   runner scripts or other test infrastructure as a phase artifact. If the existing dev runner
+   cannot run the command, return that blocker to the parent.
 7. Use one fullstack plan with ordered backend/frontend tasks; do not create dual pipelines.
 8. Write `{phase_dir}/{NN}-PLAN.md`, normally <=300 lines and always <=600.
 </workflow>
@@ -59,9 +58,9 @@ Risk checks are surface-triggered, never a universal nine-category matrix.
 </security>
 
 <parallelism>
-Default `execution: serial`. Use `parallel` only in strict mode with at least three independent,
-file-disjoint tasks whose setup/tests can run independently. Dependencies name consumed outputs;
-file collision is not a dependency. Record the critical path.
+Always write `execution: serial`; the shared dev checkout and harness are the concurrency boundary.
+Dependencies name consumed outputs; file collision is not a fake dependency. Record the critical
+path without inventing waves or lanes.
 </parallelism>
 
 <rules>
@@ -70,7 +69,7 @@ file collision is not a dependency. Record the critical path.
 - No RESEARCH.md, PATTERNS.md, wave directory or separate RED/GREEN/REFACTOR/SECURITY tasks.
 - No generic Q1-Q7/RC1-RC7 repetition. Apply only checks relevant to touched surfaces.
 - Do not reread the whole repository or invent future work.
-- Never reuse a root harness labelled/configured for another phase. Choose `harness_scope: phase`
-  and emit the two local configs instead.
+- Never emit a phase harness or phase runner. Test infrastructure belongs to the existing project
+  development setup, outside PLAN ownership.
 - On revision, edit only findings and preserve stable task IDs when possible.
 </rules>

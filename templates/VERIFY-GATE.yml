@@ -7,7 +7,6 @@
 # pytest; React: lint + build). Defining it explicitly is strongly recommended — a vague gate
 # makes the loop expensive and unpredictable; a sharp one makes "done" objective and cheap.
 #
-# A phase may provide its own `VERIFY-GATE.yml` beside its PLAN; it wins over this project default.
 # Format: an ORDERED flat map, one `name: command` per line.
 #   - Steps run top-to-bottom. Put the CHEAPEST/FASTEST first (lint before tests): the loop is
 #     fail-fast, so a 2-second ruff failure short-circuits before a 2-minute pytest run.
@@ -15,9 +14,8 @@
 #   - '#' comments and blank lines are ignored.
 #   - Every command MUST exit 0 on success and non-zero on failure (that is the whole contract).
 #   - Avoid watch-mode runners (they hang the gate): use `vitest run`, not bare `vitest`.
-#   - Commands are eval'd, so env vars expand. If your tests run inside a per-worktree container
-#     (see templates/EXEC-ENV.yml), prefix them with `$RELEASE_EXEC_PREFIX` — /release:execute
-#     exports it with that worktree's exec prefix, and it expands to nothing when unset.
+#   - Commands are eval'd, so env vars expand. `/release:*` prepends the stable project dev runner
+#     from EXEC-ENV.yml; commands here stay plain and never start Docker or create databases.
 #   - Each uncached step emits `GATE_STEP_START`, is bounded by EXEC-ENV `test_timeout`, and a PASS is
 #     cached independently. If a later step fails, retrying the unchanged tree skips earlier greens.
 
