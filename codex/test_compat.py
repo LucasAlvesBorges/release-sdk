@@ -255,6 +255,77 @@ class CodexCompatibilityTests(unittest.TestCase):
         self.assertNotIn("react-security-guard.js", serialized)
         self.assertNotIn("release-context-monitor.js", serialized)
 
+    def test_efficiency_policy_is_global_compact_and_rtk_aware(self) -> None:
+        policy_path = REPO_ROOT / "hooks" / "release-efficiency-policy.md"
+        hook_path = REPO_ROOT / "hooks" / "release-efficiency-context.js"
+        policy = policy_path.read_text()
+        self.assertIn("smallest complete change", policy)
+        self.assertIn("When RTK is available", policy)
+        self.assertIn("Never trade away correctness", policy)
+        self.assertNotIn("Headroom", policy)
+
+        claude_hooks = json.loads(
+            (REPO_ROOT / ".claude-plugin" / "plugin.json").read_text()
+        )["hooks"]
+        codex_hooks = json.loads((PLUGIN / "hooks" / "hooks.json").read_text())["hooks"]
+        for hooks in (claude_hooks, codex_hooks):
+            self.assertIn("SessionStart", hooks)
+            self.assertIn("SubagentStart", hooks)
+            serialized = json.dumps(hooks)
+            self.assertEqual(serialized.count("release-efficiency-context.js"), 2)
+
+        generated_policy = PLUGIN / "hooks" / policy_path.name
+        generated_hook = PLUGIN / "hooks" / hook_path.name
+        self.assertEqual(generated_policy.read_text(), policy)
+        self.assertTrue(generated_hook.is_file())
+
+        if not shutil.which("node"):
+            self.skipTest("node unavailable")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            environment = os.environ.copy()
+            environment.pop("PLUGIN_DATA", None)
+            environment["PATH"] = str(root)
+            command = [shutil.which("node"), str(hook_path)]
+
+            session = subprocess.run(
+                [*command, "SessionStart"], capture_output=True, text=True,
+                check=True, env=environment,
+            )
+            self.assertIn("release_efficiency_contract", session.stdout)
+            self.assertNotIn("RTK detected", session.stdout)
+
+            subagent = subprocess.run(
+                [*command, "SubagentStart"], capture_output=True, text=True,
+                check=True, env=environment,
+            )
+            output = json.loads(subagent.stdout)
+            self.assertEqual(
+                output["hookSpecificOutput"]["hookEventName"], "SubagentStart"
+            )
+
+            rtk_name = "rtk.EXE" if os.name == "nt" else "rtk"
+            rtk = root / rtk_name
+            rtk.write_text("")
+            rtk.chmod(0o755)
+            detected = subprocess.run(
+                [*command, "SessionStart"], capture_output=True, text=True,
+                check=True, env=environment,
+            )
+            self.assertIn("RTK detected on PATH", detected.stdout)
+
+            environment["PLUGIN_DATA"] = str(root / "plugin-data")
+            codex = subprocess.run(
+                [*command, "SessionStart"], capture_output=True, text=True,
+                check=True, env=environment,
+            )
+            output = json.loads(codex.stdout)
+            self.assertEqual(output["systemMessage"], "RELEASE_EFFICIENCY_ACTIVE")
+            self.assertEqual(
+                output["hookSpecificOutput"]["hookEventName"], "SessionStart"
+            )
+
     def test_legacy_hooks_are_not_shipped(self) -> None:
         retired = {
             "django-prompt-guard.js",

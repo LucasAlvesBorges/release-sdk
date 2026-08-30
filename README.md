@@ -273,6 +273,7 @@ gravar o conteúdo das mensagens.
 
 | Hook | Evento | Propósito |
 |---|---|---|
+| `release-efficiency-context.js` | SessionStart/SubagentStart | Injeta uma vez a política base de solução mínima, contexto compacto e uso opcional de RTK |
 | `django-validate-commit.sh` | PreToolUse:Bash | Enforcement de Conventional Commits (ambas stacks) |
 | `release-edit-guard.js` | PreToolUse:Write/Edit | Um único processo: teste focado, tenant scope, prompt injection e segurança React |
 | `release-token-collector.js` | PostToolUse:* | Lê apenas bytes novos do transcript e alimenta o dashboard de custo |
