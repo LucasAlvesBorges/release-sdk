@@ -76,3 +76,14 @@ ambiguous EXEC-ENV ownership before any worker.
 
 Each round must change the git tree or stop as no-progress. A checker is a separate turn but uses the
 worker tier for C0-C2 and the orchestrator tier only for C3/C4.
+
+## Common implementation quality — mandatory
+
+Maker and fixer rounds leave touched code cleaner without opportunistic rewrites: meaningful names,
+cohesive single-purpose functions, guard clauses, named boolean predicates and no newly duplicated
+knowledge. Replace narration comments with self-explanatory code while retaining rationale/safety
+comments. Prefer zero to two arguments when natural and group only a cohesive concept. Split classes
+or introduce value/domain objects only at a proven responsibility/invariant seam; replace stable
+long conditionals with dispatch or polymorphism only when simpler. Refactoring starts from green
+tests and advances in reversible baby steps with a focused test after each logical step. Every step
+must preserve public signatures and observable behavior.

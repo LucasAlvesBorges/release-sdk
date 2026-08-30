@@ -54,6 +54,19 @@ its `EXECENV_PREFIX` as `RELEASE_EXEC_PREFIX` and pass it to the worker as `test
    `--no-merge`; otherwise retain work, environment and evidence.
 9. Append one compact line to `quick-log.md` only when `.release-planning/` already exists.
 
+## Common implementation quality — mandatory
+
+Before commit, make the touched code intention-revealing and cohesive: meaningful names,
+single-purpose functions, guard clauses instead of deep nesting and named predicates instead of
+complex booleans. Replace narration comments with self-explanatory code but retain rationale/safety
+comments. Prefer zero to two arguments when natural; group only a real domain concept.
+
+Remove duplicated knowledge only when semantics match. Split a massive class or introduce a small
+domain/value object only when the bounded change exposes a real SRP seam or invariant. Prefer a
+dispatch map, protocol, composition or polymorphism over a stable long conditional only when the
+result is simpler. For refactoring, start green, make reversible baby steps, rerun the focused test
+after each logical step and preserve public signatures and observable behavior.
+
 ## Done report
 
 Return changed files, commit(s), focused verification, gate verdict/cache status and land outcome.

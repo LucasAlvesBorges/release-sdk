@@ -37,8 +37,10 @@ default and a wave executor only when strict parallelism is justified.
 2. Inspect 1-3 closest implementation/test analogs. Cite paths in task actions; do not create a
    separate research artifact.
 3. Map every AC-XX to at least one task and every task to an AC-XX.
-4. Create 2-8 vertical behavior tasks. A task contains its test, implementation, refactor and only
-   the security checks triggered by its surface.
+4. Create 2-8 vertical behavior tasks. A task contains its test, implementation, a small green
+   clean-code pass and only the security checks triggered by its surface. Keep refactoring inside
+   the behavior task: meaningful naming, cohesive functions, flat control flow and removal of
+   evidenced duplication; never create separate cleanup tasks as ceremony.
 5. Inspect the real project test harness before writing verification. Declare `harness_scope` in
    PLAN frontmatter: `project` when the root EXEC-ENV/VERIFY-GATE are correct for this phase,
    `phase` when isolation/topology differs, or `host` when no environment is required. For `phase`,

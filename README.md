@@ -187,6 +187,14 @@ gravar o conteúdo das mensagens.
 | `/release:land [label]` | both | Aterrissa na base uma unidade segurada/`--no-merge` (`quick/*`, `feat/*`, `session/*`) — retry do auto-merge, mesmo motor serializado conflict-safe. `--all` aterrissa todas |
 | `/release:workstreams [sub]` | both | ⚠️ Deprecated (v0.15) — substituído por `/release:session` |
 
+### Qualidade padrão de implementação
+
+Clean Code faz parte de todo `/release:fast`, `/release:quick`, `/release:execute` e
+`/release:loop`; não exige uma skill separada. O executor usa nomes significativos, funções coesas,
+guard clauses, booleanos nomeados e abstrações somente quando removem duplicação real, separam uma
+responsabilidade ou protegem um conceito de domínio. Refatorações começam com testes verdes,
+avançam em baby steps e preservam assinaturas e comportamento externo.
+
 ### Legacy single-stack (mantidos por compatibilidade)
 | Comando | Stack | Propósito |
 |---|---|---|

@@ -46,9 +46,20 @@ If unsure, default to `/release:quick` (safer envelope).
 
 Use `Read` + `Edit` + `Grep` directly. No subagents. No `.release-planning/` writes.
 
+Keep even this small delta clean: choose an intention-revealing name, avoid adding narration
+comments, deep nesting, complex unnamed booleans or duplicated knowledge. A tiny refactor must
+preserve the public signature and observable behavior; if it needs characterization tests, class
+splitting, a domain object or a new abstraction, it exceeds the `fast` envelope and routes to
+`quick`.
+
+If the edit changes behavior, add or adjust the smallest focused unit test first and observe the
+relevant failure. A behavior-preserving refactor starts with that test green and reruns it after each
+logical baby step. If a meaningful focused test does not fit this envelope, route to `quick`.
+
 ### Step 3 — Validate
 
 Run the obvious validation for the stack:
+- Behavior or refactor edit → run the smallest focused test selected in Step 2
 - Python edit → `python -m py_compile <file>` (or `ruff check <file>` if available)
 - TypeScript edit → `tsc --noEmit <file>` is too heavy; skip (delegate to CI)
 - JSON/YAML edit → parse to confirm valid

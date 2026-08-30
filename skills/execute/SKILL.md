@@ -89,6 +89,22 @@ complexity-based model/effort policy; no universal max effort. They also receive
 `test_exec_prefix`; they must not invent a runner, call an unrelated project container or provision
 a second environment.
 
+## Common implementation quality — mandatory
+
+Every task includes a small green clean-code pass before commit. Use meaningful names that reveal
+intent and cohesive, single-purpose functions. Replace narration comments with self-explanatory code
+while keeping rationale/safety comments. Prefer zero to two arguments when natural, without artificial
+parameter objects. Flatten deep nesting with guard clauses and named boolean predicates. Remove
+duplicated knowledge only when semantics match; split massive classes only at a real SRP seam; use a
+value/domain object only for a recurring concept or invariant. Replace stable long conditional
+dispatch with a map, protocol, composition or polymorphism only when it is simpler.
+
+Behavior changes get a focused unit test first. Refactoring starts from a green unit or
+characterization test, proceeds in reversible baby steps and reruns that test after each logical
+step. Internal simplification must preserve public signatures, serialized shapes, exceptions,
+ordering, side effects and transaction boundaries. These checks are part of normal execution; do
+not create a separate cleanup phase or broaden task scope.
+
 ## Verification and landing
 
 1. Workers run focused tests only. They do not spawn test-discover/test-runner agents.

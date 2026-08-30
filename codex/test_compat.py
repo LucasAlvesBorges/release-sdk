@@ -135,6 +135,41 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertGreater(data["output_token_budget"], 0)
             self.assertTrue(data["role_class"], path)
 
+    def test_common_development_flow_enforces_clean_code_contract(self) -> None:
+        source_agent = (REPO_ROOT / "agents" / "tdd-executor.md").read_text()
+        generated_agent = tomllib.loads(
+            (PLUGIN / "agents" / "release-tdd-executor.toml").read_text()
+        )["developer_instructions"]
+        for contract in (
+            "intention-revealing names",
+            "single-purpose",
+            "zero to two arguments",
+            "cyclomatic complexity",
+            "guard clauses",
+            "duplicated knowledge",
+            "massive class",
+            "primitive obsession",
+            "polymorphism",
+            "characterization test",
+            "Preserve public",
+            "every logical baby step must return to green",
+        ):
+            self.assertIn(contract, source_agent)
+            self.assertIn(contract, generated_agent)
+
+        for skill_name in ("execute", "quick", "loop"):
+            source = (REPO_ROOT / "skills" / skill_name / "SKILL.md").read_text()
+            generated = (PLUGIN / "skills" / skill_name / "SKILL.md").read_text()
+            for contract in (
+                "Common implementation quality — mandatory",
+                "meaningful names",
+                "guard clauses",
+                "baby steps",
+                "preserve public signatures",
+            ):
+                self.assertIn(contract, source)
+                self.assertIn(contract, generated)
+
     def test_generic_roles_present(self) -> None:
         expected = {
             "explorer-fast",
