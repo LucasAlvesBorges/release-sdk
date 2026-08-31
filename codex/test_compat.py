@@ -120,6 +120,28 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertNotIn(obsolete, generated)
         self.assertTrue((PLUGIN / "bin" / "release-timeout.py").is_file())
 
+    def test_quick_allows_dirty_callers_and_parallel_worktrees(self) -> None:
+        source = (REPO_ROOT / "skills" / "quick" / "SKILL.md").read_text()
+        generated = (PLUGIN / "skills" / "quick" / "SKILL.md").read_text()
+        for contract in (
+            "A dirty caller checkout is allowed.",
+            "quick/<timestamp>-<slug>",
+            "release-worktrees/quick/<timestamp>-<slug>",
+            "multiple quick tasks can run in parallel",
+            "never switch the caller checkout",
+            "call `land_branch` for the quick branch/worktree",
+            "RESULT=held-dirty",
+        ):
+            self.assertIn(contract, source)
+            self.assertIn(contract, generated)
+        for obsolete in (
+            "Otherwise require a clean tree",
+            "Never create a sibling worktree",
+            "land the in-place branch",
+        ):
+            self.assertNotIn(obsolete, source)
+            self.assertNotIn(obsolete, generated)
+
     def test_all_agents_are_valid_toml(self) -> None:
         source = sorted((REPO_ROOT / "agents").glob("*.md"))
         roles = sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md"))

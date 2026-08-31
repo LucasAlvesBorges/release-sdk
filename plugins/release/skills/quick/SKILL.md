@@ -1,9 +1,9 @@
 ---
 name: quick
 description: >
-  Deliver a bounded change in the development checkout with focused verification and one logical commit. C0/C1 runs
-  inline without subagents; C2 may use one compact executor. No phase artifacts, broad suite,
-  universal security matrix or automatic loop.
+  Deliver a bounded change in an isolated worktree with focused verification and one logical commit. C0/C1 runs inline
+  without subagents; C2 may use one compact executor. No phase artifacts, broad suite, universal security matrix or
+  automatic loop.
 ---
 
 ## Codex runtime contract
@@ -51,9 +51,18 @@ Score C0-C4 with `release-economy-lib.sh`.
 
 ## Checkout
 
-Work in the current checkout so the already-running development environment sees the exact code
-under test. Inside a `/release:session`, keep its branch. Otherwise require a clean tree, record the
-base and create `quick/<timestamp>-<slug>` in this same checkout. Never create a sibling worktree.
+Inside a marker-bearing `/release:session`, keep its branch and worktree; never nest another
+worktree. Otherwise create an isolated sibling worktree so multiple quick tasks can run in parallel:
+
+1. Resolve the caller root and its current branch as `BASE`; refuse detached HEAD. Record the base
+   branch and starting commit before any write.
+2. A dirty caller checkout is allowed. Never stage, stash, commit, copy, or edit its uncommitted
+   changes; the quick unit starts from the committed `BASE` tip.
+3. Create branch `quick/<timestamp>-<slug>` at `BASE` and add it at
+   `<main-root>/../release-worktrees/quick/<timestamp>-<slug>`. Validate that neither branch nor path
+   already exists, and never switch the caller checkout.
+4. Perform every task read, write, command, and focused verification inside the quick worktree. The
+   caller checkout is only the eventual landing target.
 
 ## Execution
 
@@ -73,8 +82,10 @@ pass it to the worker. Never start/recreate Docker resources.
    `run_gate_cached "$ROOT" quick`, or `full` for `--strict`.
 7. For `--strict`, run `release-loop-goal-verifier` once against the request and cached gate. It
    must not rerun the suite.
-8. GREEN (+ strict PASS) → land the in-place branch unless `--no-merge`; otherwise retain the branch
-   and evidence. There is no environment teardown because the SDK created none.
+8. GREEN (+ strict PASS) → call `land_branch` for the quick branch/worktree unless `--no-merge`.
+   `RESULT=merged` removes the isolated worktree; `RESULT=held-dirty`, `conflict`, `refused`, `locked`,
+   `planningblock`, `baseadvanced`, or `badbase` retains it with evidence for `/release:land`. There is
+   no environment teardown because the SDK created none.
 9. Append one compact line to `quick-log.md` only when `.release-planning/` already exists.
 
 ## Common implementation quality — mandatory
