@@ -316,9 +316,7 @@ def write_agent_toml(
         f"name = {json.dumps(name, ensure_ascii=False)}\n"
         f"description = {json.dumps(description, ensure_ascii=False)}\n"
         f"model = {json.dumps(model, ensure_ascii=False)}\n"
-        f"reasoning_effort = {json.dumps(effort, ensure_ascii=False)}\n"
-        f"output_token_budget = {budget}\n"
-        f"role_class = {json.dumps(role_class, ensure_ascii=False)}\n"
+        f"model_reasoning_effort = {json.dumps(effort, ensure_ascii=False)}\n"
         f"developer_instructions = '''\n{instructions.rstrip()}\n'''\n"
     )
     write_text(output / "agents" / f"{name}.toml", toml)
@@ -327,7 +325,7 @@ def write_agent_toml(
         "source": source_label,
         "role_class": role_class,
         "model": model,
-        "reasoning_effort": effort,
+        "model_reasoning_effort": effort,
         "output_token_budget": budget,
         "description": description,
     }

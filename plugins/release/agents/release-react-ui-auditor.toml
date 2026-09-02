@@ -1,9 +1,7 @@
 name = "release-react-ui-auditor"
 description = "Retroactive 6-pillar scored visual audit of implemented React code for a phase. Reads {NN}-UI-SPEC.md (the contract) and the shipped .tsx/.ts source, then grep-scores accessibility, responsive, loading/error, i18n, type contracts, and design-system adherence on a 0-100 scale with file:line evidence. Produces {NN}-UI-REVIEW.md scorecard with per-dimension best/worst examples and a remediation table. Spawned by /release:ui-review. Leaf worker — spawns no children."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

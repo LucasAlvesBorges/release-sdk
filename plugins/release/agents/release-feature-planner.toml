@@ -1,9 +1,7 @@
 name = "release-feature-planner"
 description = "Produces one compact executable phase plan from SPEC and targeted code inspection. Replaces the normal researcher + pattern-mapper + planner chain. Plans vertical behavior tasks with focused verification and surface-triggered risk checks."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1000
-role_class = "planner"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

@@ -1,9 +1,7 @@
 name = "release-doc-verifier"
 description = "Verifies factual claims in a generated doc against the live codebase. Extracts claims (file paths, function names, command examples, version pins, env vars) and probes each. Emits {doc_path}.verify.json with per-claim status — VERIFIED / STALE / UNVERIFIABLE — and evidence (file:line or command output snippet)."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

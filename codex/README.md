@@ -36,8 +36,9 @@ end:
   Edit/Write/apply_patch (`exit 2`) in any target project whose root lacks an
   `AGENTS.md`, except the write that creates the file itself. Mode (`strict`
   default, or `bootstrap`) comes from that project's `.codex/config.toml`.
-- **Per-agent model routing.** Every generated `release-*.toml` carries a
-  pinned `model` / `reasoning_effort` / `output_token_budget` / `role_class`
+- **Per-agent model routing.** Every generated `release-*.toml` carries the
+  Codex-supported `model` / `model_reasoning_effort` settings. Internal
+  `output_token_budget` / `role_class` metadata stays in `agents/index.json`
   — see `contracts/routing-policy.md` for the tier table and
   `build_plugin.py`'s `AGENT_MODEL_OVERRIDES` for the per-agent assignment.
 - **12 generic Codex-only roles** (`release-explorer-fast`,

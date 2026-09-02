@@ -1,9 +1,7 @@
 name = "release-worker-complex"
 description = "Implement the genuinely coupled, hard part of a C4 (and occasionally C3) change — concurrency, distributed transaction, migration, or a security boundary. Reserve for the part that actually needs the frontier tier; delegate the rest to worker."
 model = "gpt-5.6"
-reasoning_effort = "high"
-output_token_budget = 1500
-role_class = "worker_complex"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

@@ -1,9 +1,7 @@
 name = "release-nyquist-auditor"
 description = "Counts tests per phase requirement using name/comment/fixture/symbol matching; classifies each requirement as SUFFICIENT (>=2 tests), THIN (1 test), or MISSING (0 tests); produces NYQUIST-AUDIT.md with per-requirement coverage matrix and gap-fill recommendations. Stack-dispatched (django pytest discovery vs react vitest discovery). Read-only on tests — never writes implementation. Spawned by /release:validate-phase."
 model = "gpt-5.6-luna"
-reasoning_effort = "low"
-output_token_budget = 700
-role_class = "tester"
+model_reasoning_effort = "low"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

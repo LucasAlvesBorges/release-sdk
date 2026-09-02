@@ -146,18 +146,34 @@ class CodexCompatibilityTests(unittest.TestCase):
         source = sorted((REPO_ROOT / "agents").glob("*.md"))
         roles = sorted((REPO_ROOT / "codex" / "contracts" / "roles").glob("*.md"))
         generated = sorted((PLUGIN / "agents").glob("release-*.toml"))
+        index = {
+            entry["name"]: entry
+            for entry in json.loads((PLUGIN / "agents" / "index.json").read_text())
+        }
         self.assertEqual(len(generated), len(source) + len(roles))
+        self.assertEqual(len(index), len(generated))
         valid_models = {"gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6"}
         valid_efforts = {"low", "medium", "high", "xhigh"}
+        supported_fields = {
+            "name",
+            "description",
+            "model",
+            "model_reasoning_effort",
+            "developer_instructions",
+        }
         for path in generated:
             data = tomllib.loads(path.read_text())
+            metadata = index[path.stem]
+            self.assertEqual(set(data), supported_fields, path)
             self.assertEqual(data["name"], path.stem)
             self.assertIn("codex_runtime_contract", data["developer_instructions"])
             self.assertIn(data["model"], valid_models, path)
-            self.assertIn(data["reasoning_effort"], valid_efforts, path)
-            self.assertIsInstance(data["output_token_budget"], int)
-            self.assertGreater(data["output_token_budget"], 0)
-            self.assertTrue(data["role_class"], path)
+            self.assertIn(data["model_reasoning_effort"], valid_efforts, path)
+            self.assertEqual(metadata["model"], data["model"])
+            self.assertEqual(metadata["model_reasoning_effort"], data["model_reasoning_effort"])
+            self.assertIsInstance(metadata["output_token_budget"], int)
+            self.assertGreater(metadata["output_token_budget"], 0)
+            self.assertTrue(metadata["role_class"], path)
 
     def test_common_development_flow_enforces_clean_code_contract(self) -> None:
         source_agent = (REPO_ROOT / "agents" / "tdd-executor.md").read_text()
@@ -209,11 +225,14 @@ class CodexCompatibilityTests(unittest.TestCase):
             "handoff-writer",
             "agents-md-builder",
         }
+        index = {
+            entry["name"]: entry
+            for entry in json.loads((PLUGIN / "agents" / "index.json").read_text())
+        }
         for role in expected:
             path = PLUGIN / "agents" / f"release-{role}.toml"
             self.assertTrue(path.exists(), path)
-            data = tomllib.loads(path.read_text())
-            self.assertEqual(data["role_class"], role.replace("-", "_"))
+            self.assertEqual(index[path.stem]["role_class"], role.replace("-", "_"))
 
     def test_config_template_shipped(self) -> None:
         path = PLUGIN / "templates" / "codex-config.toml"
@@ -282,6 +301,35 @@ class CodexCompatibilityTests(unittest.TestCase):
             self.assertEqual(json.loads(second.stdout)["removed"], [])
             self.assertEqual(sentinel.read_text(), 'name = "unrelated"\n')
             self.assertFalse(retired.exists())
+
+    def test_agent_installer_rejects_non_codex_agent_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            plugin_root = Path(temporary) / "plugin"
+            source_dir = plugin_root / "agents"
+            source_dir.mkdir(parents=True)
+            source = source_dir / "release-invalid.toml"
+            source.write_text(
+                'name = "release-invalid"\n'
+                'description = "Invalid test agent"\n'
+                'model = "gpt-5.6-terra"\n'
+                'reasoning_effort = "high"\n'
+                'developer_instructions = "Test"\n'
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "codex" / "runtime" / "install_codex_agents.py"),
+                    "--plugin-root",
+                    str(plugin_root),
+                    "--target-dir",
+                    str(Path(temporary) / "target"),
+                    "--check",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("unsupported agent config fields: reasoning_effort", result.stderr)
 
     def test_apply_patch_adapter_reaches_consolidated_edit_guard(self) -> None:
         if not shutil.which("node"):

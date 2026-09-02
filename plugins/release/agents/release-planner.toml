@@ -1,9 +1,7 @@
 name = "release-planner"
 description = "Produce a plan — files, invariants, tests, rollback — for a complex or high-risk change. Read-only, never implements. Use for C3/C4 work where the approach itself is a real decision."
 model = "gpt-5.6"
-reasoning_effort = "high"
-output_token_budget = 1000
-role_class = "planner"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

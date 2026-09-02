@@ -1,9 +1,7 @@
 name = "release-reviewer"
 description = "Adversarial correctness, regression, and coverage review of a diff or file set. Read-only, never edits. Use for public contracts, sizeable diffs, or C3+ work — skip for small C1/C2 changes with no shared contract."
 model = "gpt-5.6-terra"
-reasoning_effort = "high"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

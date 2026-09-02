@@ -1,9 +1,7 @@
 name = "release-tester"
 description = "Run tests and summarize failures without flooding the parent's context. Use when test output would be noisy or the focused suite is independent of the implementation step."
 model = "gpt-5.6-luna"
-reasoning_effort = "low"
-output_token_budget = 700
-role_class = "tester"
+model_reasoning_effort = "low"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

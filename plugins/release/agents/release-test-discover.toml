@@ -1,9 +1,7 @@
 name = "release-test-discover"
 description = "Discovers test inventory for a phase. Counts tests per file via pytest --collect-only (Django) or vitest list (React). Outputs JSON `{file_path: test_count}` consumed by tdd-executor for parallel bucket split. Read-only — never executes tests, never modifies code."
 model = "gpt-5.6-luna"
-reasoning_effort = "low"
-output_token_budget = 700
-role_class = "tester"
+model_reasoning_effort = "low"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

@@ -1,9 +1,7 @@
 name = "release-debugger"
 description = "Scientific-method debugger. Stack-dispatched bug catalogs: Django (ORM/migration/RLS/Celery/race) or React (stale closure/rerender/cache/MSW/hydration). Produces DEBUG.md with hypothesis ladder + root cause + fix."
 model = "gpt-5.6-terra"
-reasoning_effort = "high"
-output_token_budget = 1200
-role_class = "explorer_deep"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

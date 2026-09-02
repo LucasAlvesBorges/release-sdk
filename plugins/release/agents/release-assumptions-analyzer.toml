@@ -1,9 +1,7 @@
 name = "release-assumptions-analyzer"
 description = "Targeted strict-mode contradiction scan. Checks named modules against a phase SPEC and returns only evidence-backed assumptions that could change a user decision. Never performs a broad inventory and writes a report only when findings exist."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1200
-role_class = "explorer_deep"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

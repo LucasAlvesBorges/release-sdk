@@ -1,9 +1,7 @@
 name = "release-react-ui-checker"
 description = "Strict, risk-triggered checker for a UI-SPEC. Audits only dimensions relevant to the described surface."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

@@ -1,9 +1,7 @@
 name = "release-agents-md-builder"
 description = "Draft the initial root AGENTS.md for a project that doesn't have one yet, so the AGENTS.md gate can pass. The only agent in this catalog allowed to write outside its read-only sandbox — and only to AGENTS.md itself. Spawned automatically by the AGENTS.md gate in bootstrap mode."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1200
-role_class = "agents_md_builder"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

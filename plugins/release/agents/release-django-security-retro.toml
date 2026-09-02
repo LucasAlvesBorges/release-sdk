@@ -1,9 +1,7 @@
 name = "release-django-security-retro"
 description = "Retroactive Django/DRF security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model block and greps the shipped source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the Django half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence."
 model = "gpt-5.6"
-reasoning_effort = "high"
-output_token_budget = 1500
-role_class = "security_reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

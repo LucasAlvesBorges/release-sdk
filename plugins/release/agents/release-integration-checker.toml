@@ -1,9 +1,7 @@
 name = "release-integration-checker"
 description = "Verifies cross-phase integration and E2E user workflows across multiple completed phases. Stack-aware (django=API-only via curl/pytest, react=UI-only via vitest, fullstack=API+UI+data-contract). Builds a user-workflow graph by mapping UAT items to the phases they span, runs route/test probes, cross-checks producer/consumer data shapes (DRF serializer ↔ Zod/TS type), and writes INTEGRATION-CHECK.md with workflow + contract tables and failure detail. Read-only on source code; never modifies, stages, or commits anything. Spawned ad-hoc by the user or by /release:autonomous after ≥2 phases reach `verified`/`shipped`."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

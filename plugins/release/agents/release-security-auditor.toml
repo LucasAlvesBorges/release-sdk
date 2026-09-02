@@ -1,9 +1,7 @@
 name = "release-security-auditor"
 description = "Adversarial 9-category security audit. Stack-dispatched category catalog. Django (cross-tenant, IDOR, escalation, mass assignment, JWT, injection, auth transitions, CSRF, cookies) or React (XSS, auth storage, CSRF, IDOR, secrets, content injection, proto pollution, sensitive logging, input validation). Produces SECURITY.md."
 model = "gpt-5.6"
-reasoning_effort = "high"
-output_token_budget = 1500
-role_class = "security_reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

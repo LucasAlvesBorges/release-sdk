@@ -1,9 +1,7 @@
 name = "release-doc-classifier"
 description = "Classifies a single planning doc as ADR / PRD / SPEC / DOC / UNKNOWN via header + content heuristics. Emits {path}.classification.json with type, confidence, title, scope_summary, cross_refs. Spawned in parallel by /release:ingest-docs and /release:docs-update for batch classification."
 model = "gpt-5.6-luna"
-reasoning_effort = "low"
-output_token_budget = 700
-role_class = "tester"
+model_reasoning_effort = "low"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

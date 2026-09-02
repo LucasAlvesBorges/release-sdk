@@ -1,9 +1,7 @@
 name = "release-eval-auditor"
 description = "Retroactive audit of an executed AI phase's evaluation coverage. Reads {NN}-AI-SPEC.md (or companion AI-EVAL.md) for the declared eval dimensions, then globs tests/, eval suites, prompt registries, and the AILog model for evidence each dimension is actually implemented. Classifies each dimension as COVERED, PARTIAL, or MISSING with file:line evidence. Produces a scored {NN}-EVAL-REVIEW.md with per-dimension matrix, remediation table, and production-monitoring gaps. Read-only on source code. Spawned by /release:eval-review."
 model = "gpt-5.6-terra"
-reasoning_effort = "high"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

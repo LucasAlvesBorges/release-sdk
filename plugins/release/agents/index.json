@@ -4,7 +4,7 @@
     "source": "advanced-threat-auditor.md",
     "role_class": "security_reviewer",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1500,
     "description": "Always-on adversarial advanced-threat audit, run in PARALLEL with security-auditor on every /release:security. Stack-dispatched category catalog covering the attack surface the 9-category auditor misses. Django A1-A13 (SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, XXE/header-log injection, ORM-level injection, advanced concurrency TOCTOU/idempotency/distributed-lock, JWT forgery & auth-identity, constant-time compare & signed-payload integrity, transport/headers/CORS hardening, exploitation-grade SQLi, image/media DoS+processing RCE, AWS cloud-infra incl. IaC static checks) and React RA1-RA5 (URL-scheme/DOM sinks, postMessage/client-SSRF, CSP/Trusted-Types/clickjacking, build/supply-chain, SSR/hydration/DOM-clobbering/JSON-hijacking). APPENDS an `## Advanced Threat Audit` section to the same SECURITY.md the base auditor writes."
   },
@@ -13,7 +13,7 @@
     "source": "ai-researcher.md",
     "role_class": "docs_researcher",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 700,
     "description": "Targeted repository and provider research for a complex or unfamiliar AI integration. Appends only findings that change the AI design contract."
   },
@@ -22,7 +22,7 @@
     "source": "architecture-reviewer.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 900,
     "description": "Adversarial clean-code + scalability review for high-demand systems. Stack-dispatched — Django (fat views/models, service-layer leaks, statelessness, caching, Celery offload, pagination, bulk ops, connection/transaction scope, index coverage) OR React (component decomposition, coupling, code-splitting, list virtualization, data-fetch scaling, store granularity). Scores two dimensions (Clean Code & Structure, Scalability & High-Demand) with file:line evidence and a per-risk Scale Ceiling. Produces ARCH-REVIEW.md. Cross-refs sibling gates (N+1→checklist, race/TOCTOU→advanced-threat A7, security→security) instead of duplicating them."
   },
@@ -31,7 +31,7 @@
     "source": "assumptions-analyzer.md",
     "role_class": "explorer_deep",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1200,
     "description": "Targeted strict-mode contradiction scan. Checks named modules against a phase SPEC and returns only evidence-backed assumptions that could change a user decision. Never performs a broad inventory and writes a report only when findings exist."
   },
@@ -40,7 +40,7 @@
     "source": "code-fixer.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Delta-only fixer for one gate failure or checker gap. Reads the named evidence/targets, makes the narrowest correction, runs focused verification and commits once. Used only by explicit loops or review --fix."
   },
@@ -49,7 +49,7 @@
     "source": "code-reviewer.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 900,
     "description": "Unified, diff-scoped adversarial reviewer for Django, React, React Native, and fullstack seams. Reports blockers and warnings only."
   },
@@ -58,7 +58,7 @@
     "source": "codebase-mapper.md",
     "role_class": "explorer_deep",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1200,
     "description": "Writes ONE structured analysis document per focus area (tech | arch | quality | concerns) for the codebase. Stack-dispatched probes — Django (apps, models, settings, celery, migrations) or React (components, stores, routing, build tooling) or both. Spawned in parallel by /release:map-codebase; each instance writes to a distinct output_path under .release-planning/codebase/. Read-only on source."
   },
@@ -67,7 +67,7 @@
     "source": "debugger.md",
     "role_class": "explorer_deep",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1200,
     "description": "Scientific-method debugger. Stack-dispatched bug catalogs: Django (ORM/migration/RLS/Celery/race) or React (stale closure/rerender/cache/MSW/hydration). Produces DEBUG.md with hypothesis ladder + root cause + fix."
   },
@@ -76,7 +76,7 @@
     "source": "django-checklist-verifier.md",
     "role_class": "tester",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Verifies Author Checklist Q1-Q7 applied in implemented Django code — select_related (Q1), prefetch_related (Q2), annotate(Count) (Q3), Subquery/OuterRef (Q4), F()/select_for_update (Q5), .delay_on_commit() (Q6), .iterator() (Q7). Produces CHECKLIST.md with PASS/FAIL per question."
   },
@@ -85,7 +85,7 @@
     "source": "django-security-retro.md",
     "role_class": "security_reviewer",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1500,
     "description": "Retroactive Django/DRF security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model block and greps the shipped source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the Django half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence."
   },
@@ -94,7 +94,7 @@
     "source": "doc-classifier.md",
     "role_class": "tester",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Classifies a single planning doc as ADR / PRD / SPEC / DOC / UNKNOWN via header + content heuristics. Emits {path}.classification.json with type, confidence, title, scope_summary, cross_refs. Spawned in parallel by /release:ingest-docs and /release:docs-update for batch classification."
   },
@@ -103,7 +103,7 @@
     "source": "doc-verifier.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Verifies factual claims in a generated doc against the live codebase. Extracts claims (file paths, function names, command examples, version pins, env vars) and probes each. Emits {doc_path}.verify.json with per-claim status — VERIFIED / STALE / UNVERIFIABLE — and evidence (file:line or command output snippet)."
   },
@@ -112,7 +112,7 @@
     "source": "doc-writer.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Writes or updates project documentation (README, CONTRIBUTING, ARCHITECTURE, ONBOARDING, API docs). Spawned with a doc_assignment block specifying type/mode/context. Grounds every claim in .release-planning/ artifacts + intel + codebase — no invented facts. Diff-friendly on mode=update."
   },
@@ -121,7 +121,7 @@
     "source": "eval-auditor.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 900,
     "description": "Retroactive audit of an executed AI phase's evaluation coverage. Reads {NN}-AI-SPEC.md (or companion AI-EVAL.md) for the declared eval dimensions, then globs tests/, eval suites, prompt registries, and the AILog model for evidence each dimension is actually implemented. Classifies each dimension as COVERED, PARTIAL, or MISSING with file:line evidence. Produces a scored {NN}-EVAL-REVIEW.md with per-dimension matrix, remediation table, and production-monitoring gaps. Read-only on source code. Spawned by /release:eval-review."
   },
@@ -130,7 +130,7 @@
     "source": "feature-planner.md",
     "role_class": "planner",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Produces one compact executable phase plan from SPEC and targeted code inspection. Replaces the normal researcher + pattern-mapper + planner chain. Plans vertical behavior tasks with focused verification and surface-triggered risk checks."
   },
@@ -139,7 +139,7 @@
     "source": "feature-researcher.md",
     "role_class": "explorer_deep",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1200,
     "description": "Pre-planning codebase researcher. Stack-dispatched probes — Django (apps, models, FK graph, Celery, migrations) or React (components, Zustand, TanStack Query, routing, types). Produces RESEARCH.md consumed by feature-planner."
   },
@@ -148,7 +148,7 @@
     "source": "framework-selector.md",
     "role_class": "planner",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1000,
     "description": "Narrow AI framework comparison for an unresolved, high-impact choice. Scores only viable candidates against supplied constraints."
   },
@@ -157,7 +157,7 @@
     "source": "import-orchestrator.md",
     "role_class": "planner",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1000,
     "description": "One-shot mass importer for GSD-formatted projects. Reads GSD `.planning/` (project-level + every phase) and writes release-sdk artifacts to a parallel `.release-planning/` tree. Extracts LOCK-01..LOCK-12 with `.planning/file:line` citations into `.release-planning/RELEASE-LOCKS.md`, and ports each GSD phase (SPEC/CONTEXT/PLAN/VERIFICATION) into release-sdk-native `{NN}-*.md` files under `.release-planning/phases/{NN}-{slug}/`. Seeds UI-SPEC / AI-SPEC / SECURITY stubs when the phase has the matching surface. Does NOT modify any file under `.planning/`. Spawned by /release:import."
   },
@@ -166,7 +166,7 @@
     "source": "integration-checker.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Verifies cross-phase integration and E2E user workflows across multiple completed phases. Stack-aware (django=API-only via curl/pytest, react=UI-only via vitest, fullstack=API+UI+data-contract). Builds a user-workflow graph by mapping UAT items to the phases they span, runs route/test probes, cross-checks producer/consumer data shapes (DRF serializer ↔ Zod/TS type), and writes INTEGRATION-CHECK.md with workflow + contract tables and failure detail. Read-only on source code; never modifies, stages, or commits anything. Spawned ad-hoc by the user or by /release:autonomous after ≥2 phases reach `verified`/`shipped`."
   },
@@ -175,7 +175,7 @@
     "source": "intel-updater.md",
     "role_class": "explorer_fast",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 700,
     "description": "Analyzes the codebase and writes structured intel files to .release-planning/intel/ as cached knowledge other agents consume instead of re-scanning the repo. Stack-aware (Django + React), idempotent (each run rewrites, never appends), read-only on source. Spawned by /release:map-codebase or ad-hoc when intel is stale."
   },
@@ -184,7 +184,7 @@
     "source": "loop-goal-verifier.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Independent freeform-loop goal checker. Reuses current-tree GREEN gate evidence and verifies only the atomic behaviors in the user's bounded prompt; never reruns the broad suite or edits code."
   },
@@ -193,7 +193,7 @@
     "source": "milestone-auditor.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 900,
     "description": "Milestone-level coverage auditor for release-sdk. Reads `.release-planning/PROJECT.md`, `ROADMAP.md`, `REQUIREMENTS.md`, and every `phases/{NN}-{slug}/{NN}-{SPEC,PLAN,VERIFY,UAT,SUMMARY}.md` (active root) or `milestones/{name}/phases/{NN}-{slug}/...` (archived root) in the resolved milestone window. Cross-checks REQ → phase → UAT → verify. Classifies each requirement COVERED (phase exists AND verify=PASS AND every UAT item closed AND no open gaps), PARTIAL (phase exists but UAT open or accepted-gap), or GAP (no phase covers OR phase exists with verify=FAIL). Outputs `MILESTONE-AUDIT-{name}.md` (or timestamped variant when mode=audit). Read-only: never moves files, never commits, never updates STATE.md. Spawned by `/release:complete-milestone` (mode=complete, hard gate) and `/release:audit-milestone` (mode=audit, advisory)."
   },
@@ -202,7 +202,7 @@
     "source": "nyquist-auditor.md",
     "role_class": "tester",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Counts tests per phase requirement using name/comment/fixture/symbol matching; classifies each requirement as SUFFICIENT (>=2 tests), THIN (1 test), or MISSING (0 tests); produces NYQUIST-AUDIT.md with per-requirement coverage matrix and gap-fill recommendations. Stack-dispatched (django pytest discovery vs react vitest discovery). Read-only on tests — never writes implementation. Spawned by /release:validate-phase."
   },
@@ -211,7 +211,7 @@
     "source": "pattern-mapper.md",
     "role_class": "explorer_fast",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 700,
     "description": "Maps each intended new file to closest existing analog in codebase. Stack-dispatched analog tables (Django models/views/serializers OR React components/hooks/stores). Reuse > novel. Produces PATTERNS.md before feature-planner."
   },
@@ -220,7 +220,7 @@
     "source": "phase-verifier.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Independent strict/risk acceptance checker. Reuses a GREEN gate cached for the current git tree, then verifies SPEC acceptance, locks and triggered risk surfaces without rerunning the broad suite."
   },
@@ -229,7 +229,7 @@
     "source": "plan-checker.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Strict-mode judgment review after deterministic plan lint. Verifies acceptance/decision coverage and surface-triggered risk controls. Does not repeat schema, line-count, dependency or cycle checks handled by release-plan-lint.js."
   },
@@ -238,7 +238,7 @@
     "source": "react-security-retro.md",
     "role_class": "security_reviewer",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1500,
     "description": "Retroactive React/TSX security auditor. Runs AFTER a phase has shipped. Reads the phase PLAN.md threat_model and greps the shipped .tsx/.ts source for evidence that each declared threat is actually mitigated. Does NOT recommend new mitigations — verifies existing ones. Produces the React half of SECURITY.md with MITIGATED/PARTIAL/MISSING/N/A per threat plus file:line evidence."
   },
@@ -247,7 +247,7 @@
     "source": "react-ui-auditor.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Retroactive 6-pillar scored visual audit of implemented React code for a phase. Reads {NN}-UI-SPEC.md (the contract) and the shipped .tsx/.ts source, then grep-scores accessibility, responsive, loading/error, i18n, type contracts, and design-system adherence on a 0-100 scale with file:line evidence. Produces {NN}-UI-REVIEW.md scorecard with per-dimension best/worst examples and a remediation table. Spawned by /release:ui-review. Leaf worker — spawns no children."
   },
@@ -256,7 +256,7 @@
     "source": "react-ui-checker.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 900,
     "description": "Strict, risk-triggered checker for a UI-SPEC. Audits only dimensions relevant to the described surface."
   },
@@ -265,7 +265,7 @@
     "source": "react-ui-researcher.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Targeted design-contract researcher for novel or high-risk React UI. Updates only unresolved UI decisions."
   },
@@ -274,7 +274,7 @@
     "source": "security-auditor.md",
     "role_class": "security_reviewer",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1500,
     "description": "Adversarial 9-category security audit. Stack-dispatched category catalog. Django (cross-tenant, IDOR, escalation, mass assignment, JWT, injection, auth transitions, CSRF, cookies) or React (XSS, auth storage, CSRF, IDOR, secrets, content injection, proto pollution, sensitive logging, input validation). Produces SECURITY.md."
   },
@@ -283,7 +283,7 @@
     "source": "spec-clarifier.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Strict-mode requirements clarifier. Surfaces only ambiguities that change scope, public contracts, security, data or observable acceptance; supports the compact SPEC and plan preflight. Spawned at most once per invoking workflow for C3/C4 work."
   },
@@ -292,7 +292,7 @@
     "source": "tdd-executor.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Compact implementation worker for quick tasks or complete compact plans. Runs focused tests, one logical commit per behavior and only surface-triggered risk checks. Never spawns test agents or owns a broad final suite."
   },
@@ -301,7 +301,7 @@
     "source": "test-auditor.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Audits test coverage against required test types. Stack-dispatched matrices: Django (smoke N+1, race Q5, memray Q7, 9 security categories, celery/signal/permission) or React (5 dimensions — unit, RTL, MSW, security, a11y). Generates skeleton tests for gaps. Produces TEST-AUDIT.md."
   },
@@ -310,7 +310,7 @@
     "source": "test-discover.md",
     "role_class": "tester",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Discovers test inventory for a phase. Counts tests per file via pytest --collect-only (Django) or vitest list (React). Outputs JSON `{file_path: test_count}` consumed by tdd-executor for parallel bucket split. Read-only — never executes tests, never modifies code."
   },
@@ -319,7 +319,7 @@
     "source": "test-runner.md",
     "role_class": "tester",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Parallel test bucket runner. Executes pytest (Django) or vitest (React) on an assigned bucket of test files. Spawned 5x in parallel by tdd-executor for fast final sweep. Returns PASS/FAIL + concise failure detail. Read-only on source — never edits code, never spawns other agents."
   },
@@ -328,7 +328,7 @@
     "source": "uat-conductor.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Drives a conversational UAT walkthrough for a completed release-sdk phase. Loads UAT items from UAT.md (or derives from PLAN.md/SPEC.md), surfaces stack-aware verification steps (Django curl/shell, React browser walk, fullstack end-to-end), prompts the user PASS/FAIL/BLOCKED/SKIP per item via AskUserQuestion, then writes results back to UAT.md with timestamps and a Next Step verdict. Does NOT commit."
   },
@@ -337,7 +337,7 @@
     "source": "wave-executor.md",
     "role_class": "planner",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Compatibility coordinator for legacy parallel plans. Current workflows use one serial worker in the shared development checkout."
   },
@@ -346,7 +346,7 @@
     "source": "agents-md-builder.md",
     "role_class": "agents_md_builder",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1200,
     "description": "Draft the initial root AGENTS.md for a project that doesn't have one yet, so the AGENTS.md gate can pass. The only agent in this catalog allowed to write outside its read-only sandbox — and only to AGENTS.md itself. Spawned automatically by the AGENTS.md gate in bootstrap mode."
   },
@@ -355,7 +355,7 @@
     "source": "docs-researcher.md",
     "role_class": "docs_researcher",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 700,
     "description": "Verify current, version-dependent behavior of a third-party API or library against its official documentation. Read-only. Use only when behavior genuinely depends on a specific version or external source — not for anything answerable from this codebase alone."
   },
@@ -364,7 +364,7 @@
     "source": "explorer-deep.md",
     "role_class": "explorer_deep",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1200,
     "description": "Trace a flow across modules to find root cause or map an unfamiliar area. Read-only. Use when the bug/behavior spans more than one module or the cause isn't localized yet."
   },
@@ -373,7 +373,7 @@
     "source": "explorer-fast.md",
     "role_class": "explorer_fast",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Locate symbols, files, and call sites fast. Read-only, narrow scope. Use for \"where is X defined / which files reference Y\" — not for open-ended analysis."
   },
@@ -382,7 +382,7 @@
     "source": "handoff-writer.md",
     "role_class": "handoff_writer",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 500,
     "description": "Summarize the current state of a task into a small handoff for another thread/session to continue from. Read-only. Use only when work genuinely continues elsewhere — not as a routine end-of-task summary."
   },
@@ -391,7 +391,7 @@
     "source": "planner.md",
     "role_class": "planner",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1000,
     "description": "Produce a plan — files, invariants, tests, rollback — for a complex or high-risk change. Read-only, never implements. Use for C3/C4 work where the approach itself is a real decision."
   },
@@ -400,7 +400,7 @@
     "source": "reviewer.md",
     "role_class": "reviewer",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 900,
     "description": "Adversarial correctness, regression, and coverage review of a diff or file set. Read-only, never edits. Use for public contracts, sizeable diffs, or C3+ work — skip for small C1/C2 changes with no shared contract."
   },
@@ -409,7 +409,7 @@
     "source": "security-reviewer.md",
     "role_class": "security_reviewer",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1500,
     "description": "Auth, authorization, payments, secrets, and attack-surface review. Read-only, frontier tier. Use only with a real security trigger (auth/permissions/payments/PII/crypto/injection surface) — not a default add-on to every review."
   },
@@ -418,7 +418,7 @@
     "source": "tester.md",
     "role_class": "tester",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Run tests and summarize failures without flooding the parent's context. Use when test output would be noisy or the focused suite is independent of the implementation step."
   },
@@ -427,7 +427,7 @@
     "source": "worker-complex.md",
     "role_class": "worker_complex",
     "model": "gpt-5.6",
-    "reasoning_effort": "high",
+    "model_reasoning_effort": "high",
     "output_token_budget": 1500,
     "description": "Implement the genuinely coupled, hard part of a C4 (and occasionally C3) change — concurrency, distributed transaction, migration, or a security boundary. Reserve for the part that actually needs the frontier tier; delegate the rest to worker."
   },
@@ -436,7 +436,7 @@
     "source": "worker-lite.md",
     "role_class": "worker_lite",
     "model": "gpt-5.6-luna",
-    "reasoning_effort": "low",
+    "model_reasoning_effort": "low",
     "output_token_budget": 700,
     "description": "Make a small, mechanical, clearly-specified code change — rename, constant swap, one-file fix, boilerplate CRUD. Use for C1 work with an obvious implementation, not for anything requiring judgment calls."
   },
@@ -445,7 +445,7 @@
     "source": "worker.md",
     "role_class": "worker",
     "model": "gpt-5.6-terra",
-    "reasoning_effort": "medium",
+    "model_reasoning_effort": "medium",
     "output_token_budget": 1000,
     "description": "Implement a normal, scoped change that needs real judgment but isn't highly coupled or architecturally risky. The default implementation role for C2/C3 work."
   }

@@ -1,9 +1,7 @@
 name = "release-architecture-reviewer"
 description = "Adversarial clean-code + scalability review for high-demand systems. Stack-dispatched — Django (fat views/models, service-layer leaks, statelessness, caching, Celery offload, pagination, bulk ops, connection/transaction scope, index coverage) OR React (component decomposition, coupling, code-splitting, list virtualization, data-fetch scaling, store granularity). Scores two dimensions (Clean Code & Structure, Scalability & High-Demand) with file:line evidence and a per-risk Scale Ceiling. Produces ARCH-REVIEW.md. Cross-refs sibling gates (N+1→checklist, race/TOCTOU→advanced-threat A7, security→security) instead of duplicating them."
 model = "gpt-5.6-terra"
-reasoning_effort = "high"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

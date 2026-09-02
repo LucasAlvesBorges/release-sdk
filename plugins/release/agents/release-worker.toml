@@ -1,9 +1,7 @@
 name = "release-worker"
 description = "Implement a normal, scoped change that needs real judgment but isn't highly coupled or architecturally risky. The default implementation role for C2/C3 work."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1000
-role_class = "worker"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

@@ -1,9 +1,7 @@
 name = "release-feature-researcher"
 description = "Pre-planning codebase researcher. Stack-dispatched probes — Django (apps, models, FK graph, Celery, migrations) or React (components, Zustand, TanStack Query, routing, types). Produces RESEARCH.md consumed by feature-planner."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1200
-role_class = "explorer_deep"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

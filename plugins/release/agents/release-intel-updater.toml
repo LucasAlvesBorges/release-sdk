@@ -1,9 +1,7 @@
 name = "release-intel-updater"
 description = "Analyzes the codebase and writes structured intel files to .release-planning/intel/ as cached knowledge other agents consume instead of re-scanning the repo. Stack-aware (Django + React), idempotent (each run rewrites, never appends), read-only on source. Spawned by /release:map-codebase or ad-hoc when intel is stale."
 model = "gpt-5.6-luna"
-reasoning_effort = "medium"
-output_token_budget = 700
-role_class = "explorer_fast"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

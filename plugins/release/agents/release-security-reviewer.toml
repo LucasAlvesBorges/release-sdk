@@ -1,9 +1,7 @@
 name = "release-security-reviewer"
 description = "Auth, authorization, payments, secrets, and attack-surface review. Read-only, frontier tier. Use only with a real security trigger (auth/permissions/payments/PII/crypto/injection surface) — not a default add-on to every review."
 model = "gpt-5.6"
-reasoning_effort = "high"
-output_token_budget = 1500
-role_class = "security_reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

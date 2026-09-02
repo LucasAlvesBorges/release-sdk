@@ -1,9 +1,7 @@
 name = "release-codebase-mapper"
 description = "Writes ONE structured analysis document per focus area (tech | arch | quality | concerns) for the codebase. Stack-dispatched probes — Django (apps, models, settings, celery, migrations) or React (components, stores, routing, build tooling) or both. Spawned in parallel by /release:map-codebase; each instance writes to a distinct output_path under .release-planning/codebase/. Read-only on source."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1200
-role_class = "explorer_deep"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

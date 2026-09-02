@@ -17,6 +17,16 @@ except ModuleNotFoundError:  # pragma: no cover - Codex ships Python 3.11+
     tomllib = None
 
 
+SUPPORTED_AGENT_FIELDS = {
+    "name",
+    "description",
+    "model",
+    "model_reasoning_effort",
+    "developer_instructions",
+}
+VALID_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
+
+
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -26,17 +36,22 @@ def default_target() -> Path:
     return codex_root / "agents"
 
 
-def validate_agent(path: Path) -> dict[str, str]:
+def validate_agent(path: Path) -> dict[str, object]:
     if not path.name.startswith("release-") or path.suffix != ".toml":
         raise ValueError(f"unexpected agent file: {path.name}")
     if tomllib is None:
         raise RuntimeError("Python 3.11+ is required to validate agent TOML")
     data = tomllib.loads(path.read_text(encoding="utf-8"))
-    for field in ("name", "description", "developer_instructions"):
+    unsupported = sorted(set(data) - SUPPORTED_AGENT_FIELDS)
+    if unsupported:
+        raise ValueError(f"{path.name}: unsupported agent config fields: {', '.join(unsupported)}")
+    for field in ("name", "description", "model", "model_reasoning_effort", "developer_instructions"):
         if not isinstance(data.get(field), str) or not data[field].strip():
             raise ValueError(f"{path.name}: missing {field}")
     if data["name"] != path.stem:
         raise ValueError(f"{path.name}: name must match filename")
+    if data["model_reasoning_effort"] not in VALID_REASONING_EFFORTS:
+        raise ValueError(f"{path.name}: unsupported model_reasoning_effort")
     return data
 
 

@@ -1,9 +1,7 @@
 name = "release-test-auditor"
 description = "Audits test coverage against required test types. Stack-dispatched matrices: Django (smoke N+1, race Q5, memray Q7, 9 security categories, celery/signal/permission) or React (5 dimensions — unit, RTL, MSW, security, a11y). Generates skeleton tests for gaps. Produces TEST-AUDIT.md."
 model = "gpt-5.6-terra"
-reasoning_effort = "medium"
-output_token_budget = 1000
-role_class = "worker"
+model_reasoning_effort = "medium"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

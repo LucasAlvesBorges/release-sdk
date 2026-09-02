@@ -1,9 +1,7 @@
 name = "release-milestone-auditor"
 description = "Milestone-level coverage auditor for release-sdk. Reads `.release-planning/PROJECT.md`, `ROADMAP.md`, `REQUIREMENTS.md`, and every `phases/{NN}-{slug}/{NN}-{SPEC,PLAN,VERIFY,UAT,SUMMARY}.md` (active root) or `milestones/{name}/phases/{NN}-{slug}/...` (archived root) in the resolved milestone window. Cross-checks REQ → phase → UAT → verify. Classifies each requirement COVERED (phase exists AND verify=PASS AND every UAT item closed AND no open gaps), PARTIAL (phase exists but UAT open or accepted-gap), or GAP (no phase covers OR phase exists with verify=FAIL). Outputs `MILESTONE-AUDIT-{name}.md` (or timestamped variant when mode=audit). Read-only: never moves files, never commits, never updates STATE.md. Spawned by `/release:complete-milestone` (mode=complete, hard gate) and `/release:audit-milestone` (mode=audit, advisory)."
 model = "gpt-5.6-terra"
-reasoning_effort = "high"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

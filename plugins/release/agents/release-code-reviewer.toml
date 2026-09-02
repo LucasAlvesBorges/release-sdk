@@ -1,9 +1,7 @@
 name = "release-code-reviewer"
 description = "Unified, diff-scoped adversarial reviewer for Django, React, React Native, and fullstack seams. Reports blockers and warnings only."
 model = "gpt-5.6-terra"
-reasoning_effort = "high"
-output_token_budget = 900
-role_class = "reviewer"
+model_reasoning_effort = "high"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

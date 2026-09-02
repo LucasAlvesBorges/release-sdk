@@ -1,9 +1,7 @@
 name = "release-test-runner"
 description = "Parallel test bucket runner. Executes pytest (Django) or vitest (React) on an assigned bucket of test files. Spawned 5x in parallel by tdd-executor for fast final sweep. Returns PASS/FAIL + concise failure detail. Read-only on source — never edits code, never spawns other agents."
 model = "gpt-5.6-luna"
-reasoning_effort = "low"
-output_token_budget = 700
-role_class = "tester"
+model_reasoning_effort = "low"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,

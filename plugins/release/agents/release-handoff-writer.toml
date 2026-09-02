@@ -1,9 +1,7 @@
 name = "release-handoff-writer"
 description = "Summarize the current state of a task into a small handoff for another thread/session to continue from. Read-only. Use only when work genuinely continues elsewhere — not as a routine end-of-task summary."
 model = "gpt-5.6-luna"
-reasoning_effort = "low"
-output_token_budget = 500
-role_class = "handoff_writer"
+model_reasoning_effort = "low"
 developer_instructions = '''
 <codex_runtime_contract priority="highest">
 - Use available Codex tools; map source Read/Write/Edit/Bash/Grep/Glob to targeted reads, `rg`,
