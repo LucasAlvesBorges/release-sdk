@@ -39,11 +39,44 @@ latency, child spawns and gate runs without storing message content.
 
 ---
 
+## Delivery and publishing (v0.27)
+
+Every unit of work (`quick`, `execute`, `land`) ends with **one fixed line**, always the last line
+of the response:
+
+```text
+LAND: merged main@a1b2c3d · PUSH: no — push == deploy here; when ready: git push origin main  (or /release:land --push) · UNIT: removed (quick/20260909-1200-slug)
+```
+
+`LAND` says whether it landed (or why it was held), `PUSH` whether it was published, `UNIT` whether
+the worktree was removed. Push is the deploy button in most repos, so the default is **no push**.
+Behavior comes from the **Delivery settings** block in `PROJECT.md`:
+
+| Key | Values | Effect |
+|---|---|---|
+| `maturity` | `pre-launch` \| `live` | `pre-launch` = no real users yet: spec/plan/executor **replace instead of shimming** (no compatibility layers, rollout flags or reversible-migration ceremony for data that does not exist). Security/tenancy/data-loss floors are unchanged |
+| `push_after_land` | `never` \| `ask` \| `auto` | What to do after a green land. `--push` forces it |
+| `build_command` | command | Run by `/release:land --build` after the push (e.g. `eas build --platform ios --profile production --auto-submit --non-interactive`) |
+| `deploy_check` | command | `/release:land --cross` waits for it to pass in the provider repo before landing the consumer (e.g. `gh run watch --exit-status`) |
+
+Paired phases across repos (backend ↔ app) are declared with `/release:spec NN --paired
+/path/other-repo:MM` and published with `/release:land NN --cross --push --build`: provider first,
+wait for its deploy, then consumer and build.
+
+While a unit is active (`.release-planning/.unit-active`, cwd under `release-worktrees/`, or a
+`.progress.json` younger than 2 h) the **prod guard** blocks `ssh`/`scp`/`psql -h`/`dokploy`/
+`kubectl`/`*_ENV=prod`/`eas submit`; outside a unit it only warns. `--allow-prod`, `#allow-prod` in
+the command, `RELEASE_ALLOW_PROD=1` or `.release-planning/PROD-GUARD.yml` (`mode`, `pattern`,
+`allow`) release it. `/release:gc` prunes what is left over (merged, clean worktrees; merged
+branches; dead locks) and SessionStart hints when ≥3 items qualify.
+
+---
+
 ## What's new (v0.5 → v0.27, highlights)
 
 - **v0.27.0** — **Operations without the follow-up question.** A 139-session audit of two real repos showed where the time went: "did you push?" ×20, "status?" ×25, an executor touching prod, 52 accumulated worktrees, one bug debugged across 6 sessions, and `/release:session` never used (Claude Code's native cross-terminal orchestration already covers it). Response: (1) **post-land contract** — `quick`/`execute`/`land` end with ONE fixed line `LAND: merged main@sha · PUSH: … · UNIT: …`; `--push` and `push_after_land: never|ask|auto` in PROJECT.md → Delivery settings; (2) **live progress** — the executor writes `.progress.json` per task in product language, the orchestrator prints one line per change and fires `PushNotification` on land/fail; STATE notes ≤240 chars, no hashes; (3) **prod guard** — PreToolUse hook blocks ssh/scp/remote psql/dokploy/kubectl/`*_ENV=prod`/`eas submit` while an SDK unit is active (`.unit-active`, worktree or fresh heartbeat); outside a unit it only warns; `--allow-prod`, `#allow-prod` or `PROD-GUARD.yml` release it; (4) **paired cross-repo phases** — `spec --paired <repo>:<NN>` + `land --cross` (provider first, wait for `deploy_check`, then consumer) + `land --build` runs `build_command` (EAS auto-submit) after the push; (5) **resumable debug** — `/release:debug` finds an open session about the same bug by similarity and offers to resume; (6) **`/release:gc`** — prunes merged+clean worktrees, merged branches, dead locks; dry run by default; SessionStart hint; (7) **`maturity: pre-launch`** — spec/plan/executor replace instead of shimming (no compat layers, no rollout flags); (8) **token tracker** — worker autostarts on SessionStart, events collected while it is down go to `spool.jsonl` and are ingested later (it had silently stopped recording for two months). **BREAKING:** `/release:session` and `/release:workstreams` removed (`session/*` is no longer a landable unit). New tests: `test-merge-lib.sh` (79), `test-gc-lib.sh` (44), `test-prod-guard.sh` (26).
 
-- **v0.17.0** — automatic merge-back: run a phase + several `/release:quick` in parallel and **see the feature work live** on your trunk. `quick` and `execute` isolate in a worktree **and auto-land** onto base the moment tests pass (hot-reload picks it up); a dirty checkout is **held, never clobbered** (`held-dirty`). One shared engine `land_branch` (`bin/release-merge-lib.sh`) backs `session finish`/`quick`/`execute`/the new `/release:land`, serialized on a per-base lock. Test 48→66 assertions now *source* the real engine (zero drift). BREAKING: `quick` no longer commits into your checkout; `execute` no longer leaves `feat/<NN>` dangling (use `--no-merge`/`--pr` for the old behavior).
+- **v0.17.0** — automatic merge-back: run a phase + several `/release:quick` in parallel and **see the feature work live** on your trunk. `quick` and `execute` isolate in a worktree **and auto-land** onto base the moment tests pass (hot-reload picks it up); a dirty checkout is **held, never clobbered** (`held-dirty`). One shared engine `land_branch` (`bin/release-merge-lib.sh`) backs `quick`/`execute`/the new `/release:land`, serialized on a per-base lock. Test 48→66 assertions now *source* the real engine (zero drift). BREAKING: `quick` no longer commits into your checkout; `execute` no longer leaves `feat/<NN>` dangling (use `--no-merge`/`--pr` for the old behavior).
 - **v0.16.0** — `/release:session` hardening: 6 real multi-session bugs (cwd-drift crash in `finish`, conflicts mutating the base checkout, planning leaking into PRs, no drift handling, `base-branch` not persisting under gitignore, poor visibility) + a 6-lens adversarial review (27 findings — incl. TOCTOU closed via lock-first/atomic sync-merge, slash-safe lockfile, dead-PID lock reclaim, refused-merge detection). New `sync`/`doctor`/`cleanup` subcommands; `bin/test-session-merge.sh` 12 → 48 regression-guarded assertions. **Agent spawns now plugin-namespaced** `release:<name>` (Claude Code requires the plugin prefix; bare `subagent_type` failed) — 320 spawns rewritten across 62 files.
 - **v0.15.0** — BREAKING: worktree-native sessions (Model B). Each parallel domain (financeiro/operacional/RH…) is a worktree on a `session/<label>` branch cut from a base, merged back with a serialized conflict-safe merge (base never left dirty; conflicts STOP, never auto-resolve). `/release:session start|sync|finish|list|doctor|cleanup|abort|base`. Replaces `workstreams` (deprecated). 7 dead agents removed (44→37).
 - **v0.13.x** — Always-on advanced-threat auditor (A1-A13 Django / RA1-RA5 React: SSRF/IMDS, insecure deserialization, command injection, SSTI/path-traversal, exploit-grade SQLi, race/TOCTOU, image-DoS, AWS-IaC). Concurrency-safe execution: session-isolated phase worktrees + per-phase lock (fixes UU corruption in multi-session execute).
@@ -80,6 +113,11 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full evolution.
 │  /release:security      →  SECURITY.md (9 categories × 2 stacks)         │
 │  /release:checklist     →  CHECKLIST.md (Q1-Q7 + RC1-RC7)                │
 │  /release:status        →  cursor + recent activity + next action         │
+├──────────────────────────────────────────────────────────────────────────┤
+│  PUBLISH + CLEAN UP                                                       │
+│  /release:land [--push] [--build] [--cross]  →  land, publish, build,     │
+│                            coordinate a paired cross-repo phase           │
+│  /release:gc [--apply]  →  prune merged worktrees / branches / locks      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -251,9 +289,11 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 
 | Hook | Event | Purpose |
 |---|---|---|
+| `release-efficiency-context.js` | SessionStart/SubagentStart | Injects the minimal-solution policy once; on SessionStart also starts the token worker when port 47777 is closed and prints the `/release:gc` hint when ≥3 items are prunable |
 | `django-validate-commit.sh` | PreToolUse:Bash | Conventional Commits enforcement (both stacks) |
+| `release-prod-guard.js` | PreToolUse:Bash | Blocks commands that reach prod (ssh/scp/remote psql/dokploy/kubectl/`*_ENV=prod`/`eas submit`) while an SDK unit is active; warns only outside a unit. `--allow-prod`, `#allow-prod`, `PROD-GUARD.yml` |
 | `release-edit-guard.js` | PreToolUse:Write/Edit | One process for focused-test, tenant, prompt-injection and React-security advice |
-| `release-token-collector.js` | PostToolUse:* | Reads only new transcript bytes and feeds the cost dashboard |
+| `release-token-collector.js` | PostToolUse:* | Reads only new transcript bytes and feeds the cost dashboard; with the worker down it writes `spool.jsonl`, ingested on the next start |
 
 ---
 

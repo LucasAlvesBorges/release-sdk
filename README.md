@@ -64,13 +64,46 @@ gravar o conteúdo das mensagens.
 
 ---
 
+## Entrega e publicação (v0.27)
+
+Toda unidade de trabalho (`quick`, `execute`, `land`) termina com **uma linha fixa**, sempre a
+última da resposta:
+
+```text
+LAND: merged main@a1b2c3d · PUSH: no — push == deploy here; when ready: git push origin main  (or /release:land --push) · UNIT: removed (quick/20260909-1200-slug)
+```
+
+`LAND` diz se aterrissou (ou por que ficou segurado), `PUSH` diz se publicou, `UNIT` diz se o
+worktree foi removido. Push é o botão de deploy na maioria dos repos, então o padrão é **não pushar**.
+O comportamento vem do bloco **Delivery settings** do `PROJECT.md`:
+
+| Chave | Valores | Efeito |
+|---|---|---|
+| `maturity` | `pre-launch` \| `live` | `pre-launch` = sem usuários reais: spec/plan/executor **trocam em vez de shimmar** (sem camadas de compat, flags de rollout ou migração reversível pra dado que não existe). Pisos de segurança/tenancy/data-loss não mudam |
+| `push_after_land` | `never` \| `ask` \| `auto` | O que fazer após um land verde. `--push` força |
+| `build_command` | comando | Rodado por `/release:land --build` após o push (ex.: `eas build --platform ios --profile production --auto-submit --non-interactive`) |
+| `deploy_check` | comando | `/release:land --cross` espera esse comando passar no repo provider antes de landar o consumer (ex.: `gh run watch --exit-status`) |
+
+Fases pareadas entre repos (backend ↔ app) são declaradas com `/release:spec NN --paired
+/caminho/outro-repo:MM` e publicadas com `/release:land NN --cross --push --build`: provider primeiro,
+espera o deploy, depois consumer e build.
+
+Enquanto uma unidade está ativa (`.release-planning/.unit-active`, cwd num `release-worktrees/` ou
+`.progress.json` com menos de 2 h), o **prod guard** bloqueia `ssh`/`scp`/`psql -h`/`dokploy`/
+`kubectl`/`*_ENV=prod`/`eas submit`; fora de unidade ele só avisa. `--allow-prod`, `#allow-prod` no
+comando, `RELEASE_ALLOW_PROD=1` ou `.release-planning/PROD-GUARD.yml` (`mode`, `pattern`, `allow`)
+liberam. `/release:gc` poda o que sobrou (worktrees mergeados e limpos, branches mergeadas, locks
+mortos) e o SessionStart avisa quando há ≥3 itens.
+
+---
+
 ## Novidades (v0.5 → v0.27)
 
 - **v0.27.0** — **Operação sem pergunta de acompanhamento.** Auditoria de 139 sessões reais em dois repos mostrou onde o tempo ia: "fez push?" ×20, "status?" ×25, prod tocado por um executor, 52 worktrees acumulados, o mesmo bug debugado em 6 sessões, e `/release:session` nunca usado (a orquestração nativa do Claude Code entre terminais já resolve). Resposta: (1) **contrato pós-land** — `quick`/`execute`/`land` terminam com UMA linha fixa `LAND: merged main@sha · PUSH: … · UNIT: …`; `--push` e `push_after_land: never|ask|auto` em PROJECT.md → Delivery settings; (2) **progresso vivo** — executor grava `.progress.json` por task em linguagem de produto, orquestrador imprime uma linha por mudança e dispara `PushNotification` ao landar/falhar; STATE notes ≤240 chars sem hash; (3) **prod guard** — hook PreToolUse bloqueia ssh/scp/psql remoto/dokploy/kubectl/`*_ENV=prod`/`eas submit` enquanto uma unidade SDK está ativa (`.unit-active`, worktree ou heartbeat fresco); fora de unidade só avisa; `--allow-prod`, `#allow-prod` ou `PROD-GUARD.yml` liberam; (4) **fases pareadas cross-repo** — `spec --paired <repo>:<NN>` + `land --cross` (provider primeiro, espera `deploy_check`, depois consumer) + `land --build` roda o `build_command` (EAS auto-submit) após o push; (5) **debug retomável** — `/release:debug` acha sessão aberta sobre o mesmo bug por similaridade e oferece retomar; (6) **`/release:gc`** — poda worktrees mergeados+limpos, branches mergeadas, locks mortos; dry-run por padrão; hint no SessionStart; (7) **`maturity: pre-launch`** — spec/plan/executor trocam em vez de shimmar (sem compat, sem flags de rollout); (8) **token tracker** — worker sobe sozinho no SessionStart, eventos com worker fora do ar vão pro `spool.jsonl` e são ingeridos depois (parou de gravar por 2 meses sem ninguém notar). **BREAKING:** `/release:session` e `/release:workstreams` removidos (`session/*` não é mais uma unidade landável). Novos testes: `test-merge-lib.sh` (79), `test-gc-lib.sh` (44), `test-prod-guard.sh` (26).
 
 - **v0.19.0** — **Orquestração por tier de modelo.** Toda operação vira um loop de dois tiers: orquestrador (Fable) faz fan-out pra workers (Opus), cada worker loopa sozinho, e o orquestrador loopa pra avaliar — checker sempre um tier acima do maker (maker≠checker literal). Fallback quando não há Fable: orquestrador Opus + workers Sonnet. Perfil **auto-detectado** do model da sessão (o LLM sabe o próprio model — nunca pergunta, nunca spawna tier que você não tem). Nova lib `bin/release-model-lib.sh` (SSOT) + `bin/test-model-lib.sh` (23 asserts). Override raro via env `RELEASE_MODEL_PROFILE`/`MODELS.yml`. Fiado em `execute`/`loop`/`quick`/`security`/`debug` + `wave-executor`; doctrine LOCKED no router herdada por todas as skills. Tudo em effort máximo (exceção: `test-discover`/Haiku).
 
-- **v0.17.0** — merge-back automático: rode uma fase + vários `/release:quick` em paralelo e **veja a feature funcionando ao vivo** no seu trunk. `quick` e `execute` isolam em worktree **e aterrissam sozinhos** na base quando os testes passam (hot-reload pega na hora); checkout sujo é **segurado, nunca sobrescrito** (`held-dirty`). Motor único `land_branch` (`bin/release-merge-lib.sh`) compartilhado por `session finish`/`quick`/`execute`/novo `/release:land`, serializado por lock por-base. Teste 48→66 asserts agora *sourceia* o motor real (zero drift). BREAKING: `quick` não commita mais no teu checkout; `execute` não deixa mais `feat/<NN>` solto (use `--no-merge`/`--pr` pro comportamento antigo).
+- **v0.17.0** — merge-back automático: rode uma fase + vários `/release:quick` em paralelo e **veja a feature funcionando ao vivo** no seu trunk. `quick` e `execute` isolam em worktree **e aterrissam sozinhos** na base quando os testes passam (hot-reload pega na hora); checkout sujo é **segurado, nunca sobrescrito** (`held-dirty`). Motor único `land_branch` (`bin/release-merge-lib.sh`) compartilhado por `quick`/`execute`/novo `/release:land`, serializado por lock por-base. Teste 48→66 asserts agora *sourceia* o motor real (zero drift). BREAKING: `quick` não commita mais no teu checkout; `execute` não deixa mais `feat/<NN>` solto (use `--no-merge`/`--pr` pro comportamento antigo).
 - **v0.16.0** — `/release:session` endurecido: 6 bugs de uso multi-sessão real (cwd-drift crash no `finish`, conflito mutando o checkout da base, planning vazando pra PR, sem drift handling, `base-branch` não persistindo sob gitignore, pouca visibilidade) + review adversarial de 6 lentes (27 achados — incl. TOCTOU resolvido com lock-first/sync-merge atômico, lockfile slash-safe, reclaim de lock morto, refused-merge). Novos subcomandos `sync`/`doctor`/`cleanup`; `bin/test-session-merge.sh` 12 → 48 asserts regression-guarded. **Agentes agora namespaceados** `release:<nome>` (Claude Code exige prefixo de plugin; `subagent_type` cru falhava) — 320 spawns reescritos em 62 arquivos.
 - **v0.15.0** — BREAKING: sessions worktree-native (Model B). Cada domínio paralelo (financeiro/operacional/RH…) é um worktree numa branch `session/<label>` cortada de uma base, mergeado de volta com merge serializado conflict-safe (base nunca fica suja; conflito PARA, nunca auto-resolve). `/release:session start|sync|finish|list|doctor|cleanup|abort|base`. Substitui `workstreams` (deprecated). 7 agents mortos removidos (44→37).
 - **v0.13.x** — Auditor de ameaças avançadas always-on (A1-A13 Django / RA1-RA5 React: SSRF/IMDS, desserialização insegura, command injection, SSTI/path-traversal, SQLi exploit-grade, race/TOCTOU, image-DoS, AWS-IaC). Execução concurrency-safe: worktree de fase isolado por sessão + lock por fase (fix corrupção UU em execute multi-sessão).
@@ -116,6 +149,11 @@ gravar o conteúdo das mensagens.
 │  INVESTIGAÇÃO + WORK PEQUENO                                              │
 │  /release:debug          |  /release:fast          |  /release:quick      │
 │  /release:forensics      |  /release:add-tests                            │
+├───────────────────────────────────────────────────────────────────────────┤
+│  PUBLICAÇÃO + LIMPEZA                                                     │
+│  /release:land [--push] [--build] [--cross]  →  aterrissa, publica,       │
+│                            builda, coordena fase pareada cross-repo       │
+│  /release:gc [--apply]   →  poda worktrees/branches/locks já mergeados    │
 ├───────────────────────────────────────────────────────────────────────────┤
 │  REPO INTELLIGENCE                                                        │
 │  /release:map-codebase   |  /release:docs-update                          │
@@ -282,10 +320,11 @@ avançam em baby steps e preservam assinaturas e comportamento externo.
 
 | Hook | Evento | Propósito |
 |---|---|---|
-| `release-efficiency-context.js` | SessionStart/SubagentStart | Injeta uma vez a política base de solução mínima, contexto compacto e uso opcional de RTK |
+| `release-efficiency-context.js` | SessionStart/SubagentStart | Injeta uma vez a política base de solução mínima, contexto compacto e uso opcional de RTK. No SessionStart também sobe o token worker se a porta 47777 estiver fechada e imprime o hint do `/release:gc` quando há ≥3 itens podáveis |
 | `django-validate-commit.sh` | PreToolUse:Bash | Enforcement de Conventional Commits (ambas stacks) |
+| `release-prod-guard.js` | PreToolUse:Bash | Bloqueia comandos que alcançam prod (ssh/scp/psql remoto/dokploy/kubectl/`*_ENV=prod`/`eas submit`) enquanto uma unidade SDK está ativa; fora de unidade só avisa. `--allow-prod`, `#allow-prod`, `PROD-GUARD.yml` |
 | `release-edit-guard.js` | PreToolUse:Write/Edit | Um único processo: teste focado, tenant scope, prompt injection e segurança React |
-| `release-token-collector.js` | PostToolUse:* | Lê apenas bytes novos do transcript e alimenta o dashboard de custo |
+| `release-token-collector.js` | PostToolUse:* | Lê apenas bytes novos do transcript e alimenta o dashboard de custo; com o worker fora do ar grava em `spool.jsonl`, ingerido no próximo start |
 
 ---
 

@@ -32,6 +32,9 @@ The installer never reads or writes Claude Code configuration or state.
 This edition implements the release-sdk Codex token-economy policy end to
 end:
 
+- **Prod guard.** `hooks/release-prod-guard.js` runs on PreToolUse:Bash in
+  the Codex edition too (`runtime/hooks.json`): remote/prod commands are
+  blocked while an SDK unit is active and only warned about otherwise.
 - **AGENTS.md gate.** `hooks/release-agents-md-guard.js` blocks
   Edit/Write/apply_patch (`exit 2`) in any target project whose root lacks an
   `AGENTS.md`, except the write that creates the file itself. Mode (`strict`

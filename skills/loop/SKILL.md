@@ -41,7 +41,7 @@ its prefix to every maker/fixer and gate invocation. Reject managed or phase-loc
 any worker. Never provision or tear down containers/databases.
 
 1. Reject feature/architecture scope and C3/C4 work without a SPEC.
-2. Work in the current dev checkout. Outside a release session require a clean tree and create an
+2. Work in the current dev checkout. Require a clean tree and create an
    in-place `loop/<label>` branch; never create a sibling worktree.
 3. Build once inline for C0/C1 or with one `release:tdd-executor` for C2.
 4. Run `run_gate_cached "$ROOT" full`.
