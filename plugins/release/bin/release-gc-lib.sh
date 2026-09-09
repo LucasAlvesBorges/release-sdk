@@ -15,7 +15,8 @@
 #   PRUNE-WORKTREE  branch already an ancestor of base AND working tree clean (tracked + untracked)
 #   PRUNE-MISSING   registered worktree whose directory no longer exists (git worktree prune)
 #   PRUNE-BRANCH    local branch already an ancestor of base, checked out nowhere, not protected
-#   STALE-LOCK      ../release-worktrees/.locks/*.lock whose holder pid is dead
+#   STALE-LOCK      ../release-worktrees/.locks/merge-*.lock whose holder pid is dead (merge-lib locks
+#                   only; phase locks belong to execute and are never touched)
 #
 # and KEEPS everything else, saying why:
 #
@@ -46,9 +47,11 @@ _gc_protected_branch() {  # $1 branch, $2 base → 0 when protected
   return 1
 }
 
-_gc_worktrees() {  # $1 main_root → `<path>\t<branch-or-empty>\t<locked:0|1>` per registered worktree
+_gc_worktrees() {  # $1 main_root → `<path>\t<branch-or-->\t<locked:0|1>` per registered worktree
+  # `-` stands for a detached HEAD: an empty field would collapse under whitespace IFS (tab) in
+  # bash AND zsh, shifting the locked flag into the branch column.
   git -C "$1" worktree list --porcelain 2>/dev/null | awk '
-    function flush() { if (w != "") printf "%s\t%s\t%d\n", w, b, l; w=""; b=""; l=0 }
+    function flush() { if (w != "") printf "%s\t%s\t%d\n", w, (b == "" ? "-" : b), l; w=""; b=""; l=0 }
     /^worktree /{ flush(); w=substr($0,10) }
     /^branch /{ b=$2; sub("refs/heads/","",b) }
     /^locked/{ l=1 }
@@ -71,8 +74,9 @@ gc_scan() {  # <main_root> <base>
   while IFS="$(printf '\t')" read -r wt br locked; do
     [ -n "$wt" ] || continue
     if [ "$wt" = "$mr" ]; then echo "KEEP-MAIN $wt"; continue; fi
+    [ "$br" = "-" ] && br=""
     if [ ! -d "$wt" ]; then echo "PRUNE-MISSING $wt ${br:-(detached)}"; continue; fi
-    case "$wt" in "$parent"/*) ;; *) echo "KEEP-EXTERNAL $wt ${br:--}"; continue;; esac
+    case "$wt" in "$parent"/*) ;; *) echo "KEEP-EXTERNAL $wt ${br:-(detached)}"; continue;; esac
     if [ "$br" = "$base" ]; then echo "KEEP-BASE $wt $br"; continue; fi
     if [ -z "$br" ]; then
       # detached HEAD: prunable only when its commit is on base and the tree is clean
@@ -99,8 +103,8 @@ EOF
     git -C "$mr" merge-base --is-ancestor "$br" "$base" 2>/dev/null && echo "PRUNE-BRANCH $br"
   done
 
-  # merge locks whose holder is dead
-  for lockf in "$parent"/release-worktrees/.locks/*.lock; do
+  # merge locks whose holder is dead (find, not a glob: zsh aborts on an unmatched glob)
+  find "$parent/release-worktrees/.locks" -maxdepth 1 -name 'merge-*.lock' 2>/dev/null | while IFS= read -r lockf; do
     [ -f "$lockf" ] || continue
     hp="$(awk 'NR==1{print $2}' "$lockf" 2>/dev/null)"
     if [ -n "$hp" ] && kill -0 "$hp" 2>/dev/null; then echo "KEEP-LIVE-LOCK $lockf"; else echo "STALE-LOCK $lockf"; fi
@@ -152,7 +156,14 @@ gc_apply() {  # <main_root> <base>
           fi
         else echo "GC=failed remove-worktree $target"; fi ;;
       PRUNE-MISSING)
-        git -C "$mr" worktree prune >/dev/null 2>&1 && { echo "GC=pruned $target"; nw=$((nw+1)); }
+        # `git worktree prune` skips LOCKED registrations, and quick/execute lock every unit — so a
+        # vanished locked worktree stays registered forever unless we unlock it first.
+        git -C "$mr" worktree unlock "$target" >/dev/null 2>&1 || true
+        git -C "$mr" worktree prune >/dev/null 2>&1 || true
+        if git -C "$mr" worktree list --porcelain 2>/dev/null | grep -qxF "worktree $target"; then
+          echo "GC=failed prune-worktree $target"; continue
+        fi
+        echo "GC=pruned $target"; nw=$((nw+1))
         # the registration was the only thing keeping a merged branch alive → same rule as a removed worktree
         if [ -n "$br" ] && [ "$br" != "(detached)" ] && git -C "$mr" merge-base --is-ancestor "$br" "$base" 2>/dev/null \
            && ! _gc_protected_branch "$br" "$base"; then

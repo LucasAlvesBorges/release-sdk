@@ -17,6 +17,8 @@
 #   #10 main checkout and the base worktree are always KEEP-*
 #   #11 gc_count matches the number of PRUNE/STALE lines; apply summary counts add up
 #   #12 apply from INSIDE a doomed worktree does not crash (cd main_root first)
+#   #13 detached-HEAD worktrees: merged+clean → PRUNE (branch column never shifts), ahead → KEEP
+#   #14 phase locks (non merge-*.lock) are never touched; missing .locks dir is fine
 #
 # Run: bash bin/test-gc-lib.sh
 set -euo pipefail
@@ -57,6 +59,8 @@ unit locked;   printf 'l\n' > "$WT/locked/l.py";   commit_in "$WT/locked" "feat(
 git -C "$REPO" worktree lock --reason "quick in flight" "$WT/locked"
 unit gone;     printf 'g\n' > "$WT/gone/g.py";     commit_in "$WT/gone" "feat(gone)";      merge_into_dev feat/gone
 rm -rf "$WT/gone"
+unit gonelocked; printf 'gl\n' > "$WT/gonelocked/gl.py"; commit_in "$WT/gonelocked" "feat(gonelocked)"; merge_into_dev feat/gonelocked
+git -C "$REPO" worktree lock --reason "quick in flight" "$WT/gonelocked"; rm -rf "$WT/gonelocked"   # locked AND vanished: `git worktree prune` alone skips it
 mkdir -p "$SBX/elsewhere"
 git -C "$REPO" worktree add -q -b feat/ext "$SBX/elsewhere/ext" dev
 printf 'e\n' > "$SBX/elsewhere/ext/e.py"; commit_in "$SBX/elsewhere/ext" "feat(ext)"; merge_into_dev feat/ext
@@ -66,6 +70,11 @@ git -C "$REPO" branch feat/ahead dev; git -C "$REPO" worktree add -q "$WT/ahead"
 printf 'a\n' > "$WT/ahead/a.py"; commit_in "$WT/ahead" "feat(ahead)"; git -C "$REPO" worktree remove --force "$WT/ahead"   # branch ahead of dev, no worktree
 printf 'held %d\n' "$$" > "$LOCKS/merge-dev.lock"            # LIVE lock (this shell)
 printf 'ghost 999999\n' > "$LOCKS/merge-release_v2.lock"     # DEAD lock
+printf 'phase 117 pid 999999\n' > "$LOCKS/117-phase.lock"     # a phase lock: not gc's business
+git -C "$REPO" worktree add -q --detach "$WT/det-merged" dev  # detached at dev tip, clean
+git -C "$REPO" worktree add -q --detach "$WT/det-ahead" dev
+printf 'x\n' > "$WT/det-ahead/x.py"; git -C "$WT/det-ahead" add -A; git -C "$WT/det-ahead" commit -qm "detached ahead"
+git -C "$REPO" worktree lock "$WT/det-merged"                 # locked + detached, like a land's throwaway
 git -C "$REPO" worktree add -q "$WT/basewt" -b tmpbase dev >/dev/null 2>&1 && git -C "$REPO" worktree remove --force "$WT/basewt" && git -C "$REPO" branch -D tmpbase >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -77,6 +86,7 @@ has "#3 merged+untracked → KEEP-DIRTY"        "$SCAN" "KEEP-DIRTY $WT/untr fea
 has "#4 unmerged → KEEP-UNMERGED"             "$SCAN" "KEEP-UNMERGED $WT/open feat/open"
 has "#5 locked merged clean → PRUNE-WORKTREE" "$SCAN" "PRUNE-WORKTREE $WT/locked feat/locked"
 has "#6 vanished dir → PRUNE-MISSING"         "$SCAN" "PRUNE-MISSING $WT/gone feat/gone"
+has "#6 vanished LOCKED dir → PRUNE-MISSING"  "$SCAN" "PRUNE-MISSING $WT/gonelocked feat/gonelocked"
 has "#7 external path → KEEP-EXTERNAL"        "$SCAN" "KEEP-EXTERNAL $SBX/elsewhere/ext feat/ext"
 has "#8 merged orphan branch → PRUNE-BRANCH"  "$SCAN" "PRUNE-BRANCH quick/orphan"
 hasnot "#8 protected main never listed"       "$SCAN" "PRUNE-BRANCH main"
@@ -86,10 +96,13 @@ hasnot "#8 checked-out merged branch is a worktree verdict, not a branch verdict
 has "#9 dead lock → STALE-LOCK"               "$SCAN" "STALE-LOCK $LOCKS/merge-release_v2.lock"
 has "#9 live lock → KEEP-LIVE-LOCK"           "$SCAN" "KEEP-LIVE-LOCK $LOCKS/merge-dev.lock"
 has "#10 main checkout → KEEP-MAIN"           "$SCAN" "KEEP-MAIN $REPO"
+has "#13 detached merged clean → PRUNE-WORKTREE (detached)" "$SCAN" "PRUNE-WORKTREE $WT/det-merged (detached)"
+has "#13 detached ahead → KEEP-UNMERGED (detached)"         "$SCAN" "KEEP-UNMERGED $WT/det-ahead (detached)"
+hasnot "#14 phase lock never listed"                        "$SCAN" "117-phase.lock"
 eq "#11 gc_count = prunable lines" "$(printf '%s\n' "$SCAN" | grep -c -E '^(PRUNE-|STALE-LOCK)')" "$(gc_count "$REPO" dev)"
-eq "#11 gc_count is 5 (clean, locked, gone, orphan, stale lock)" "5" "$(gc_count "$REPO" dev)"
-# hint = merged unprotected branches (clean, dirty, untr, locked, gone, ext, orphan = 7) + vanished dirs (gone = 1)
-eq "#11 gc_hint_count is a cheap upper bound (8)" "8" "$(gc_hint_count "$REPO" dev)"
+eq "#11 gc_count is 7 (clean, locked, gone, gonelocked, det-merged, orphan, stale lock)" "7" "$(gc_count "$REPO" dev)"
+# hint = merged unprotected branches (clean, dirty, untr, locked, gone, gonelocked, ext, orphan = 8) + vanished dirs (gone, gonelocked = 2)
+eq "#11 gc_hint_count is a cheap upper bound (10)" "10" "$(gc_hint_count "$REPO" dev)"
 
 echo "── #10 base checked out in a worktree is KEEP-BASE ──"
 git -C "$REPO" checkout -q main
@@ -108,7 +121,11 @@ has "pruned vanished worktree" "$OUT" "GC=pruned $WT/gone"
 has "deleted orphan branch"    "$OUT" "GC=deleted-branch quick/orphan"
 has "removed stale lock"       "$OUT" "GC=removed-lock $LOCKS/merge-release_v2.lock"
 has "#6 vanished worktree branch deleted" "$OUT" "GC=deleted-branch feat/gone"
-has "#11 summary adds up"      "$OUT" "GC_SUMMARY worktrees=3 branches=4 locks=1 kept=6"
+has "#6 vanished LOCKED worktree pruned (unlock first)" "$OUT" "GC=pruned $WT/gonelocked"
+has "#6 vanished LOCKED worktree branch deleted" "$OUT" "GC=deleted-branch feat/gonelocked"
+git -C "$REPO" worktree list --porcelain | grep -qF "worktree $WT/gonelocked" && no "#6 locked registration lingered" || ok "#6 locked registration gone"
+has "#13 detached merged worktree removed" "$OUT" "GC=removed-worktree $WT/det-merged"
+has "#11 summary adds up"      "$OUT" "GC_SUMMARY worktrees=5 branches=5 locks=1 kept=7"
 [ -d "$WT/clean" ] && no "clean worktree still present" || ok "clean worktree gone"
 [ -d "$WT/locked" ] && no "locked worktree still present" || ok "locked worktree gone"
 [ -d "$WT/dirty" ] && ok "#2 dirty worktree preserved" || no "dirty worktree removed (data loss)"
@@ -124,7 +141,11 @@ git -C "$REPO" show-ref --verify --quiet refs/heads/feat/ahead && ok "#8 ahead b
 git -C "$REPO" show-ref --verify --quiet refs/heads/feat/gone && no "gone branch lingered" || ok "gone branch cleaned by prune"
 eq "base SHA untouched by gc" "$DEV0" "$(git -C "$REPO" rev-parse dev)"
 [ -z "$(git -C "$REPO" status --porcelain)" ] && ok "main checkout clean after gc" || no "main checkout dirty"
-eq "second apply is a no-op" "GC_SUMMARY worktrees=0 branches=0 locks=0 kept=6" "$(gc_apply "$REPO" dev | tail -1)"
+eq "second apply is a no-op" "GC_SUMMARY worktrees=0 branches=0 locks=0 kept=7" "$(gc_apply "$REPO" dev | tail -1)"
+[ -f "$LOCKS/117-phase.lock" ] && ok "#14 phase lock intact" || no "phase lock removed"
+[ -d "$WT/det-ahead" ] && ok "#13 detached ahead worktree preserved" || no "detached ahead removed"
+rm -rf "$SBX/proj/release-worktrees/.locks"
+eq "#14 missing .locks dir is fine" "" "$(gc_scan "$REPO" dev | grep -i lock || true)"
 eq "bad base reports failure" "GC=failed unknown-base nope" "$(gc_scan "$REPO" nope)"
 
 echo ""

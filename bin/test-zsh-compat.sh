@@ -169,6 +169,54 @@ Z="$(run_in zsh release-merge-lib.sh "$(dirty_probe)")"
 has "zsh: held rather than merged" "$Z" "RESULT=held-dirty"
 has "zsh: the user's uncommitted work is intact" "$Z" "uncommitted"
 
+echo "── merge lib v0.27.0: push policy + land_report (parsed by quick/execute/land) ──"
+report_probe() {
+  cat <<PROBE
+D="\$(mktemp -d)"; cd "\$D" || exit 1
+git init -q -b main . >/dev/null 2>&1
+git config user.email t@t; git config user.name t
+printf 'a\n' > f; git add .; git commit -qm init
+mkdir -p .release-planning; printf -- '- push_after_land: ask   # c\n- build_command: \`eas build\`\n' > .release-planning/PROJECT.md
+release_push_policy "\$D"; echo
+release_project_setting "\$D" build_command; echo
+land_push "\$D" main
+land_report merged main "\$D" policy-ask quick/z | sed 's/@[0-9a-f]*/@SHA/'
+land_report held-dirty main "\$D" skipped
+PROBE
+}
+both "push policy / setting / land_push / land_report" release-merge-lib.sh "$(report_probe)"
+Z="$(run_in zsh release-merge-lib.sh "$(report_probe)")"
+has "zsh: policy ask parsed" "$Z" "ask"
+has "zsh: backticks stripped" "$Z" "eas build"
+has "zsh: no remote reported" "$Z" "PUSH=no-remote"
+has "zsh: merged line" "$Z" "LAND: merged main@SHA · PUSH: no — answer the push question above, or: git push origin main · UNIT: removed (quick/z)"
+noleak "zsh: no local leaks from merge helpers" "$Z"
+
+echo "── gc lib (gc_scan verdicts are parsed by /release:gc and the SessionStart hint) ──"
+gc_probe() {
+  cat <<PROBE
+D="\$(cd "\$(mktemp -d)" && pwd -P)"; mkdir -p "\$D/p/app"; cd "\$D/p/app" || exit 1
+git init -q -b main . >/dev/null 2>&1
+git config user.email t@t; git config user.name t
+printf 'a\n' > f; git add .; git commit -qm init
+git worktree add -q -b feat/m ../release-worktrees/m main >/dev/null 2>&1
+( cd ../release-worktrees/m && printf 'b\n' > g && git add . && git commit -qm work ) >/dev/null 2>&1
+git merge -q --no-ff feat/m -m merge >/dev/null 2>&1
+git worktree add -q --detach ../release-worktrees/det main >/dev/null 2>&1
+git branch -q orphan main
+gc_scan "\$D/p/app" main | sed "s#\$D#ROOT#g" | sort
+gc_hint_count "\$D/p/app" main
+gc_apply "\$D/p/app" main | tail -1
+PROBE
+}
+both "gc_scan / gc_hint_count / gc_apply" release-gc-lib.sh "$(gc_probe)"
+Z="$(run_in zsh release-gc-lib.sh "$(gc_probe)")"
+has "zsh: merged unit is prunable" "$Z" "PRUNE-WORKTREE ROOT/p/release-worktrees/m feat/m"
+has "zsh: detached column never shifts" "$Z" "PRUNE-WORKTREE ROOT/p/release-worktrees/det (detached)"
+has "zsh: orphan branch listed" "$Z" "PRUNE-BRANCH orphan"
+has "zsh: no lock dir is not an error" "$Z" "GC_SUMMARY worktrees=2 branches=2 locks=0 kept=1"
+noleak "zsh: no local leaks from gc" "$Z"
+
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
