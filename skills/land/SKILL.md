@@ -2,85 +2,125 @@
 name: land
 description: >
   Land a held / conflicted / --no-merge unit of work back onto base — the retry path for the auto
-  merge-back that /release:quick and /release:execute perform on green. Use when a quick or a phase was
-  HELD (the base checkout was dirty at land time, so it was never clobbered) or you ran with --no-merge,
-  and now you want it on your trunk. Serialized + conflict-safe via the shared land_branch engine.
-  Trigger words: "land", "aterrissa", "merge back the quick/phase", "finish the held merge".
+  merge-back that /release:quick and /release:execute perform on green — and the one place that
+  pushes, builds and coordinates a paired cross-repo phase. Use when a quick or a phase was HELD
+  (the base checkout was dirty at land time) or you ran with --no-merge; add --push to publish,
+  --build to trigger the app's release build after the push, --cross to land the paired phase in
+  the other repo first. Trigger words: "land", "aterrissa", "merge back", "push cross repo",
+  "builda ios prod com autosubmit", "finish the held merge".
 ---
 
-# /release:land — finish a deferred merge-back
+# /release:land — finish a deferred merge-back, then publish
 
 `/release:quick` and `/release:execute` auto-land on green. When the base checkout was **dirty**, the
 land is **held** (your uncommitted work is never clobbered); with `--no-merge` it is skipped on
-purpose. `/release:land` is the retry: it lands the unit onto base through the SAME serialized,
-conflict-safe `land_branch` engine that powers `/release:session finish`. A dirty base is still never
-clobbered — land only proceeds when your trunk checkout is clean.
+purpose. `/release:land` is the retry, through the SAME serialized, conflict-safe `land_branch`
+engine. A dirty base is still never clobbered. Since v0.27.0 it is also the publish step: push,
+release build and paired-repo ordering live here, never as ad-hoc shell in a chat.
 
 ## Usage
 
-```
-/release:land                 # list landable units, pick one
-/release:land <label>         # land the unit whose branch matches <label>  (quick/<label>, feat/<label>, session/<label>)
-/release:land --all           # land every ready unit, serialized on the per-base lock
+```text
+/release:land                       # list landable units, pick one
+/release:land <label>               # land the unit whose branch matches <label>  (quick/<label>, feat/<label>)
+/release:land --all                 # land every ready unit, serialized on the per-base lock
+/release:land [<label>] --push      # push base to origin after landing (push == deploy in most repos)
+/release:land [<label>] --build     # after --push: run the project's release build (PROJECT.md build_command)
+/release:land <NN> --cross          # paired phase: land+push the OTHER repo first, wait for its deploy_check, then this one
+/release:land --push --build        # nothing to land, just publish base + build (the "pusha e builda" ritual)
 ```
 
 ## Flow
 
-### Step 1 — resolve base + enumerate landable units
+### Step 0 — libs, base
 
 ```bash
-MAIN_ROOT="$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10); exit}')"
-BASE="$(git -C "$MAIN_ROOT" rev-parse --abbrev-ref HEAD)"   # land target = the branch you're testing on (main checkout's current branch)
+find_lib(){ local p="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/$1}"; [ -n "$p" ]&&[ -f "$p" ]&&{ printf %s "$p"; return; }; find "$HOME/.claude" -name "$1" -path '*/bin/*' 2>/dev/null|head -1; }
+. "$(find_lib release-merge-lib.sh)"
+MAIN_ROOT="$(release_main_root)"
+BASE="$(git -C "$MAIN_ROOT" rev-parse --abbrev-ref HEAD)"   # land target = the branch you're testing on
+```
 
-# A landable unit = a worktree whose branch is quick/* | feat/* | session/* and is NOT yet an ancestor of base.
+### Step 1 — enumerate landable units
+
+```bash
+# A landable unit = a worktree whose branch is quick/* | feat/* and is NOT yet an ancestor of base.
 git worktree list --porcelain | awk '
   /^worktree /{w=substr($0,10)}
-  /^branch /{b=$2; sub("refs/heads/","",b); if (b ~ /^(quick|feat|session)\//) print w "\t" b }
+  /^branch /{b=$2; sub("refs/heads/","",b); if (b ~ /^(quick|feat)\//) print w "\t" b }
 ' | while IFS="$(printf '\t')" read -r wt br; do
   git -C "$MAIN_ROOT" merge-base --is-ancestor "$br" "$BASE" 2>/dev/null && continue   # already landed
-  printf '%s\t%s\n' "$br" "$wt"   # branch <TAB> worktree
+  printf '%s\t%s\n' "$br" "$wt"
 done
 ```
 
 ### Step 2 — pick the unit
 
-- `<label>` given → select the unit whose branch is `quick/<label>`, `feat/<label>`, `session/<label>`,
-  or whose branch basename matches `<label>`. Ambiguous or no match → list the units and ask via `AskUserQuestion`.
-- no arg → if exactly one landable unit exists, use it; otherwise list them and ask (`AskUserQuestion`).
-- `--all` → iterate every landable unit (Step 3 in a loop); the per-base lock serializes them safely.
+- `<label>` given → the unit whose branch is `quick/<label>`, `feat/<label>`, or whose branch basename
+  matches `<label>`. A bare phase number `NN` matches `feat/NN-*`. Ambiguous or no match → list and ask
+  via `AskUserQuestion`.
+- no arg → exactly one landable unit → use it; otherwise list and ask. With `--push`/`--build` and
+  nothing to land, skip to Step 4.
+- `--all` → iterate every landable unit; the per-base lock serializes them safely.
 
 ### Step 3 — land via the shared engine
 
 ```bash
-RELEASE_LIB="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/bin/release-merge-lib.sh}"
-[ -n "$RELEASE_LIB" ] && [ -f "$RELEASE_LIB" ] || RELEASE_LIB="$(find "$HOME/.claude" -name release-merge-lib.sh -path '*/bin/*' 2>/dev/null | head -1)"
-[ -f "$RELEASE_LIB" ] || { echo "ABORT: release-merge-lib.sh not found (set CLAUDE_PLUGIN_ROOT)."; exit 1; }
-. "$RELEASE_LIB"
-
-# BR + WT come from the unit picked in Step 2 (for --all, loop over each pair)
 RESULT="$(land_branch "$BR" "$WT" "$BASE" | tail -1)"
 cd "$MAIN_ROOT"   # land may remove $WT from under us
-case "$RESULT" in
-  RESULT=merged)        echo "✓ $BR landed on $BASE (live) — hot-reload has it if your app runs on $BASE." ;;
-  RESULT=held-dirty)    echo "⏸ $BASE still has uncommitted work. Commit/stash on $BASE, then re-run /release:land." ;;
-  RESULT=conflict)      echo "✗ code conflict vs $BASE. Resolve in $WT, commit, then re-run /release:land." ;;
-  RESULT=refused)       echo "✗ merge refused (untracked-file collision in $WT). Clean it, then re-run." ;;
-  RESULT=locked)        echo "⏳ another land/finish is merging into $BASE. Retry in a moment." ;;
-  RESULT=planningblock) echo "✗ base '$BASE' tracks planning files a land would delete. Untrack on base first." ;;
-  RESULT=baseadvanced)  echo "✗ $BASE advanced under us — aborted, base byte-identical. Re-run /release:land." ;;
-  RESULT=badbase)       echo "✗ base resolved to a session branch. Pin one: /release:session base <branch>." ;;
-  *)                    echo "✗ land failed ($RESULT). Unit kept at $WT." ;;
-esac
+rm -f "$MAIN_ROOT/.release-planning/.unit-active" "$MAIN_ROOT/.release-planning/.allow-prod"
 ```
+
+Any result other than `RESULT=merged` ends here: print `land_report "$RESULT" "$BASE" "$MAIN_ROOT" skipped "$BR"`
+and stop. Never push or build on top of a held/conflicted land.
+
+### Step 4 — push (only after merged, or with nothing to land)
+
+```bash
+POLICY="$(release_push_policy "$MAIN_ROOT")"        # never | ask | auto
+# --push  ⇒ push. policy auto ⇒ push. policy ask ⇒ AskUserQuestion once. never ⇒ PUSH_STATE=policy-never
+PUSH_STATE="$(land_push "$MAIN_ROOT" "$BASE" | sed 's/^PUSH=//')"   # pushed | failed | no-remote
+```
+
+### Step 5 — `--build` (after a successful push only)
+
+```bash
+BUILD="$(release_project_setting "$MAIN_ROOT" build_command)"
+[ -z "$BUILD" ] && [ -f "$MAIN_ROOT/eas.json" ] && BUILD='eas build --platform ios --profile production --auto-submit --non-interactive'
+```
+
+Run `BUILD` from `MAIN_ROOT` on the pushed tip. It is the user's ritual, so it is allowed here even
+though the prod guard blocks `eas … --auto-submit` inside a unit. Report the build id/URL. If there is
+no build command and no `eas.json`, say so and stop; never invent one.
+
+### Step 6 — `--cross` (paired phase)
+
+Read `paired:` from `{NN}-SPEC.md` (`<abs-repo-path>:<NN>`; written by `/release:spec --paired`).
+Order is always **provider first**: the repo whose stack is `django`/backend lands and pushes first,
+then its `deploy_check` (PROJECT.md, e.g. `gh run watch --exit-status`) must succeed within 15 min,
+then the consumer repo (React / React Native) lands, pushes and — with `--build` — builds. Run the
+same Steps 1-5 inside the paired repo with `git -C <path>` / `cd <path>`; each repo keeps its own
+`.release-planning/`. If the paired phase is not landable yet, stop before touching this repo and
+say which phase is missing.
+
+## Report — the fixed last line
+
+Every invocation ends with exactly one `land_report` line per repo touched:
+
+```bash
+land_report "$RESULT" "$BASE" "$MAIN_ROOT" "$PUSH_STATE" "$BR"
+```
+
+`PUSH_STATE` ∈ `pushed | failed | no-remote | policy-never | policy-ask | skipped`. Add one extra line
+for a build (`BUILD: <id/url>`) or a deploy check (`DEPLOY: ok|failed|timeout`). Nothing else after it.
 
 ## Notes
 
-- **Same engine everywhere.** `session finish`, `quick`, `execute` auto-land, and `land` all call
-  `land_branch` (`bin/release-merge-lib.sh`, contract-tested by `bin/test-session-merge.sh`). One
-  per-base lock serializes every merge-back, so nothing corrupts your trunk.
-- **Nothing is lost.** A held unit's branch + worktree are preserved until it lands.
+- **Same engine everywhere.** `quick`, `execute` auto-land and `land` all call `land_branch`
+  (`bin/release-merge-lib.sh`, contract-tested by `bin/test-merge-lib.sh`). One per-base lock
+  serializes every merge-back.
+- **Nothing is lost.** A held unit's branch + worktree are preserved until it lands; `/release:gc`
+  prunes only after the branch is on base and the tree is clean.
 - **`--all` is fail-soft.** A unit that conflicts or holds is left for you; the rest still land.
-
----
-
-_Retry path for the deferred auto-merge. Serialized, conflict-safe, never clobbers a dirty trunk._
+- **Push is the deploy button.** Default policy is `never`; set `push_after_land: auto|ask` in
+  PROJECT.md → Delivery settings when a repo has no auto-deploy on push.

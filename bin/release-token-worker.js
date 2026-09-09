@@ -12,6 +12,7 @@ const PORT = parseInt(process.env.RELEASE_TOKEN_PORT || '47777', 10);
 const HOST = '127.0.0.1';
 const DATA_DIR = path.join(os.homedir(), '.claude', 'token-tracker');
 const EVENTS_FILE = path.join(DATA_DIR, 'events.jsonl');
+const SPOOL_FILE = path.join(DATA_DIR, 'spool.jsonl');
 const PID_FILE = path.join(DATA_DIR, 'worker.pid');
 const RATE_FILE = path.join(DATA_DIR, 'rate.json');
 const DASHBOARD_FILE = path.join(__dirname, 'release-token-dashboard.html');
@@ -108,6 +109,30 @@ function ensureDir() {
 function appendEvent(ev) {
   ensureDir();
   fs.appendFileSync(EVENTS_FILE, JSON.stringify(ev) + '\n');
+}
+
+// Events the collector could not POST (worker was down) wait in spool.jsonl. Move them into the
+// events log once, in order, deduplicated by uuid against what is already stored, then truncate the
+// spool. Returns the number of events ingested. Safe to call at every start.
+function ingestSpool(spoolFile, eventsFile) {
+  if (!fs.existsSync(spoolFile)) return 0;
+  const spooled = readEventsFile(spoolFile);
+  if (!spooled.length) { try { fs.unlinkSync(spoolFile); } catch {} return 0; }
+  const known = new Set(readEventsFile(eventsFile).map(ev => ev.uuid).filter(Boolean));
+  let count = 0;
+  const lines = [];
+  for (const ev of spooled) {
+    if (ev.uuid && known.has(ev.uuid)) continue;
+    if (ev.uuid) known.add(ev.uuid);
+    lines.push(JSON.stringify(ev));
+    count += 1;
+  }
+  if (lines.length) {
+    fs.mkdirSync(path.dirname(eventsFile), { recursive: true });
+    fs.appendFileSync(eventsFile, lines.join('\n') + '\n');
+  }
+  try { fs.unlinkSync(spoolFile); } catch {}
+  return count;
 }
 
 function readEventsFile(filePath) {
@@ -287,6 +312,12 @@ if (process.argv[2] === '--quote-model') {
   process.exit(0);
 }
 
+if (process.argv[2] === '--ingest-spool') {
+  const count = ingestSpool(process.argv[3], process.argv[4]);
+  process.stdout.write(JSON.stringify({ ingested: count }) + '\n');
+  process.exit(0);
+}
+
 if (process.argv[2] === '--stats-file') {
   process.stdout.write(JSON.stringify(buildStats({}, readEventsFile(process.argv[3]))) + '\n');
   process.exit(0);
@@ -348,9 +379,11 @@ server.on('error', err => {
 
 ensureDir();
 loadFxCache();
+const spooled = ingestSpool(SPOOL_FILE, EVENTS_FILE);
 server.listen(PORT, HOST, () => {
   fs.writeFileSync(PID_FILE, String(process.pid));
   console.log(`release-token-worker listening on http://${HOST}:${PORT}`);
+  if (spooled) console.log(`ingested ${spooled} spooled event(s) from worker downtime`);
   ensureFxFresh().then(r => console.log(`USD→BRL rate: ${r.toFixed(4)} (${fxCache.source})`));
 });
 

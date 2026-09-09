@@ -131,7 +131,7 @@ case "$Z" in *PLAN-SLICE*) no "zsh: scratch stayed in the worktree" "PLAN-SLICE 
              *) ok "zsh: scratch stayed in the worktree";; esac
 
 echo "── merge lib (land_branch runs under zsh in production) ──"
-# bin/test-session-merge.sh is a bash harness (arrays, bash-only idioms) and is NOT run under zsh;
+# bin/test-merge-lib.sh is a bash harness (arrays, bash-only idioms) and is NOT run under zsh;
 # these probes cover the LIB itself in both shells, which is what production sources. They also
 # cover the lock lifecycle, because the zsh run of that harness reported `locked` where bash
 # reported `merged` — a cascade from its own earlier failures, not a lib divergence.

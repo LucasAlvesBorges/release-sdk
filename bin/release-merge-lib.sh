@@ -2,11 +2,11 @@
 # release-merge-lib.sh — shared, serialized, conflict-safe merge-back engine for /release:*.
 #
 # SINGLE SOURCE OF TRUTH. Sourced by:
-#   - skills/session/SKILL.md  (finish)        — session/<label> → base
 #   - skills/quick/SKILL.md                    — quick/<label>   → base   (auto-land on green)
 #   - skills/execute/SKILL.md                  — feat/<NN>-<slug> → base   (auto-land at phase end)
-#   - skills/land/SKILL.md                     — re-land held-dirty / --no-merge units
-#   - bin/test-session-merge.sh                — the contract test exercises THIS file (no drift)
+#   - skills/land/SKILL.md                     — re-land held-dirty / --no-merge units; --push / --cross
+#   - bin/release-gc-lib.sh                    — prunes what a land left behind (merged + clean units)
+#   - bin/test-merge-lib.sh                    — the contract test exercises THIS file (no drift)
 #
 # Public API:
 #   land_branch <branch> <worktree> <base> [--keep]
@@ -24,10 +24,19 @@
 #     locked        another land is merging into this base right now — retry in a moment
 #     planningblock base tracks planning beyond base-branch (regression) — refused, no silent delete
 #     baseadvanced  base moved under us outside the lock — merge aborted, base byte-identical, re-run
-#     badbase       base resolved to a session/* branch — refuse (pin one with /release:session base)
 #     error         bad args, missing branch, or dirty/missing unit worktree
 #
-# Invariants (identical to the hardened v0.16.0 session finish — see test-session-merge.sh):
+#   release_project_setting <main_root> <key>   → value of `key: value` from .release-planning/PROJECT.md
+#                                                  (first match, trimmed; empty when absent)
+#   release_push_policy <main_root>             → never | ask | auto   (PROJECT.md `push_after_land:`;
+#                                                  default never — for this user push == deploy)
+#   land_push <main_root> <base>                → pushes <base> to origin. Echoes PUSH=pushed|failed|no-remote
+#   land_report <result> <base> <main_root> <push_state> [unit]
+#                                               → the ONE fixed line every land-capable skill ends with:
+#                                                  `LAND: merged main@abc1234 · PUSH: no (…) · UNIT: removed`
+#                                                  so the user never has to ask "fez push?" again.
+#
+# Invariants (see test-merge-lib.sh):
 #   - Lock FIRST, then sync + merge UNDER the lock — atomic fan-in, no TOCTOU window.
 #   - Conflicts surface IN THE UNIT (base→unit first), so a live base checkout is never half-merged.
 #   - Planning is local-only: stripped from every merge; never leaks into base.
@@ -90,7 +99,6 @@ land_branch() {  # <branch> <worktree> <base> [--keep]
   MAIN_ROOT="$(release_main_root)"
 
   [ -n "$br" ] && [ -n "$BASE" ] && [ -n "$wt" ] || { echo "RESULT=error"; return 0; }
-  case "$BASE" in session/*) echo "RESULT=badbase"; return 0;; esac
   git -C "$MAIN_ROOT" show-ref --verify --quiet "refs/heads/$br" || { echo "RESULT=error"; return 0; }
   git -C "$MAIN_ROOT" show-ref --verify --quiet "refs/heads/$BASE" || { echo "RESULT=error"; return 0; }
 
@@ -149,4 +157,49 @@ land_branch() {  # <branch> <worktree> <base> [--keep]
   git -C "$MAIN_ROOT" worktree prune 2>/dev/null
   rm -f "$lock"
   echo "RESULT=merged"; return 0
+}
+
+# ── project settings, push policy and the fixed post-land line ─────────────────────────────────────
+release_project_setting() {  # <main_root> <key> → value of a `key: value` line in .release-planning/PROJECT.md
+  local f="${1:-.}/.release-planning/PROJECT.md" key="${2:-}"
+  [ -n "$key" ] && [ -f "$f" ] || return 0
+  sed -n "s/^[[:space:]]*-*[[:space:]]*\`*${key}\`*[[:space:]]*:[[:space:]]*\(.*\)$/\1/p" "$f" \
+    | head -1 | sed 's/[[:space:]]*#.*$//; s/^[[:space:]]*`*//; s/`*[[:space:]]*$//'
+  return 0
+}
+
+release_push_policy() {  # <main_root> → never | ask | auto  (unknown/absent ⇒ never: push == deploy for most repos)
+  local v; v="$(release_project_setting "${1:-.}" push_after_land)"
+  case "$v" in auto|ask) printf '%s' "$v";; *) printf 'never';; esac
+  return 0
+}
+
+land_push() {  # <main_root> <base> → PUSH=pushed | failed | no-remote  (always returns 0)
+  local mr="${1:-.}" base="${2:-}"
+  [ -n "$base" ] || { echo "PUSH=failed"; return 0; }
+  git -C "$mr" remote get-url origin >/dev/null 2>&1 || { echo "PUSH=no-remote"; return 0; }
+  if git -C "$mr" push origin "$base:$base" >/dev/null 2>&1; then echo "PUSH=pushed"; else echo "PUSH=failed"; fi
+  return 0
+}
+
+land_report() {  # <result> <base> <main_root> <push_state:pushed|failed|no-remote|skipped|policy-never|policy-ask> [unit]
+  local result="${1#RESULT=}" base="${2:-?}" mr="${3:-.}" push="${4:-skipped}" unit="${5:-}" tip push_txt unit_txt
+  tip="$(git -C "$mr" rev-parse --short "$base" 2>/dev/null || echo '?')"
+  case "$push" in
+    pushed)       push_txt="yes (origin/$base = $tip — deploy pipeline may be running)";;
+    failed)       push_txt="FAILED (run: git -C '$mr' push origin $base)";;
+    no-remote)    push_txt="no remote";;
+    policy-never) push_txt="no — push == deploy here; when ready: git push origin $base  (or /release:land --push)";;
+    policy-ask)   push_txt="no — answer the push question above, or: git push origin $base";;
+    *)            push_txt="no (run: git push origin $base)";;
+  esac
+  case "$result" in
+    merged)       unit_txt="removed"; [ -n "$unit" ] && unit_txt="removed ($unit)"
+                  printf 'LAND: merged %s@%s · PUSH: %s · UNIT: %s\n' "$base" "$tip" "$push_txt" "$unit_txt";;
+    held-dirty)   printf 'LAND: HELD — %s checkout has uncommitted work; nothing clobbered · PUSH: no · UNIT: kept%s · next: commit/stash on %s, then /release:land\n' "$base" "${unit:+ ($unit)}" "$base";;
+    conflict)     printf 'LAND: CONFLICT vs %s · PUSH: no · UNIT: kept%s · next: resolve in the unit worktree, commit, /release:land\n' "$base" "${unit:+ ($unit)}";;
+    locked)       printf 'LAND: LOCKED — another land is merging into %s · PUSH: no · UNIT: kept%s · next: /release:land in a moment\n' "$base" "${unit:+ ($unit)}";;
+    *)            printf 'LAND: %s · PUSH: no · UNIT: kept%s · next: /release:land\n' "$result" "${unit:+ ($unit)}";;
+  esac
+  return 0
 }

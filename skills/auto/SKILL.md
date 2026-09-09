@@ -35,8 +35,8 @@ Downstream skills own complexity, models and execution. Use `release-*` agents o
 | plan/break into tasks, open questions, gray areas, tradeoffs | `plan` |
 | explicit keep-fixing/loop on bounded goal | `loop` |
 | ship/PR | `ship` |
-| parallel session/worktree | `session` |
-| land/merge back held work | `land` |
+| land/merge back held work, push, build, cross-repo publish | `land` |
+| prune/clean worktrees, branches, stale locks | `gc` |
 | docs/README | `docs-update` |
 | pause/save context | `pause-work` |
 | resume/continue saved session | `resume-work` |

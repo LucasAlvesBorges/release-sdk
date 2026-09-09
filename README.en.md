@@ -39,7 +39,9 @@ latency, child spawns and gate runs without storing message content.
 
 ---
 
-## What's new (v0.5 → v0.16, highlights)
+## What's new (v0.5 → v0.27, highlights)
+
+- **v0.27.0** — **Operations without the follow-up question.** A 139-session audit of two real repos showed where the time went: "did you push?" ×20, "status?" ×25, an executor touching prod, 52 accumulated worktrees, one bug debugged across 6 sessions, and `/release:session` never used (Claude Code's native cross-terminal orchestration already covers it). Response: (1) **post-land contract** — `quick`/`execute`/`land` end with ONE fixed line `LAND: merged main@sha · PUSH: … · UNIT: …`; `--push` and `push_after_land: never|ask|auto` in PROJECT.md → Delivery settings; (2) **live progress** — the executor writes `.progress.json` per task in product language, the orchestrator prints one line per change and fires `PushNotification` on land/fail; STATE notes ≤240 chars, no hashes; (3) **prod guard** — PreToolUse hook blocks ssh/scp/remote psql/dokploy/kubectl/`*_ENV=prod`/`eas submit` while an SDK unit is active (`.unit-active`, worktree or fresh heartbeat); outside a unit it only warns; `--allow-prod`, `#allow-prod` or `PROD-GUARD.yml` release it; (4) **paired cross-repo phases** — `spec --paired <repo>:<NN>` + `land --cross` (provider first, wait for `deploy_check`, then consumer) + `land --build` runs `build_command` (EAS auto-submit) after the push; (5) **resumable debug** — `/release:debug` finds an open session about the same bug by similarity and offers to resume; (6) **`/release:gc`** — prunes merged+clean worktrees, merged branches, dead locks; dry run by default; SessionStart hint; (7) **`maturity: pre-launch`** — spec/plan/executor replace instead of shimming (no compat layers, no rollout flags); (8) **token tracker** — worker autostarts on SessionStart, events collected while it is down go to `spool.jsonl` and are ingested later (it had silently stopped recording for two months). **BREAKING:** `/release:session` and `/release:workstreams` removed (`session/*` is no longer a landable unit). New tests: `test-merge-lib.sh` (79), `test-gc-lib.sh` (44), `test-prod-guard.sh` (26).
 
 - **v0.17.0** — automatic merge-back: run a phase + several `/release:quick` in parallel and **see the feature work live** on your trunk. `quick` and `execute` isolate in a worktree **and auto-land** onto base the moment tests pass (hot-reload picks it up); a dirty checkout is **held, never clobbered** (`held-dirty`). One shared engine `land_branch` (`bin/release-merge-lib.sh`) backs `session finish`/`quick`/`execute`/the new `/release:land`, serialized on a per-base lock. Test 48→66 assertions now *source* the real engine (zero drift). BREAKING: `quick` no longer commits into your checkout; `execute` no longer leaves `feat/<NN>` dangling (use `--no-merge`/`--pr` for the old behavior).
 - **v0.16.0** — `/release:session` hardening: 6 real multi-session bugs (cwd-drift crash in `finish`, conflicts mutating the base checkout, planning leaking into PRs, no drift handling, `base-branch` not persisting under gitignore, poor visibility) + a 6-lens adversarial review (27 findings — incl. TOCTOU closed via lock-first/atomic sync-merge, slash-safe lockfile, dead-PID lock reclaim, refused-merge detection). New `sync`/`doctor`/`cleanup` subcommands; `bin/test-session-merge.sh` 12 → 48 regression-guarded assertions. **Agent spawns now plugin-namespaced** `release:<name>` (Claude Code requires the plugin prefix; bare `subagent_type` failed) — 320 spawns rewritten across 62 files.
@@ -201,7 +203,7 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 | `/release:plan {NN}` | both | Resolve gray areas in batches of up to 3, persist D-XX and generate an execute-ready PLAN |
 | `/release:ui-phase {NN}` | frontend | Produce UI-SPEC.md design contract |
 | `/release:ai-phase {NN}` | both | Produce AI-SPEC.md (LLM framework, prompts, eval, guardrails) |
-| `/release:execute {NN}` | both | TDD-strict execution (pytest or vitest). **Auto-lands** onto base when the phase passes (`--no-merge`/`--pr` to hold) |
+| `/release:execute {NN}` | both | TDD-strict execution (pytest or vitest). Per-task progress in product language + `PushNotification` at the end. **Auto-lands** onto base when the phase passes (`--no-merge`/`--pr` to hold; `--push`; `--allow-prod`) |
 | `/release:verify {NN}` | both | Goal-backward static verification |
 | `/release:verify-work {NN}` | both | Conversational UAT walkthrough (UAT.md) |
 | `/release:ship` | both | Pre-ship review → PR body grounded in SPEC/PLAN/UAT → `gh pr create` → cursor `shipped`. Never auto-merges. |
@@ -225,9 +227,9 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 #### Investigation + small work
 | Command | Stack | Purpose |
 |---|---|---|
-| `/release:debug` | both | Persistent debug session at `.release-planning/debug/{id}/`. Survives `/clear` via checkpoint. |
+| `/release:debug` | both | Persistent debug session at `.release-planning/debug/{id}/`. Survives `/clear` via checkpoint. Detects an open session about the same bug and offers to resume. |
 | `/release:fast` | both | Trivial inline edit. No agents, no state. Clean-worktree gate, atomic commit. < 30 LOC envelope. |
-| `/release:quick` | both | Bounded multi-file task with TDD executor, **isolated in a worktree** (N quicks in parallel, no collision) + **auto-lands** onto base on green. Cursor untouched. Between fast and plan. |
+| `/release:quick` | both | Bounded multi-file task with TDD executor, **isolated in a worktree** (N quicks in parallel, no collision) + **auto-lands** onto base on green. Ends with the fixed `LAND/PUSH/UNIT` line; `--push`, `--allow-prod`. Cursor untouched. |
 | `/release:forensics` | both | Post-mortem for failed workflows. Timeline + 5-whys + recovery plan. |
 | `/release:add-tests {NN}` | both | Backfill UAT coverage or regression coverage for a file. |
 
@@ -236,9 +238,8 @@ Each merged agent accepts `stack: django | react | fullstack` input and dispatch
 |---|---|---|
 | `/release:map-codebase` | both | Parallel 4-focus codebase analysis (tech, arch, quality, concerns) → `.release-planning/codebase/*.md` |
 | `/release:docs-update` | both | Regenerate README/CONTRIBUTING/ARCHITECTURE verified against codebase |
-| `/release:session [sub]` | both | Worktree-native parallel sessions: `start`/`sync`/`finish`/`list`/`doctor`/`cleanup`/`abort`/`base`. N independent domains → one trunk, serialized conflict-safe merge-back |
-| `/release:land [label]` | both | Land a held / `--no-merge` unit (`quick/*`, `feat/*`, `session/*`) onto base — retry path for the auto-merge, same serialized conflict-safe engine. `--all` lands them all |
-| `/release:workstreams [sub]` | both | ⚠️ Deprecated (v0.15) — superseded by `/release:session` |
+| `/release:land [label]` | both | Land a held / `--no-merge` unit (`quick/*`, `feat/*`) onto base — retry path for the auto-merge, same serialized conflict-safe engine. `--all` lands them all; `--push` publishes; `--build` runs `build_command` (e.g. EAS auto-submit); `--cross` lands the paired phase in the other repo first |
+| `/release:gc [--apply]` | both | Prunes merged+clean worktrees, vanished worktrees, merged branches checked out nowhere and dead merge locks. Dry run by default; never touches dirty/unmerged/external units |
 
 #### Legacy single-stack (kept for compatibility)
 | Command | Stack | Purpose |

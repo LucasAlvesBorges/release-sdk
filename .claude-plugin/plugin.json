@@ -1,7 +1,7 @@
 {
   "name": "release",
   "description": "Adaptive Django, React and React Native delivery for Claude Code: compact spec/plan, proportional C0-C4 execution, explicit bounded loops, focused tests, worktree isolation and security checks.",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "author": {
     "name": "Lucas Alves Borges",
     "email": "cco@startecservicos.com.br"
@@ -62,6 +62,17 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/django-validate-commit.sh\"",
             "timeout": 5,
             "statusMessage": "Validating commit message..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/release-prod-guard.js\"",
+            "timeout": 5,
+            "statusMessage": "Prod guard..."
           }
         ]
       },

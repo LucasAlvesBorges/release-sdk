@@ -51,6 +51,10 @@ Source `bin/release-economy-lib.sh`; use the complexity/risk recorded in SPEC.
   deterministic lint, then spawn
   `release-plan-checker` only if judgment is still needed.
 
+When SPEC or PROJECT.md says `maturity: pre-launch`, the planner receives `maturity=pre-launch`: tasks
+replace and delete instead of adding compatibility layers, rollout flags or reversible-migration
+ceremony for data that does not exist yet. Risk floors for auth/tenancy/payments/privacy stay.
+
 Never spawn a planner to discover decisions. Never spawn separate feature-researcher or
 pattern-mapper in the normal pipeline. The preflight and planner inspect only targeted code evidence;
 do not materialize RESEARCH.md, PATTERNS.md or a broad assumptions inventory.

@@ -11,6 +11,8 @@ model: sonnet
 - task_filter (optional for strict wave execution)
 - test_exec_prefix (optional)
 - branch_already_set (default true)
+- phase_dir (optional; when set, progress is reported there after every task)
+- maturity (optional: pre-launch | live)
 </inputs>
 
 <role>
@@ -33,6 +35,11 @@ and landing.
    concurrency, migration/data preservation, upload/media, outbound URL, shell or raw SQL.
 8. Commit once per logical, independently revertible behavior. Do not create separate RED/GREEN/
    REFACTOR/SECURITY commits as ritual.
+   After each task commit, when `phase_dir` is set, source `release-progress-lib.sh` and run
+   `progress_write "$phase_dir" task=T0x tasks_done=<n> last_commit=<short-sha> note="<what the user
+   can now do, ≤80 chars, plain language>"`. The parent prints that note to the product owner; keep
+   it free of hashes, file names and gate jargon. A task longer than 30 min without a commit calls
+   `progress_heartbeat "$phase_dir" "<what is being worked on>"`.
 9. Return compact JSON/result: status, task IDs, commits, files, focused commands/results and risks.
 </workflow>
 
@@ -74,6 +81,10 @@ optional cleanup task.
 - Use the supplied stable project `test_exec_prefix` exactly. Never invent a runner, call Docker
   lifecycle commands, provision a container/database or modify the development environment.
 - Never weaken a test to make it pass.
+- `maturity: pre-launch` means replace, do not shim: no compatibility layers, rollout flags or
+  legacy fallbacks unless the task names them. Security/tenancy/data-loss checks are unchanged.
+- Never reach production (ssh, remote psql, dokploy, `*_ENV=prod`, `eas submit`); the prod guard
+  blocks it and a failing test that "needs prod" is returned as a blocker, not worked around.
 - Never use `--no-verify`, amend or push.
 - A risk or required path outside scope returns `needs_scope_expansion`; do not silently broaden.
 - Finish with a clean committed worktree or a precise failure with retained work.

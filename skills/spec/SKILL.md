@@ -16,6 +16,7 @@ description: >
 /release:spec 03 --strict
 /release:spec 03 --django|--react|--fullstack
 /release:spec 03 --linear
+/release:spec 03 --paired /abs/path/other-repo:NN   # cross-repo pair (backend phase ↔ app phase)
 ```
 
 ## Cost policy
@@ -30,6 +31,11 @@ Source `bin/release-economy-lib.sh` when available. Score C0-C4 and apply risk f
 
 Auth, authorization, payments, privacy, tenancy, destructive migrations and data-loss potential
 force strict. Stack detection alone never justifies an agent.
+
+Read `maturity` from PROJECT.md (`release_project_setting`). `pre-launch` means no real users yet:
+scope out backward compatibility, rollout flags, dual-write/dual-read and legacy fallbacks unless a
+D-XX explicitly asks for them; migrations may drop and rename. Security, tenancy and data-loss
+floors do not change. Write `maturity: pre-launch` into the SPEC frontmatter so plan/execute inherit it.
 
 ## Workflow
 
@@ -46,6 +52,11 @@ force strict. Stack detection alone never justifies an agent.
    settled. `plan` performs the final gray-area preflight before creating PLAN.
 7. If `--linear` is explicitly supplied and a Linear connector exists, read
    `references/linear-sync.md`; otherwise do no connector discovery.
+8. `--paired <path>:<NN>`: write `paired: <abs-path>:<NN>` into this SPEC's frontmatter and
+   `phase_{NN}_paired: "<abs-path>:<NN>"` into STATE.md. If `<path>/.release-planning/STATE.md` exists,
+   append the reciprocal `phase_<NN>_paired: "<this-repo-abs-path>:{NN}"` there and, when that phase's
+   SPEC exists, its `paired:` line too. Contracts shared by the pair (API shape, golden fixtures) are
+   named in both SPECs under Decisions. `/release:land --cross` reads this to land provider first.
 
 ## Compact contract
 
@@ -57,6 +68,8 @@ stack: django | react | fullstack
 complexity: C0 | C1 | C2 | C3 | C4
 profile: lean | standard | strict
 status: ready | blocked
+maturity: pre-launch | live          # optional, copied from PROJECT.md
+paired: /abs/path/other-repo:NN      # optional, --paired
 ---
 
 # Phase NN — Name

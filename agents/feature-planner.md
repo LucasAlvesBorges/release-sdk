@@ -10,6 +10,7 @@ model: sonnet
 - spec_path, context_path (optional), locks_path
 - decisions_settled: true (required)
 - revise_findings (optional)
+- maturity (optional: pre-launch | live — pre-launch plans replace/delete instead of shimming)
 </inputs>
 
 <role>
@@ -35,6 +36,9 @@ worker in the project's development checkout.
    runner scripts or other test infrastructure as a phase artifact. If the existing dev runner
    cannot run the command, return that blocker to the parent.
 7. Use one fullstack plan with ordered backend/frontend tasks; do not create dual pipelines.
+   With `maturity=pre-launch`, do not plan compatibility layers, feature flags for rollout, dual
+   read/write paths or reversible-migration ceremony for data that does not exist; plan the direct
+   replacement and the deletion of what it supersedes. Keep auth/tenancy/payment/privacy checks.
 8. Write `{phase_dir}/{NN}-PLAN.md`, normally <=300 lines and always <=600.
 </workflow>
 

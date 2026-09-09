@@ -64,7 +64,9 @@ gravar o conteúdo das mensagens.
 
 ---
 
-## Novidades (v0.5 → v0.16)
+## Novidades (v0.5 → v0.27)
+
+- **v0.27.0** — **Operação sem pergunta de acompanhamento.** Auditoria de 139 sessões reais em dois repos mostrou onde o tempo ia: "fez push?" ×20, "status?" ×25, prod tocado por um executor, 52 worktrees acumulados, o mesmo bug debugado em 6 sessões, e `/release:session` nunca usado (a orquestração nativa do Claude Code entre terminais já resolve). Resposta: (1) **contrato pós-land** — `quick`/`execute`/`land` terminam com UMA linha fixa `LAND: merged main@sha · PUSH: … · UNIT: …`; `--push` e `push_after_land: never|ask|auto` em PROJECT.md → Delivery settings; (2) **progresso vivo** — executor grava `.progress.json` por task em linguagem de produto, orquestrador imprime uma linha por mudança e dispara `PushNotification` ao landar/falhar; STATE notes ≤240 chars sem hash; (3) **prod guard** — hook PreToolUse bloqueia ssh/scp/psql remoto/dokploy/kubectl/`*_ENV=prod`/`eas submit` enquanto uma unidade SDK está ativa (`.unit-active`, worktree ou heartbeat fresco); fora de unidade só avisa; `--allow-prod`, `#allow-prod` ou `PROD-GUARD.yml` liberam; (4) **fases pareadas cross-repo** — `spec --paired <repo>:<NN>` + `land --cross` (provider primeiro, espera `deploy_check`, depois consumer) + `land --build` roda o `build_command` (EAS auto-submit) após o push; (5) **debug retomável** — `/release:debug` acha sessão aberta sobre o mesmo bug por similaridade e oferece retomar; (6) **`/release:gc`** — poda worktrees mergeados+limpos, branches mergeadas, locks mortos; dry-run por padrão; hint no SessionStart; (7) **`maturity: pre-launch`** — spec/plan/executor trocam em vez de shimmar (sem compat, sem flags de rollout); (8) **token tracker** — worker sobe sozinho no SessionStart, eventos com worker fora do ar vão pro `spool.jsonl` e são ingeridos depois (parou de gravar por 2 meses sem ninguém notar). **BREAKING:** `/release:session` e `/release:workstreams` removidos (`session/*` não é mais uma unidade landável). Novos testes: `test-merge-lib.sh` (79), `test-gc-lib.sh` (44), `test-prod-guard.sh` (26).
 
 - **v0.19.0** — **Orquestração por tier de modelo.** Toda operação vira um loop de dois tiers: orquestrador (Fable) faz fan-out pra workers (Opus), cada worker loopa sozinho, e o orquestrador loopa pra avaliar — checker sempre um tier acima do maker (maker≠checker literal). Fallback quando não há Fable: orquestrador Opus + workers Sonnet. Perfil **auto-detectado** do model da sessão (o LLM sabe o próprio model — nunca pergunta, nunca spawna tier que você não tem). Nova lib `bin/release-model-lib.sh` (SSOT) + `bin/test-model-lib.sh` (23 asserts). Override raro via env `RELEASE_MODEL_PROFILE`/`MODELS.yml`. Fiado em `execute`/`loop`/`quick`/`security`/`debug` + `wave-executor`; doctrine LOCKED no router herdada por todas as skills. Tudo em effort máximo (exceção: `test-discover`/Haiku).
 
@@ -147,7 +149,7 @@ gravar o conteúdo das mensagens.
 | `/release:plan {NN}` | both | Resolve gray areas em lotes de até 3, grava D-XX e gera um PLAN pronto para execute |
 | `/release:ui-phase {NN}` | frontend | Produz UI-SPEC.md (contrato de design) |
 | `/release:ai-phase {NN}` | both | Produz AI-SPEC.md (framework LLM, prompts, eval, guardrails) |
-| `/release:execute {NN}` | both | Execução TDD-strict (pytest ou vitest). **Auto-land** na base quando a fase passa (`--no-merge`/`--pr` pra segurar) |
+| `/release:execute {NN}` | both | Execução TDD-strict (pytest ou vitest). Progresso por task em linguagem de produto + `PushNotification` no fim. **Auto-land** na base quando a fase passa (`--no-merge`/`--pr` pra segurar; `--push`; `--allow-prod`) |
 | `/release:verify {NN}` | both | Verificação estática goal-backward |
 | `/release:verify-work {NN}` | both | Walkthrough UAT conversacional (UAT.md) |
 | `/release:ship` | both | Pre-ship review → PR body grounded em SPEC/PLAN/UAT → `gh pr create` → cursor `shipped`. Nunca faz auto-merge. |
@@ -172,9 +174,9 @@ gravar o conteúdo das mensagens.
 ### Investigação + trabalho pequeno
 | Comando | Stack | Propósito |
 |---|---|---|
-| `/release:debug` | both | Sessão de debug persistente em `.release-planning/debug/{id}/`. Sobrevive `/clear` via checkpoint. |
+| `/release:debug` | both | Sessão de debug persistente em `.release-planning/debug/{id}/`. Sobrevive `/clear` via checkpoint. Detecta sessão aberta sobre o mesmo bug e oferece retomar. |
 | `/release:fast` | both | Edit inline trivial. Sem agents, sem state. Gate de worktree limpa, commit atômico. Envelope < 30 LOC. |
-| `/release:quick` | both | Task bounded multi-arquivo com TDD executor, **isolado em worktree** (N quicks em paralelo, sem colisão) + **auto-land** na base ao passar. Cursor intocado. Entre fast e plan. |
+| `/release:quick` | both | Task bounded multi-arquivo com TDD executor, **isolado em worktree** (N quicks em paralelo, sem colisão) + **auto-land** na base ao passar. Termina com a linha fixa `LAND/PUSH/UNIT`; `--push`, `--allow-prod`. Cursor intocado. |
 | `/release:forensics` | both | Post-mortem pra workflows que falharam. Timeline + 5-whys + plano de recovery. |
 | `/release:add-tests {NN}` | both | Backfill de cobertura UAT ou cobertura de regressão pra um arquivo. |
 
@@ -183,9 +185,8 @@ gravar o conteúdo das mensagens.
 |---|---|---|
 | `/release:map-codebase` | both | Análise paralela 4-focus do codebase (tech, arch, quality, concerns) → `.release-planning/codebase/*.md` |
 | `/release:docs-update` | both | Regenera README/CONTRIBUTING/ARCHITECTURE verificados contra o codebase |
-| `/release:session [sub]` | both | Sessões paralelas worktree-native: `start`/`sync`/`finish`/`list`/`doctor`/`cleanup`/`abort`/`base`. N domínios independentes → um trunk, merge-back serializado conflict-safe |
-| `/release:land [label]` | both | Aterrissa na base uma unidade segurada/`--no-merge` (`quick/*`, `feat/*`, `session/*`) — retry do auto-merge, mesmo motor serializado conflict-safe. `--all` aterrissa todas |
-| `/release:workstreams [sub]` | both | ⚠️ Deprecated (v0.15) — substituído por `/release:session` |
+| `/release:land [label]` | both | Aterrissa na base uma unidade segurada/`--no-merge` (`quick/*`, `feat/*`) — retry do auto-merge, mesmo motor serializado conflict-safe. `--all` aterrissa todas; `--push` publica; `--build` roda o `build_command` (ex.: EAS auto-submit); `--cross` aterrissa a fase pareada do outro repo primeiro |
+| `/release:gc [--apply]` | both | Poda worktrees mergeados+limpos, worktrees sumidos, branches mergeadas sem checkout e locks de merge mortos. Dry-run por padrão; nunca toca sujo/não-mergeado/externo |
 
 ### Qualidade padrão de implementação
 

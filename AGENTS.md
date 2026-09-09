@@ -21,7 +21,9 @@
 - Edit guard: `bash bin/test-edit-guard.sh`.
 - Gate, execution environment, and planning libraries: `bash bin/test-gate-lib.sh`, `bash bin/test-execenv-lib.sh`, or `bash bin/test-planning-sync-lib.sh`.
 - Plan linter: `bash bin/test-plan-lint.sh`.
-- Session merge engine: `bash bin/test-session-merge.sh`.
+- Merge-back engine (land/push/report): `bash bin/test-merge-lib.sh`.
+- GC engine: `bash bin/test-gc-lib.sh`.
+- Prod guard hook: `bash bin/test-prod-guard.sh`.
 - Codex token collector only: `python3 -m unittest codex.test_compat.CodexCompatibilityTests.test_token_collector_advances_by_byte_offset`.
 - Prefer the smallest relevant test first, then `python3 codex/test_compat.py`; run all shell suites when shared `bin/` behavior changes.
 

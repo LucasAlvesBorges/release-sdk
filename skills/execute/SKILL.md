@@ -3,7 +3,8 @@ name: execute
 description: >
   Execute a current-contract phase plan in the checkout already mounted by the project's development
   environment. Single-pass and single-worker. Runs one cached final gate and an independent checker
-  only for strict/risk work. Autonomous correction requires --loop.
+  only for strict/risk work. Autonomous correction requires --loop. Reports progress while the
+  worker runs and ends with the fixed LAND/PUSH line.
 ---
 
 # /release:execute — proportional phase delivery
@@ -16,6 +17,8 @@ description: >
 /release:execute 03 --loop
 /release:execute 03 --resume
 /release:execute 03 --no-merge|--pr
+/release:execute 03 --push          # push base after a successful land (else PROJECT.md push_after_land)
+/release:execute 03 --allow-prod    # the plan legitimately reaches prod (default: prod guard blocks)
 ```
 
 ## Preflight
@@ -25,9 +28,13 @@ description: >
 3. Read complexity/profile/risk/execution from PLAN/SPEC and apply risk floors.
 4. Source economy/model/merge/gate/planning-sync/execenv libs once per shell invocation.
 5. Acquire the existing per-phase lock and work in the current checkout: it is the checkout mounted
-   by the project's already-running development environment. Outside a release session require a
-   clean tree, record the base branch and create `feat/{NN}-{slug}` in this same checkout. Never
-   create a sibling/nested worktree for normal execution.
+   by the project's already-running development environment. Require a clean tree, record the base
+   branch and create `feat/{NN}-{slug}` in this same checkout. Never create a sibling/nested
+   worktree for normal execution.
+6. Mark the unit active for the prod guard: write `feat/{NN}-{slug} <pid> <iso>` to
+   `.release-planning/.unit-active`; with `--allow-prod` also touch `.release-planning/.allow-prod`.
+   Both are removed at land time. Read `maturity` (`release_project_setting "$ROOT" maturity`); tell the
+   worker `maturity=pre-launch` when set, so it replaces instead of shimming.
 
 ## Development test harness — mandatory
 
@@ -71,6 +78,22 @@ complexity-based model/effort policy; no universal max effort. They also receive
 `test_exec_prefix`; they must not invent a runner, start/recreate containers or provision a second
 environment.
 
+## Visibility while the worker runs — mandatory
+
+A phase is hours of silence otherwise. Before dispatch, source `release-progress-lib.sh`, write
+`progress_write "$PHASE_DIR" phase={NN} stage=execute tasks_total=<n> tasks_done=0 note="starting"`
+and pass `phase_dir` to the worker; the worker updates it after every task commit (see
+`release:tdd-executor`). While the worker runs:
+
+1. Spawn the worker in the background (`run_in_background`) and, if the `Monitor` tool is available,
+   watch `$PHASE_DIR/.progress.json` for changes; on each change print ONE plain-language line the
+   product owner can read, e.g. `⏳ fase {NN} · T03/06 · tela de upload salva o PDF · 42 min`. No
+   hashes, no branch names, no gate keys in these lines.
+2. Without `Monitor`, print that line whenever control returns to you (worker result, checkpoint).
+3. When the phase lands, fails or is retained, call `PushNotification` (load it via ToolSearch when
+   deferred) with a one-sentence title: `Fase {NN} landada em {BASE}` / `Fase {NN} parou em T04 (RED)`.
+   Skip silently if the tool is unavailable.
+
 ## Common implementation quality — mandatory
 
 Every task includes a small green clean-code pass before commit. Use meaningful names that reveal
@@ -99,8 +122,13 @@ not create a separate cleanup phase or broaden task scope.
 5. `--loop` may feed RED/gaps to `release:code-fixer` under economy-based caps. Without `--loop`,
    stop after the first RED/GAPS and retain the branch/working tree for `--resume`.
 6. Sync SUMMARY/VERIFICATION/progress before landing. On GREEN (+ checker PASS when required), land
-   the in-place feature branch onto the recorded base. On RED, conflict or failed artifact sync,
-   retain the branch and evidence. There is no environment cleanup because the SDK created none.
+   the in-place feature branch onto the recorded base with `land_branch`. On RED, conflict or failed
+   artifact sync, retain the branch and evidence.
+   There is no environment cleanup because the SDK created none.
+   Remove `.unit-active` / `.allow-prod`; `progress_clear` the phase.
+7. Push decision, only after `RESULT=merged`: `--push` or `release_push_policy` = `auto` →
+   `land_push "$ROOT" "$BASE"`; `ask` → one `AskUserQuestion`; `never` (default) → no push.
+   `--cross`/`--build` belong to `/release:land`; say so instead of improvising a build here.
 
 ## Fullstack
 
@@ -112,8 +140,16 @@ order. Do not create independent backend/frontend planning or verification loops
 SUMMARY is compact: outcome, tasks/commits, changed files, focused tests, final gate key/result,
 checker result if any, and land state. Do not emit per-wave telemetry unless parallelism actually ran.
 
+STATE.md notes are for the product owner: at most 240 characters, plain language (what the user can
+now do, what is pending, what is external), no SHAs or gate keys — those live in SUMMARY. The final
+response ends with the one fixed line
+`land_report "$RESULT" "$BASE" "$ROOT" <push-state> feat/{NN}-{slug}` (push-state ∈
+`pushed | failed | no-remote | policy-never | policy-ask | skipped`), verbatim, as the LAST line.
+
 ## Preserved safety boundary
 
 Keep the phase lock, in-place feature branch, existing dev harness, planning sync, atomic logical
 commits, bounded/baseline-aware gate, no-clobber landing and explicit circuit breakers. Old managed
-EXEC-ENV artifacts are rejected before they can create Docker resources.
+EXEC-ENV artifacts are rejected before they can create Docker resources. While `.unit-active` exists
+the prod guard hook blocks ssh/scp/remote psql/dokploy/kubectl/`*_ENV=prod`/`eas submit` for every
+shell in the repo; a RED that "needs prod" is a blocker to report, never a permission to take.

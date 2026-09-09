@@ -12,6 +12,8 @@ stack: {django | react | fullstack}
 created: {YYYY-MM-DDTHH:MM:SSZ}
 ambiguity_score: {HIGH | MED | LOW}
 status: ready | blocked
+maturity: {pre-launch | live}        # optional — copied from PROJECT.md Delivery settings
+paired: {/abs/path/other-repo:NN}    # optional — set by /release:spec --paired; read by /release:land --cross
 ---
 
 # Phase {NN} Spec: {phase-name}

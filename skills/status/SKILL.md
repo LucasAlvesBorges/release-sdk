@@ -19,6 +19,13 @@ Shows cursor, recent activity, next action. Full-stack aware.
 /release:status --short              # one-liner: "Phase 02 → frontend execute-complete"
 ```
 
+## Voice
+
+Write for the product owner, not for the executor. Each line says what the user can now do, what is
+still pending, and what is waiting on something external (deploy, other repo, a decision). One line
+of technical detail at most (branch or SHA), and only when the next action needs it. A stage that
+ended with a `land_report` line reprints that line unchanged.
+
 ## What it shows
 
 1. **Current cursor** — from STATE.md: active phase, active stage (spec/plan/execute/verify)

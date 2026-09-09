@@ -37,6 +37,17 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/release-prod-guard.js\"",
+            "timeout": 5,
+            "statusMessage": "Prod guard..."
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write|apply_patch",
         "hooks": [
           {

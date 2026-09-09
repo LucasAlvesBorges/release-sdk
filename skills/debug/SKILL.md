@@ -29,7 +29,23 @@ Empty arg → list open sessions and prompt user to pick one (or open a new one)
 
 1. `.release-planning/` exists. Else abort: "Run `/release:init` first."
 2. If `--resume {id}` set, `.release-planning/debug/{id}/SESSION.md` must exist.
-3. If new session, generate `session_id = debug-{NN}-{slug-from-prompt}` where NN is the
+3. **Resume-by-similarity (v0.27.0).** Before creating a session, look for an open one about the
+   same bug — the same WebSocket drop was once investigated across six fresh sessions because each
+   started from zero. Take the prompt's significant words (≥5 letters, minus stop words, plus any
+   file path, symbol or error code) and grep them across `.release-planning/debug/*/SESSION.md` and
+   `HYPOTHESES.md` (open sessions only, not `archive/`):
+
+   ```bash
+   for d in .release-planning/debug/debug-*/; do
+     hits=$(cat "$d"SESSION.md "$d"HYPOTHESES.md 2>/dev/null | grep -io -E "$WORDS_REGEX" | sort -u | wc -l)
+     [ "$hits" -ge 3 ] && printf '%s\t%s\n' "$hits" "$d"
+   done | sort -rn | head -3
+   ```
+
+   With ≥3 distinct shared terms in one session, ask via `AskUserQuestion` whether to **resume it
+   (recommended)** or open a new one; show its title, the hypotheses already ruled out and the last
+   checkpoint. On resume, the agent starts from the ruled-out list and never retests it.
+4. If new session, generate `session_id = debug-{NN}-{slug-from-prompt}` where NN is the
    next free ordinal under `.release-planning/debug/`.
 
 ## Session layout

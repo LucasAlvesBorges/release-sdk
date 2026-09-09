@@ -34,6 +34,20 @@ eq "spawn count aggregates" "1" "$(field "x.all_time.spawns")"
 eq "gate count aggregates" "1" "$(field "x.all_time.gate_runs")"
 eq "latency aggregates" "400" "$(field "x.all_time.latency_ms")"
 
+echo "── spool: events collected while the worker was down are ingested once, in order ──"
+TMP_SPOOL="$(mktemp -t release-token-spool-XXXXXX)"
+printf '%s\n' \
+  '{"ts":3,"uuid":"u3","session_id":"s","model":"claude-sonnet-4-6","output":7}' \
+  '{"ts":2,"uuid":"u2","session_id":"s","model":"claude-sonnet-4-6","output":5}' \
+  '{"ts":4,"uuid":"u4","session_id":"s","model":"claude-sonnet-4-6","output":1}' > "$TMP_SPOOL"
+printf '%s\n' '{"ts":2,"uuid":"u2","session_id":"s","model":"claude-sonnet-4-6","output":5}' > "$TMP_EVENTS"
+INGEST="$(node "$HERE/release-token-worker.js" --ingest-spool "$TMP_SPOOL" "$TMP_EVENTS")"
+eq "dedupes by uuid against stored events" '{"ingested":2}' "$INGEST"
+eq "events file now holds 3 lines" "3" "$(grep -c . "$TMP_EVENTS")"
+eq "spool order preserved (u3 before u4)" "u3 u4" "$(tail -2 "$TMP_EVENTS" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>process.stdout.write(d.trim().split('\n').map(l=>JSON.parse(l).uuid).join(' ')))")"
+[ -f "$TMP_SPOOL" ] && no "spool file not truncated" || ok "spool file removed after ingest"
+eq "missing spool ingests nothing" '{"ingested":0}' "$(node "$HERE/release-token-worker.js" --ingest-spool "$TMP_SPOOL" "$TMP_EVENTS")"
+
 echo ""
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

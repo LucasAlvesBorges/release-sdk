@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-09-09
+
+Driven by an audit of 139 real sessions (hubus + moblity-app, 2026-08-10 → 2026-09-09): the SDK
+was used mostly through `quick` and freeform sessions, `session` was never used, and the recurring
+friction was operational — "did you push?", "status?", an executor touching prod, worktree sprawl,
+the same bug debugged in six fresh sessions, and a token tracker that had stopped recording.
+
+### Removed — BREAKING
+
+- `/release:session` and `/release:workstreams` (and `templates/WORKSTREAM-STATE.md`). Cross-terminal
+  orchestration is done natively by Claude Code sessions; the SDK no longer models it. `session/*` is
+  no longer a landable branch pattern and `land_branch` no longer returns `badbase`.
+- `bin/test-session-merge.sh` → `bin/test-merge-lib.sh` (same engine coverage, session shims replaced by
+  generic `feat/<label>` units; +13 assertions for the post-land contract).
+
+### Added
+
+- **Post-land contract** (`bin/release-merge-lib.sh`): `release_project_setting`, `release_push_policy`
+  (`never|ask|auto` from PROJECT.md → Delivery settings, default `never`), `land_push`, `land_report`.
+  `quick`, `execute` and `land` end with exactly one fixed line
+  `LAND: merged <base>@<sha> · PUSH: <state> · UNIT: <state>`; `--push` on all three.
+- **`/release:land --build` / `--cross`**: release build (`build_command`, default EAS iOS auto-submit
+  when `eas.json` exists) after a successful push; paired-phase landing provider-first with
+  `deploy_check` wait. `/release:spec --paired <repo>:<NN>` records the pair in both repos' STATE/SPEC.
+- **Prod guard** (`hooks/release-prod-guard.js`, PreToolUse Bash, Claude + Codex): blocks
+  ssh/scp/remote rsync/remote psql/dokploy/kubectl/remote docker/`*_ENV=prod`/`DJANGO_SETTINGS_MODULE=*prod`/
+  PaaS shells/`gh workflow run`/`eas submit` while an SDK unit is active (`.release-planning/.unit-active`,
+  cwd under `release-worktrees/`, or a `.progress.json` younger than 2 h); warns only outside a unit.
+  Released by `--allow-prod` (writes `.allow-prod`), `#allow-prod`, `RELEASE_ALLOW_PROD=1` or
+  `PROD-GUARD.yml` (`mode`, `pattern`, `allow`). `bin/test-prod-guard.sh` (26 assertions).
+- **`/release:gc`** + `bin/release-gc-lib.sh` (`gc_scan`, `gc_apply`, `gc_count`, `gc_hint_count`):
+  prunes worktrees whose branch is on base and whose tree is clean (unlocking SDK locks first),
+  vanished worktree registrations, merged branches checked out nowhere, and dead merge locks; keeps
+  dirty, unmerged, external (outside `<main_root>/..`), protected and base. Dry run by default.
+  SessionStart hook prints a hint when the cheap upper bound is ≥3. `bin/test-gc-lib.sh` (44).
+- **Live progress**: `release:tdd-executor` takes `phase_dir` and writes `.progress.json` after every
+  task (plain-language note); `execute` prints one product-language line per change (Monitor when
+  available) and fires `PushNotification` on land/fail. STATE notes capped at 240 chars, no hashes.
+- **Resumable debug**: `/release:debug` greps open sessions for the prompt's significant terms and
+  offers to resume the matching one (ruled-out hypotheses are never retested).
+- **`maturity: pre-launch`** (PROJECT.md Delivery settings, mirrored into SPEC frontmatter):
+  spec/plan/feature-planner/tdd-executor/quick replace and delete instead of adding compatibility
+  layers, rollout flags or reversible-migration ceremony. Security/tenancy/data-loss floors unchanged.
+- **Token tracker resilience**: the collector spools events to `~/.claude/token-tracker/spool.jsonl`
+  when the worker is down; the worker ingests the spool (dedupe by uuid) on start; the SessionStart
+  hook starts the worker when port 47777 is closed (`RELEASE_TOKEN_AUTOSTART=0` opts out).
+  `bin/test-token-worker.sh` +5 assertions.
+
+### Changed
+
+- `/release:auto` routes "push / build / cross-repo publish" to `land` and "prune / clean worktrees"
+  to `gc`; the `session` route is gone.
+- `/release:status` writes for the product owner (what works, what is pending, what is external) and
+  reprints the last `land_report` line unchanged.
+- `templates/PROJECT.md` gains a **Delivery settings** block (`maturity`, `push_after_land`,
+  `build_command`, `deploy_check`); `templates/SPEC.md` gains optional `maturity` / `paired`.
+
 ## [0.26.0] — 2026-08-27
 
 ### Changed — explicit, reusable test harnesses

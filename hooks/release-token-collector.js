@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// release-sdk-hook-version: 0.2.0
+// release-sdk-hook-version: 0.3.0
 // release-token-collector.js — PostToolUse hook
 // Parses only the new transcript bytes for Claude or Codex usage, POSTs to worker on :47777.
-// Fails silent: never blocks parent tool, never errors.
+// When the worker is not listening the event is SPOOLED (metadata only) next to the cursors and
+// ingested the next time the worker starts — the cursor still advances, so nothing is parsed twice
+// and nothing is lost. Fails silent: never blocks parent tool, never errors.
 
 const fs = require('fs');
 const path = require('path');
@@ -12,6 +14,7 @@ const http = require('http');
 const PORT = parseInt(process.env.RELEASE_TOKEN_PORT || '47777', 10);
 const HOST = '127.0.0.1';
 const STATE_DIR = path.join(os.homedir(), '.claude', 'token-tracker', 'cursors');
+const SPOOL_FILE = path.join(path.dirname(STATE_DIR), 'spool.jsonl');
 const TAIL_BYTES = 256 * 1024;
 
 function readStdin() {
@@ -84,6 +87,13 @@ function postEvent(ev) {
     req.write(body);
     req.end();
   });
+}
+
+function spoolEvent(ev) {
+  try {
+    fs.mkdirSync(path.dirname(SPOOL_FILE), { recursive: true });
+    fs.appendFileSync(SPOOL_FILE, JSON.stringify(ev) + '\n');
+  } catch {}
 }
 
 function entryText(entry) {
@@ -274,7 +284,9 @@ async function main() {
     newLast = e.uuid || newLast;
   }
 
-  for (const ev of toPost) await postEvent(ev);
+  for (const ev of toPost) {
+    if (!(await postEvent(ev))) spoolEvent(ev);
+  }
   if (chunk.nextOffset !== cursor.byte_offset || newLast !== cursor.last_uuid ||
       context.skill !== cursor.skill || context.agent !== cursor.agent ||
       context.phase !== cursor.phase || context.complexity !== cursor.complexity || context.mode !== cursor.mode) {

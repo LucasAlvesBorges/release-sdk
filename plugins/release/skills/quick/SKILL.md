@@ -3,7 +3,7 @@ name: quick
 description: >
   Deliver a bounded change in an isolated worktree with focused verification and one logical commit. C0/C1 runs inline
   without subagents; C2 may use one compact executor. No phase artifacts, broad suite, universal security matrix or
-  automatic loop.
+  automatic loop. Ends with the fixed LAND/PUSH line, so the outcome never needs a follow-up question.
 ---
 
 ## Codex runtime contract
@@ -36,6 +36,8 @@ This generated Codex skill preserves the source workflow with these overrides:
 /release:quick <task>
 /release:quick <task> --strict
 /release:quick <task> --no-merge
+/release:quick <task> --push          # push base after a successful land (else PROJECT.md push_after_land)
+/release:quick <task> --allow-prod    # the task legitimately reaches prod (default: prod guard blocks)
 ```
 
 ## Routing
@@ -49,10 +51,13 @@ Score C0-C4 with `release-economy-lib.sh`.
 
 `--strict` forces the full gate and independent checker but does not create a fake phase.
 
+Read `maturity` from PROJECT.md (`release_project_setting "$MAIN_ROOT" maturity`). When it is
+`pre-launch`, do not add backward-compatibility shims, rollout flags or legacy fallbacks: replace and
+delete. Security, tenancy and data-loss floors are unchanged.
+
 ## Checkout
 
-Inside a marker-bearing `/release:session`, keep its branch and worktree; never nest another
-worktree. Otherwise create an isolated sibling worktree so multiple quick tasks can run in parallel:
+Create an isolated sibling worktree so multiple quick tasks can run in parallel:
 
 1. Resolve the caller root and its current branch as `BASE`; refuse detached HEAD. Record the base
    branch and starting commit before any write.
@@ -61,7 +66,10 @@ worktree. Otherwise create an isolated sibling worktree so multiple quick tasks 
 3. Create branch `quick/<timestamp>-<slug>` at `BASE` and add it at
    `<main-root>/../release-worktrees/quick/<timestamp>-<slug>`. Validate that neither branch nor path
    already exists, and never switch the caller checkout.
-4. Perform every task read, write, command, and focused verification inside the quick worktree. The
+4. Mark the unit active for the prod guard: write `branch pid timestamp` to
+   `<main-root>/.release-planning/.unit-active` (only when `.release-planning/` exists). With
+   `--allow-prod`, also touch `.release-planning/.allow-prod`. Both are removed at land time.
+5. Perform every task read, write, command, and focused verification inside the quick worktree. The
    caller checkout is only the eventual landing target.
 
 ## Execution
@@ -84,9 +92,12 @@ pass it to the worker. Never start/recreate Docker resources.
    must not rerun the suite.
 8. GREEN (+ strict PASS) → call `land_branch` for the quick branch/worktree unless `--no-merge`.
    `RESULT=merged` removes the isolated worktree; `RESULT=held-dirty`, `conflict`, `refused`, `locked`,
-   `planningblock`, `baseadvanced`, or `badbase` retains it with evidence for `/release:land`. There is
-   no environment teardown because the SDK created none.
-9. Append one compact line to `quick-log.md` only when `.release-planning/` already exists.
+   `planningblock` or `baseadvanced` retains it with evidence for `/release:land`. There is no
+   environment teardown because the SDK created none. Remove `.unit-active` and `.allow-prod`.
+9. Push decision, only after `RESULT=merged`: `--push` or `release_push_policy` = `auto` →
+   `land_push "$MAIN_ROOT" "$BASE"`; policy `ask` → one `AskUserQuestion` ("push $BASE now? push == deploy
+   here"), then push on yes; `never` (default) → do not push. Never push after any other result.
+10. Append one compact line to `quick-log.md` only when `.release-planning/` already exists.
 
 ## Common implementation quality — mandatory
 
@@ -103,5 +114,13 @@ after each logical step and preserve public signatures and observable behavior.
 
 ## Done report
 
-Return changed files, commit(s), focused verification, gate verdict/cache status and land outcome.
+Return changed files, commit(s), focused verification, gate verdict/cache status — and end with the
+one fixed line from `land_report <RESULT> "$BASE" "$MAIN_ROOT" <push-state> <branch>` where push-state
+is `pushed`, `failed`, `no-remote`, `policy-never`, `policy-ask` or `skipped`. That line is the LAST
+line of the response, verbatim, e.g.
+
+```text
+LAND: merged main@a1b2c3d · PUSH: no — push == deploy here; when ready: git push origin main  (or /release:land --push) · UNIT: removed (quick/20260909-1200-slug)
+```
+
 Do not recommend a standalone verify when strict checking already ran.

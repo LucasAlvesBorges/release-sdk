@@ -21,6 +21,9 @@ O coletor aceita os dois schemas de transcript: `assistant.message.usage` do Cla
 último total e o evento gravado contém somente o delta. `cached_input_tokens` e
 `cache_write_input_tokens` são separados de `input_tokens` para evitar dupla contagem.
 
+0. **v0.27.0**: o hook SessionStart do plugin já sobe o worker sozinho quando a porta está fechada
+   (`RELEASE_TOKEN_AUTOSTART=0` desliga). Eventos coletados com o worker fora do ar ficam em
+   `~/.claude/token-tracker/spool.jsonl` e são ingeridos (dedupe por uuid) no próximo start.
 1. **Verificar worker**: `curl -sf http://127.0.0.1:47777/api/health` (timeout 1s).
 2. **Spawn se off**: se a porta não responder, lançar daemon detached:
    ```bash
