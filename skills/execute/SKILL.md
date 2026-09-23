@@ -135,27 +135,34 @@ phase or broaden task scope.
 ## Verification and landing
 
 1. Workers run focused tests only. They do not spawn test-discover/test-runner agents.
-2. After all commits are on the phase branch, re-export the dev prefix and run exactly one
-   `run_gate_cached "$ROOT" full`. The gate announces every step, bounds it with `test_timeout`,
-   and reuses earlier PASS steps when a later step failed on the same committed tree.
-3. Standard work lands on GREEN without another full-suite run. Every `GATE_WARN=` line the gate
+2. Without `--loop`, after all commits are on the phase branch, re-export the dev prefix and run
+   exactly one `run_gate_cached "$ROOT" full`. The gate announces every step, bounds it with
+   `test_timeout`, and reuses earlier PASS steps when a later step failed on the same committed tree.
+   Standard work then lands on GREEN without another full-suite run.
+3. With `--loop`, run `run_gate_cached "$ROOT" quick` after every maker or fixer change. On quick
+   GREEN, strict/risk work runs `release:phase-verifier` against that current-tree GREEN evidence;
+   checker gaps return only their gap IDs/evidence to the fixer and then to the quick gate. Only a
+   literal checker PASS permits one `run_gate_cached "$ROOT" full`, immediately before land. A full
+   RED returns its evidence to the fixer, then repeats quick → checker → full on the changed tree.
+   Never infer that a broad step covers focused work from its name or markers.
+4. Every `GATE_WARN=` line the final gate prints goes verbatim into SUMMARY and the final report:
    printed goes verbatim into SUMMARY and the final report: `no-broad-step` means the land ran a
    hand whitelist instead of the suite, `phase-local-gate` means someone swapped the project gate
    per phase. Never fix either by editing VERIFY-GATE.yml inside execute; report it.
-4. Strict/risk work spawns `release:phase-verifier` once. It reuses the cached GREEN evidence and
+5. Strict/risk work spawns `release:phase-verifier` once for non-loop execution. It reuses the cached GREEN evidence and
    checks acceptance/locks/risk surfaces without rerunning the suite. Its verdict is the literal
    word `PASS` (optionally `PASS external=AC-XX,...` for criteria the SPEC marked
    `[external-evidence]` before execute started) or `GAPS`. Any other wording — "PASS with declared
    pending", "pendências declaradas", "partial", "next slice" — is GAPS. Half-met criteria,
    `HOLLOW:` and `RETAINED:` (superseded code or tests still present) findings are GAPS.
-5. `--loop` may feed RED/gaps to `release:code-fixer` under economy-based caps. Without `--loop`,
+6. `--loop` may feed RED/gaps to `release:code-fixer` under economy-based caps. Without `--loop`,
    stop after the first RED/GAPS and retain the branch/working tree for `--resume`.
    A worker or fixer returning `plan_conflict`, `needs_scope_reduction` or `USER_INPUT_REQUIRED` is
    a hard stop, not a loop iteration: retain the branch, print the task/AC IDs and the `file:line` conflict, and tell
    the user the scope changes only through `/release:spec --revise` + `/release:plan --revise`
    (new D-XX, new contract hash), after which `--resume` continues. Never resolve it by narrowing
    the delivery, keeping a legacy path or writing a note into the SPEC.
-6. Sync SUMMARY/VERIFICATION/progress before landing. Re-run the `.contract-sha` check; a changed
+7. Sync SUMMARY/VERIFICATION/progress before landing. Re-run the `.contract-sha` check; a changed
    SPEC/PLAN/CONTRACT hash retains the branch with `BLOCKER: contract changed during execute`. On
    GREEN (+ checker literal PASS when required), land the in-place feature branch onto the recorded
    base with `land_branch`. On RED, conflict or failed artifact sync, retain the branch and evidence.

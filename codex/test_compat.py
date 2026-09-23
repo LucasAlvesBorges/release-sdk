@@ -118,6 +118,25 @@ class CodexCompatibilityTests(unittest.TestCase):
         ):
             self.assertNotIn(obsolete, source)
             self.assertNotIn(obsolete, generated)
+
+        for workflow in (source, generated):
+            self.assertIn('run_gate_cached "$ROOT" quick', workflow)
+            quick_gate = workflow.index('run_gate_cached "$ROOT" quick')
+            self.assertLess(
+                quick_gate,
+                workflow.index('run_gate_cached "$ROOT" full', quick_gate),
+            )
+
+    def test_loop_checks_goal_before_its_final_full_gate(self) -> None:
+        for path, verifier in (
+            (REPO_ROOT / "skills" / "loop" / "SKILL.md", "release:loop-goal-verifier"),
+            (PLUGIN / "skills" / "loop" / "SKILL.md", "release-loop-goal-verifier"),
+        ):
+            workflow = path.read_text()
+            self.assertLess(
+                workflow.index(verifier),
+                workflow.index('run_gate_cached "$ROOT" full'),
+            )
         self.assertTrue((PLUGIN / "bin" / "release-timeout.py").is_file())
 
     def test_quick_allows_dirty_callers_and_parallel_worktrees(self) -> None:
