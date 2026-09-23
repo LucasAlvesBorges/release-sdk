@@ -163,12 +163,13 @@ phase or broaden task scope.
    Standard work then lands on GREEN without another full-suite run.
 3. With `--loop`, run `run_gate_cached "$ROOT" quick` after every maker or fixer change. On quick
    GREEN, strict/risk work runs `release-phase-verifier` against that current-tree GREEN evidence;
-   checker gaps return only their gap IDs/evidence to the fixer and then to the quick gate. Only a
-   literal checker PASS permits one `run_gate_cached "$ROOT" full`, immediately before land. A full
+   checker gaps return only their gap IDs/evidence to the fixer and then to the quick gate. Standard
+   work proceeds on quick GREEN; strict/risk work also requires literal checker PASS. Then run one
+   `run_gate_cached "$ROOT" full`, immediately before land. A full
    RED returns its evidence to the fixer, then repeats quick → checker → full on the changed tree.
    Never infer that a broad step covers focused work from its name or markers.
 4. Every `GATE_WARN=` line the final gate prints goes verbatim into SUMMARY and the final report:
-   printed goes verbatim into SUMMARY and the final report: `no-broad-step` means the land ran a
+   `no-broad-step` means the land ran a
    hand whitelist instead of the suite, `phase-local-gate` means someone swapped the project gate
    per phase. Never fix either by editing VERIFY-GATE.yml inside execute; report it.
 5. Strict/risk work spawns `release-phase-verifier` once for non-loop execution. It reuses the cached GREEN evidence and
@@ -192,7 +193,7 @@ phase or broaden task scope.
    words ("aguarda evidência externa: ..."). There is no "pending" AC that is not EXTERNAL.
    There is no environment cleanup because the SDK created none.
    Remove `.unit-active` / `.allow-prod`; `progress_clear` the phase.
-7. Push decision, only after `RESULT=merged`: `--push` or `release_push_policy` = `auto` →
+8. Push decision, only after `RESULT=merged`: `--push` or `release_push_policy` = `auto` →
    `land_push "$ROOT" "$BASE"`; `ask` → one `AskUserQuestion`; `never` (default) → no push.
    `--cross`/`--build` belong to `/release:land`; say so instead of improvising a build here.
 
