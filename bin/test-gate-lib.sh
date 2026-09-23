@@ -174,6 +174,10 @@ printf '{"dependencies":{"react":"18"},"devDependencies":{"jest":"29"},"scripts"
 OUT="$(release_resolve_quick_gate "$JR")"
 has "Jest quick runs the project typecheck" "$OUT" "npm --prefix . run typecheck"
 has "Jest quick is explicitly nonwatch and receives focused test paths" "$OUT" "jest --runInBand --watchAll=false {focused}"
+NEST="$SBX/nested-quick"; mkdir -p "$NEST/frontend"
+printf '{"dependencies":{"react":"18"},"devDependencies":{"vitest":"3"}}\n' > "$NEST/frontend/package.json"
+OUT="$(release_resolve_quick_gate "$NEST")"
+has "nested Vitest runs with the frontend root" "$OUT" "vitest --root frontend run {focused}"
 
 echo "── #19 gate audit: a hand whitelist / per-phase gate copy is warned about, never hidden ──"
 GA="$SBX/audit"; mkdir -p "$GA/.release-planning/phases/07-x"; touch "$GA/manage.py"
@@ -195,6 +199,16 @@ OUT="$(release_gate_audit "$GA")"
 hasnt "django default gate has a broad step" "$OUT" "no-broad-step"
 hasnt "django default gate has a {focused} step" "$OUT" "no-focused-step"
 hasnt "no per-phase copies ⇒ no warning" "$OUT" "phase-local-gate"
+
+WR="$SBX/wrapper-audit"; mkdir -p "$WR/.release-planning"
+cat > "$WR/.release-planning/VERIFY-GATE.yml" <<'YML'
+test-common: python backend/scripts/run_test_lane.py common backend/apps backend/scripts/tests
+test-serial: python backend/scripts/run_test_lane.py serial backend/apps backend/scripts/tests
+YML
+printf 'test-focused: python backend/scripts/run_test_lane.py focused {focused}\n' > "$WR/.release-planning/VERIFY-QUICK.yml"
+OUT="$(release_gate_audit "$WR")"
+hasnt "lane wrapper broad commands satisfy the full audit" "$OUT" "GATE_WARN=no-broad-step"
+hasnt "scoped quick wrapper satisfies the focused audit" "$OUT" "GATE_WARN=no-focused-step"
 
 echo "── #13 GREEN cache is keyed by committed tree + commands ──"
 C="$SBX/cache"; mkdir -p "$C/.release-planning"; git -C "$C" init -q
@@ -287,6 +301,8 @@ eq "frontend command receives no backend paths" \
    "$(release_focused_test_targets "$FO" "" frontend)"
 eq "pytest command selects backend targets" "backend" "$(release_focused_surface_for_command 'python backend/scripts/run_test_lane.py common {focused}')"
 eq "Jest command selects frontend targets" "frontend" "$(release_focused_surface_for_command 'npm exec -- jest --runInBand {focused}')"
+eq "nested Vitest command selects frontend-relative targets" "frontend-nested" "$(release_focused_surface_for_command 'npm --prefix frontend exec -- vitest --root frontend run {focused}')"
+eq "nested frontend targets drop the frontend prefix" "src" "$(release_focused_test_targets "$FO" "" frontend-nested)"
 DEL="$SBX/deleted-test"; mkdir -p "$DEL/backend/apps/frota/tests"
 git -C "$DEL" init -q -b main; git -C "$DEL" config user.email t@t; git -C "$DEL" config user.name t
 : > "$DEL/backend/manage.py"; : > "$DEL/backend/apps/frota/tests/test_removed.py"; git -C "$DEL" add -A; git -C "$DEL" commit -qm base
@@ -297,6 +313,11 @@ git -C "$CFGFO" init -q -b main; git -C "$CFGFO" config user.email t@t; git -C "
 : > "$CFGFO/backend/requirements.txt"; : > "$CFGFO/frontend/package.json"; git -C "$CFGFO" add -A; git -C "$CFGFO" commit -qm base
 git -C "$CFGFO" checkout -q -b feat/1; printf 'd' > "$CFGFO/backend/requirements.txt"; printf 'p' > "$CFGFO/frontend/package.json"; git -C "$CFGFO" add -A; git -C "$CFGFO" commit -qm config
 eq "dependency configuration keeps both matching suite roots" "backend frontend/src" "$(release_focused_test_targets "$CFGFO")"
+RN="$SBX/expo-targets"; mkdir -p "$RN/app/routes"
+git -C "$RN" init -q -b main; git -C "$RN" config user.email t@t; git -C "$RN" config user.name t
+: > "$RN/app.config.ts"; : > "$RN/app/routes/home.tsx"; git -C "$RN" add -A; git -C "$RN" commit -qm base
+git -C "$RN" checkout -q -b feat/1; printf 'c' > "$RN/app.config.ts"; printf 'r' > "$RN/app/routes/home.tsx"; git -C "$RN" add -A; git -C "$RN" commit -qm config
+eq "Expo route and runtime config fall back to the app suite root" "app" "$(release_focused_test_targets "$RN")"
 TESTONLY="$SBX/test-only"; mkdir -p "$TESTONLY/backend/apps/frota/tests"
 git -C "$TESTONLY" init -q -b main; git -C "$TESTONLY" config user.email t@t; git -C "$TESTONLY" config user.name t
 : > "$TESTONLY/backend/apps/frota/tests/test_focus.py"; git -C "$TESTONLY" add -A; git -C "$TESTONLY" commit -qm base
