@@ -1,0 +1,15 @@
+# VERIFY-QUICK.yml — the fast, diff-scoped profile for /release:loop and /release:quick.
+#
+# Copy to .release-planning/VERIFY-QUICK.yml. Keep checks cheap and use `{focused}` only in the
+# test command. It expands to exact changed tests, matching module tests where safe, or a
+# conservative app/source-root fallback. Pytest and backend wrappers receive backend targets;
+# Jest/Vitest receive frontend targets. A command with no matching target is SKIPPED, never RED.
+#
+# If the project has transactional or serial markers, replace `test-focused` with its lane-aware
+# wrapper so every focused target runs in the same marker lanes as the full profile. Do not put
+# broad commands here: `/release:loop` runs this profile after every change and runs VERIFY-GATE
+# once on the final committed tree before checking or landing.
+
+lint:         ruff check backend/
+migrate:      python backend/manage.py makemigrations --check --dry-run
+test-focused: pytest {focused} -q --reuse-db

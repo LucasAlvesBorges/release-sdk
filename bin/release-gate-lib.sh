@@ -83,7 +83,6 @@ release_default_gate() {  # $1 stack, $2 root → echoes `name: command` lines (
     django)
       printf 'lint: ruff check %s\n'                              "$pyroot"
       printf 'migrate: python %s makemigrations --check --dry-run\n' "$mp"
-      printf 'test-focused: pytest {focused} -q\n'
       printf 'test: pytest %s -q\n'                               "$pyroot"
       ;;
     react)
@@ -104,7 +103,7 @@ release_default_quick_gate() { # $1 stack, $2 root → cheap checks + the diff-i
   # The maker's own focused run is a claim, not evidence: the quick gate re-runs `{focused}` (the
   # test targets implied by the diff; SKIPPED when the diff touches no test-bearing surface) so a
   # quick never lands on lint alone. The broad suite still stays out of the quick profile.
-  local stack="$1" root="$2" mp="manage.py" pyroot="." feroot="."
+  local stack="$1" root="$2" mp="manage.py" pyroot="." feroot="." jest_config=""
   [ -f "$root/backend/manage.py" ] && { mp="backend/manage.py"; pyroot="backend"; }
   [ -f "$root/frontend/package.json" ] && feroot="frontend"
   case "$stack" in
@@ -115,8 +114,26 @@ release_default_quick_gate() { # $1 stack, $2 root → cheap checks + the diff-i
       ;;
     react)
       printf 'lint: npm --prefix %s run lint\n' "$feroot"
+      if grep -q '"typecheck"' "$root/$feroot/package.json" 2>/dev/null; then
+        printf 'typecheck: npm --prefix %s run typecheck\n' "$feroot"
+      fi
       if grep -q '"vitest"' "$root/$feroot/package.json" 2>/dev/null; then
-        printf 'test-focused: npm --prefix %s exec -- vitest run {focused}\n' "$feroot"
+        if [ "$feroot" = frontend ]; then
+          printf 'test-focused: npm --prefix frontend exec -- vitest --root frontend run {focused}\n'
+        else
+          printf 'test-focused: npm --prefix %s exec -- vitest run {focused}\n' "$feroot"
+        fi
+      elif grep -q '"jest"' "$root/$feroot/package.json" 2>/dev/null; then
+        if [ "$feroot" = frontend ]; then
+          jest_config="$(release_frontend_jest_config "$root")"
+          if [ -n "$jest_config" ]; then
+            printf 'test-focused: npm --prefix frontend exec -- jest --config %s --rootDir frontend --runInBand --watchAll=false {focused}\n' "$jest_config"
+          else
+            printf 'test-focused: npm --prefix frontend exec -- jest --rootDir frontend --runInBand --watchAll=false {focused}\n'
+          fi
+        else
+          printf 'test-focused: npm --prefix %s exec -- jest --runInBand --watchAll=false {focused}\n' "$feroot"
+        fi
       fi
       ;;
     fullstack)
@@ -157,7 +174,7 @@ _release_gate_hash() {
 }
 
 release_gate_fingerprint() { # <root> <full|quick>; empty when the tree is dirty
-  local root="$1" mode="${2:-full}" tree steps env_material="" env_cfg=""
+  local root="$1" mode="${2:-full}" tree steps env_material="" env_cfg="" focused_material=""
   git -C "$root" diff --quiet 2>/dev/null || return 0
   git -C "$root" diff --cached --quiet 2>/dev/null || return 0
   [ -z "$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.release-planning/' | head -1)" ] || return 0
@@ -165,12 +182,15 @@ release_gate_fingerprint() { # <root> <full|quick>; empty when the tree is dirty
   if [ "$mode" = quick ]; then steps="$(release_resolve_quick_gate "$root")"
   else steps="$(release_resolve_gate "$root")"
   fi
+  # A `{focused}` command is rendered only while running steps, so its literal command text alone
+  # cannot distinguish two base refs that imply different test coverage for the same HEAD.
+  focused_material="$(release_gate_base_ref "$root")|$(release_focused_test_targets "$root")"
   if command -v release_execenv_config >/dev/null 2>&1; then
     env_cfg="$(release_execenv_config "$root")"
     [ -n "$env_cfg" ] && env_material="$(command cat "$env_cfg" 2>/dev/null)"
   fi
-  printf '%s\n%s\n%s\n%s\n%s\n' "$mode" "$tree" "${RELEASE_EXEC_PREFIX:-}" \
-    "$steps" "$env_material" | _release_gate_hash
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$mode" "$tree" "${RELEASE_EXEC_PREFIX:-}" \
+    "$steps" "$focused_material" "$env_material" | _release_gate_hash
 }
 
 _release_gate_step_fingerprint() { # <root> <name> <cmd>; empty for dirty/disabled runs
@@ -233,47 +253,171 @@ release_gate_base_ref() {  # <root> → the ref the phase diff is measured again
   return 0
 }
 
-release_focused_test_targets() {  # <root> [base_ref] → space-separated test paths implied by the diff
-  local root="${1:-.}" base="${2:-}" head_ref f app tests dir stem sib out=""
+release_frontend_suite_roots() { # <root> → existing frontend test/source roots
+  local root="$1" candidate roots=""
+  for candidate in frontend/src frontend/app src app; do
+    [ -d "$root/$candidate" ] && roots="$roots $candidate"
+  done
+  printf '%s' "${roots# }"
+}
+
+release_frontend_jest_config() { # <root> → explicit nested Jest config, if present
+  local root="$1" candidate
+  for candidate in frontend/jest.config.js frontend/jest.config.cjs frontend/jest.config.mjs frontend/jest.config.ts; do
+    [ -f "$root/$candidate" ] && { printf '%s' "$candidate"; return 0; }
+  done
+}
+
+release_focused_test_targets() {  # <root> [base_ref] [backend|frontend] → matching test paths implied by the diff
+  local root="${1:-.}" base="${2:-}" surface="${3:-all}" head_ref f app tests dir stem sib source_root module_found out=""
   [ -n "$base" ] || base="$(release_gate_base_ref "$root")"
   [ -n "$base" ] || return 0
   head_ref="$(git -C "$root" merge-base "$base" HEAD 2>/dev/null)" || return 0
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     case "$f" in
-      # Django: any file under backend/apps/<app>/ → that app's tests (dir or module)
+      # Django: changed tests are exact targets. Domain modules use a same-name test when one
+      # exists; models, serializers, views, tasks, signals, migrations and conftest remain
+      # conservative because their behavior routinely spans the whole app.
+      backend/apps/*/tests/test_*.py|apps/*/tests/test_*.py)
+        if [ -f "$root/$f" ]; then
+          out="$out $f"
+        else
+          app="${f#backend/}"; app="${app#apps/}"; app="${app%%/*}"
+          for dir in "backend/apps/$app" "apps/$app"; do
+            [ -d "$root/$dir/tests" ] && { out="$out $dir/tests"; break; }
+            [ -f "$root/$dir/tests.py" ] && { out="$out $dir/tests.py"; break; }
+            [ -d "$root/$dir" ] && { out="$out $dir"; break; }
+          done
+          [ -d "$root/backend" ] && [ ! -d "$root/backend/apps/$app" ] && out="$out backend"
+        fi
+        ;;
+      backend/apps/*/migrations/*|apps/*/migrations/*)
+        app="${f#backend/}"; app="${app#apps/}"; app="${app%%/*}"
+        for dir in "backend/apps/$app" "apps/$app"; do
+          [ -d "$root/$dir/tests" ] && { out="$out $dir/tests"; break; }
+          [ -f "$root/$dir/tests.py" ] && { out="$out $dir/tests.py"; break; }
+          [ -d "$root/$dir" ] && { out="$out $dir"; break; }
+        done
+        ;;
       backend/apps/*/*|apps/*/*)
         app="${f#backend/}"; app="${app#apps/}"; app="${app%%/*}"
         for dir in "backend/apps/$app" "apps/$app"; do
           [ -d "$root/$dir" ] || continue
           if [ -d "$root/$dir/tests" ]; then tests="$dir/tests"
           elif [ -f "$root/$dir/tests.py" ]; then tests="$dir/tests.py"
-          else tests=""; fi
-          [ -n "$tests" ] && out="$out $tests"
+          else tests="$dir"; fi
+          stem="${f##*/}"; stem="${stem%.py}"
+          case "$stem" in
+            models|serializers|views|tasks|signals|conftest|admin|apps|urls|migrations|__init__) stem="";;
+          esac
+          module_found=""
+          if [ -n "$stem" ] && [ -d "$root/$dir/tests" ]; then
+            while IFS= read -r sib; do
+              [ -n "$sib" ] || continue
+              out="$out ${sib#"$root"/}"
+              module_found=1
+            done <<EOF3
+$(find "$root/$dir/tests" -maxdepth 1 -type f -name "test_$stem*.py" -print 2>/dev/null)
+EOF3
+          fi
+          [ -n "$tests" ] && { [ -n "$stem" ] || out="$out $tests"; }
+          # An unmapped module still needs coverage; run the app rather than guessing a test.
+          [ -n "$tests" ] && [ -n "$stem" ] && [ -z "$module_found" ] && out="$out $tests"
           break
         done
         ;;
-      # React/RN: a changed test file is a target; a changed module pulls its sibling test(s)
-      src/*.test.[jt]s|src/*.test.[jt]sx|src/*.spec.[jt]s|src/*.spec.[jt]sx|src/*/__tests__/*)
+      # Shared Django infrastructure can affect every app. A backend root is safer than silently
+      # skipping coverage and remains compatible with project wrappers that own the runner.
+      backend/*.py|backend/*/*.py)
+        [ -d "$root/backend" ] && out="$out backend"
+        ;;
+      # Dependency and runner configuration can change collection or every module's behavior.
+      # Keep the fallback inside the matching stack instead of letting a quick become lint-only.
+      package.json|package-lock.json|yarn.lock|pnpm-lock.yaml|vite.config.*|jest.config.*|jest.setup.*|jest.after-each.*|tsconfig*.json|app.config.*|babel.config.*|metro.config.*|frontend/package.json|frontend/package-lock.json|frontend/yarn.lock|frontend/pnpm-lock.yaml|frontend/vite.config.*|frontend/jest.config.*|frontend/jest.setup.*|frontend/jest.after-each.*|frontend/tsconfig*.json|frontend/app.config.*|frontend/babel.config.*|frontend/metro.config.*)
+        source_root="$(release_frontend_suite_roots "$root")"
+        [ -n "$source_root" ] && out="$out $source_root"
+        ;;
+      pyproject.toml|backend/requirements*.txt|backend/pyproject.toml|backend/manage.py)
+        [ -d "$root/backend" ] && out="$out backend"
+        ;;
+      # React/RN: a changed test file is a target; a changed module pulls its sibling test(s).
+      src/*.test.[jt]s|src/*.test.[jt]sx|src/*.spec.[jt]s|src/*.spec.[jt]sx|src/*/__tests__/*|frontend/src/*.test.[jt]s|frontend/src/*.test.[jt]sx|frontend/src/*.spec.[jt]s|frontend/src/*.spec.[jt]sx|frontend/src/*/__tests__/*|app/*.test.[jt]s|app/*.test.[jt]sx|app/*.spec.[jt]s|app/*.spec.[jt]sx|app/*/__tests__/*|frontend/app/*.test.[jt]s|frontend/app/*.test.[jt]sx|frontend/app/*.spec.[jt]s|frontend/app/*.spec.[jt]sx|frontend/app/*/__tests__/*)
         [ -f "$root/$f" ] && out="$out $f" ;;
       src/*.[jt]s|src/*.[jt]sx)
+        source_root="src"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
+        module_found=""
+        for sib in "$dir/$stem".test.ts "$dir/$stem".test.tsx "$dir/$stem".test.js "$dir/$stem".test.jsx \
+                   "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
+          [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
+        done
+        [ -n "$module_found" ] || out="$out src"
+        ;;
+      frontend/src/*.[jt]s|frontend/src/*.[jt]sx)
+        source_root="frontend/src"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
+        module_found=""
         dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
         for sib in "$dir/$stem".test.ts "$dir/$stem".test.tsx "$dir/$stem".test.js "$dir/$stem".test.jsx \
                    "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
-          [ -f "$root/$sib" ] && out="$out $sib"
+          [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
         done
+        [ -n "$module_found" ] || out="$out frontend/src"
+        ;;
+      app/*.[jt]s|app/*.[jt]sx)
+        source_root="app"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
+        module_found=""
+        for sib in "$dir/$stem".test.ts "$dir/$stem".test.tsx "$dir/$stem".test.js "$dir/$stem".test.jsx \
+                   "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
+          [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
+        done
+        if [ -z "$module_found" ]; then
+          out="$out app"
+          [ -d "$root/src" ] && out="$out src"
+        fi
+        ;;
+      frontend/app/*.[jt]s|frontend/app/*.[jt]sx)
+        source_root="frontend/app"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
+        module_found=""
+        for sib in "$dir/$stem".test.ts "$dir/$stem".test.tsx "$dir/$stem".test.js "$dir/$stem".test.jsx \
+                   "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
+          [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
+        done
+        if [ -z "$module_found" ]; then
+          out="$out frontend/app"
+          [ -d "$root/frontend/src" ] && out="$out frontend/src"
+        fi
         ;;
     esac
   done <<EOF2
 $(git -C "$root" diff --name-only "$head_ref" HEAD 2>/dev/null)
 EOF2
-  printf '%s\n' "$out" | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//'
+  case "$surface" in
+    backend) out="$(printf '%s\n' "$out" | tr ' ' '\n' | grep -E '^(backend($|/)|apps/)' || true)" ;;
+    frontend) out="$(printf '%s\n' "$out" | tr ' ' '\n' | grep -E '^(src($|/)|frontend/src($|/)|app($|/)|frontend/app($|/))' || true)" ;;
+    frontend-nested) out="$(printf '%s\n' "$out" | tr ' ' '\n' | sed -n 's#^frontend/##p' | grep -E '^(src($|/)|app($|/))' || true)" ;;
+  esac
+  # A broad fallback subsumes its descendants. Removing them avoids duplicate collection while a
+  # test-only diff, which has no selected ancestor, remains an exact target.
+  printf '%s\n' "$out" | tr ' ' '\n' | sed '/^$/d' | sort -u |
+    awk '{ path=$0; keep=1; while (path ~ /\//) { sub(/\/[^\/]+$/, "", path); if (seen[path]) { keep=0; break } } if (keep) { print; seen[$0]=1 } }' |
+    tr '\n' ' ' | sed 's/ $//'
   return 0
+}
+
+release_focused_surface_for_command() { # <command> → backend | frontend | all
+  local cmd="$1"
+  case "$cmd" in
+    *"{focused:backend}"*|*pytest*|*"run_test_lane.py"*) printf backend ;;
+    *"{focused:frontend}"*)                               printf frontend ;;
+    *"npm --prefix frontend"*vitest*|*"npm --prefix frontend"*jest*) printf frontend-nested ;;
+    *vitest*|*jest*)                                      printf frontend ;;
+    *)                                                     printf all ;;
+  esac
 }
 
 _release_run_gate_steps() { # <root> <steps>
   local root="$1" steps="$2" failfast="${GATE_FAILFAST:-1}" line name cmd out rc verdict="" any=0 red=0 ev="" targets
-  local meta outf hung bounded elapsed timeout step_fp step_cache cache_dir
+  local meta outf hung bounded elapsed timeout step_fp step_cache cache_dir surface
   [ -n "$steps" ] || { echo "GATE="; return 0; }   # nothing resolved → caller decides
   cache_dir="$root/.release-planning/.gate-cache/steps"
 
@@ -283,12 +427,15 @@ _release_run_gate_steps() { # <root> <steps>
     name="$(printf '%s' "$name" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     cmd="$(printf '%s'  "$cmd"  | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [ -n "$cmd" ] || continue
-    case "$cmd" in *"{focused}"*)
-      targets="$(release_focused_test_targets "$root")"
+    case "$cmd" in *"{focused}"*|*"{focused:backend}"*|*"{focused:frontend}"*)
+      surface="$(release_focused_surface_for_command "$cmd")"
+      targets="$(release_focused_test_targets "$root" "" "$surface")"
       if [ -z "$targets" ]; then
         echo "GATE_STEP=$name SKIPPED_NO_TARGETS"   # diff touches no test-bearing app/module
         any=1; continue
       fi
+      cmd="${cmd//\{focused:backend\}/$targets}"
+      cmd="${cmd//\{focused:frontend\}/$targets}"
       cmd="${cmd//\{focused\}/$targets}"
       ;;
     esac
@@ -367,14 +514,15 @@ EOF
 # shipped phases whose only test evidence was the maker's own run. Warnings never change the
 # verdict; execute/quick print them so the drift is visible on every land.
 release_gate_audit() {  # [root] → zero or more `GATE_WARN=<code> <detail>` lines
-  local root steps line name cmd broad=0 focused=0
+  local root steps quick_steps line name cmd broad=0 focused=0
   root="$(release_gate_root "${1:-}")"
   steps="$(release_resolve_gate "$root")"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     name="${line%%:*}"; cmd="${line#*:}"
-    case "$cmd" in *"{focused}"*) focused=1; continue;; esac
+    case "$cmd" in *"{focused}"*|*"{focused:backend}"*|*"{focused:frontend}"*) focused=1; continue;; esac
     case "$cmd" in
+      *run_test_lane.py*) broad=1 ;;
       *pytest*|*vitest*|*jest*|*"run test"*)
         case "$cmd" in *test_*.py*|*.test.*|*"::"*) ;; *) broad=1;; esac
         case "$cmd" in *--create-db*)
@@ -385,6 +533,10 @@ release_gate_audit() {  # [root] → zero or more `GATE_WARN=<code> <detail>` li
   done <<EOF2
 $steps
 EOF2
+  if [ "$focused" = 0 ]; then
+    quick_steps="$(release_resolve_quick_gate "$root")"
+    case "$quick_steps" in *"{focused}"*|*"{focused:backend}"*|*"{focused:frontend}"*) focused=1;; esac
+  fi
   [ "$broad" = 1 ] || echo "GATE_WARN=no-broad-step (no pytest/vitest step runs the full suite: land trusts a hand whitelist; add a broad step and keep {focused} for loops)"
   [ "$focused" = 1 ] || echo "GATE_WARN=no-focused-step (no {focused} step: every iteration pays the whitelist instead of the diff-implied tests)"
   # A per-phase gate copy in a phase still in flight (no SUMMARY yet) means the project gate was

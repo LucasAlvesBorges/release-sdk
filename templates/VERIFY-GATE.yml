@@ -19,16 +19,14 @@
 #   - Each uncached step emits `GATE_STEP_START`, is bounded by EXEC-ENV `test_timeout`, and a PASS is
 #     cached independently. If a later step fails, retrying the unchanged tree skips earlier greens.
 
-#   - `{focused}` expands to the test targets implied by the diff against the base branch
-#     (Django: backend/apps/<app>/tests of every touched app; React/RN: the touched test files and
-#     the sibling *.test.* of each touched module). A step whose diff implies no targets is
-#     SKIPPED, never RED. Keep the broad suite as its OWN step so it can be reserved for land time
-#     (`/release:execute` runs every step; loops re-run only steps whose inputs changed).
+#   - Put `{focused}` only in VERIFY-QUICK.yml. It expands to diff-implied targets: changed Django
+#     tests directly, matching `test_<module>*` where safe, otherwise that app/backend; React/RN
+#     tests directly, matching siblings, otherwise its source root. A command receives only the
+#     stack it runs. Keep broad suites here: they run once on the final committed tree before land.
 
 # ── Django backend ──────────────────────────────────────────────────────────────────────────
 lint:         ruff check backend/
 migrate:      python backend/manage.py makemigrations --check --dry-run
-test-focused: pytest {focused} -q -n 4 --dist loadfile --reuse-db
 test-full:    pytest backend/apps -q -n 4 --dist loadfile --reuse-db -m "not transactional and not cluster_serial"
 test-serial:  pytest backend/apps -q -n0 --reuse-db -m "transactional or cluster_serial"
 

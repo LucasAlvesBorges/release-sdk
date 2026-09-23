@@ -58,6 +58,7 @@ DEF="$(release_resolve_gate "$DJ")"
 has "django default mentions ruff" "$DEF" "ruff"
 has "django default mentions pytest" "$DEF" "pytest"
 has "django default mentions makemigrations" "$DEF" "makemigrations"
+hasnt "django full default leaves focused work to the quick profile" "$DEF" "{focused}"
 
 echo "── #3 VERIFY-GATE.yml overrides default + ignores comments/blanks, keeps order ──"
 CFG="$SBX/cfg"; mkdir -p "$CFG/.release-planning"
@@ -168,9 +169,24 @@ has "quick keeps migration drift" "$OUT" "makemigrations --check"
 hasnt "quick omits the broad suite" "$OUT" "pytest . -q"
 has "quick re-runs the diff-implied focused tests" "$OUT" "pytest {focused}"
 
+JR="$SBX/jest-quick"; mkdir -p "$JR"
+printf '{"dependencies":{"react":"18"},"devDependencies":{"jest":"29"},"scripts":{"typecheck":"tsc --noEmit"}}\n' > "$JR/package.json"
+OUT="$(release_resolve_quick_gate "$JR")"
+has "Jest quick runs the project typecheck" "$OUT" "npm --prefix . run typecheck"
+has "Jest quick is explicitly nonwatch and receives focused test paths" "$OUT" "jest --runInBand --watchAll=false {focused}"
+NEST="$SBX/nested-quick"; mkdir -p "$NEST/frontend"
+printf '{"dependencies":{"react":"18"},"devDependencies":{"vitest":"3"}}\n' > "$NEST/frontend/package.json"
+OUT="$(release_resolve_quick_gate "$NEST")"
+has "nested Vitest runs with the frontend root" "$OUT" "vitest --root frontend run {focused}"
+JNEST="$SBX/nested-jest"; mkdir -p "$JNEST/frontend"
+printf '{"dependencies":{"react":"18"},"devDependencies":{"jest":"29"}}\n' > "$JNEST/frontend/package.json"; : > "$JNEST/frontend/jest.config.js"
+OUT="$(release_resolve_quick_gate "$JNEST")"
+has "nested Jest loads its frontend config explicitly" "$OUT" "jest --config frontend/jest.config.js --rootDir frontend"
+
 echo "── #19 gate audit: a hand whitelist / per-phase gate copy is warned about, never hidden ──"
 GA="$SBX/audit"; mkdir -p "$GA/.release-planning/phases/07-x"; touch "$GA/manage.py"
 printf 'lint: true\ntest-rls: pytest apps/core/tests/test_rls_a.py apps/core/tests/test_rls_b.py -q --create-db\n' > "$GA/.release-planning/VERIFY-GATE.yml"
+printf 'lint: true\n' > "$GA/.release-planning/VERIFY-QUICK.yml"
 touch "$GA/.release-planning/phases/07-x/07-VERIFY-GATE.yml"
 OUT="$(release_gate_audit "$GA")"
 has "whitelist of test files ⇒ no-broad-step" "$OUT" "GATE_WARN=no-broad-step"
@@ -182,11 +198,21 @@ hasnt "archived copy of a finished phase is history, not drift" "$(release_gate_
 rm "$GA/.release-planning/phases/07-x/07-SUMMARY.md"
 OUT="$(run_gate "$GA" 2>/dev/null)"
 has "run_gate surfaces the audit" "$OUT" "GATE_WARN=no-broad-step"
-rm "$GA/.release-planning/VERIFY-GATE.yml" "$GA/.release-planning/phases/07-x/07-VERIFY-GATE.yml"
+rm "$GA/.release-planning/VERIFY-GATE.yml" "$GA/.release-planning/VERIFY-QUICK.yml" "$GA/.release-planning/phases/07-x/07-VERIFY-GATE.yml"
 OUT="$(release_gate_audit "$GA")"
 hasnt "django default gate has a broad step" "$OUT" "no-broad-step"
 hasnt "django default gate has a {focused} step" "$OUT" "no-focused-step"
 hasnt "no per-phase copies ⇒ no warning" "$OUT" "phase-local-gate"
+
+WR="$SBX/wrapper-audit"; mkdir -p "$WR/.release-planning"
+cat > "$WR/.release-planning/VERIFY-GATE.yml" <<'YML'
+test-common: python backend/scripts/run_test_lane.py common backend/apps backend/scripts/tests
+test-serial: python backend/scripts/run_test_lane.py serial backend/apps backend/scripts/tests
+YML
+printf 'test-focused: python backend/scripts/run_test_lane.py focused {focused}\n' > "$WR/.release-planning/VERIFY-QUICK.yml"
+OUT="$(release_gate_audit "$WR")"
+hasnt "lane wrapper broad commands satisfy the full audit" "$OUT" "GATE_WARN=no-broad-step"
+hasnt "scoped quick wrapper satisfies the focused audit" "$OUT" "GATE_WARN=no-focused-step"
 
 echo "── #13 GREEN cache is keyed by committed tree + commands ──"
 C="$SBX/cache"; mkdir -p "$C/.release-planning"; git -C "$C" init -q
@@ -200,6 +226,15 @@ has "second run cache hit" "$OUT" "GATE_CACHE=hit"
 printf 'dirty\n' >> "$C/tracked.txt"
 OUT="$(run_gate_cached "$C")"
 hasnt "dirty tree never reuses cache" "$OUT" "GATE_CACHE=hit"
+
+CB="$SBX/cache-base"; mkdir -p "$CB/backend/apps/frota/tests" "$CB/.release-planning"; git -C "$CB" init -q -b main
+git -C "$CB" config user.email test@example.com; git -C "$CB" config user.name Test
+: > "$CB/backend/apps/frota/tests/test_focus.py"; git -C "$CB" add -A; git -C "$CB" commit -qm init
+git -C "$CB" checkout -q -b feat; printf 'x' > "$CB/backend/apps/frota/tests/test_focus.py"; git -C "$CB" add -A; git -C "$CB" commit -qm change; git -C "$CB" branch same-head
+printf 'test-focused: echo RUN {focused}\n' > "$CB/.release-planning/VERIFY-QUICK.yml"
+OUT="$(RELEASE_GATE_BASE=main run_gate_cached "$CB" quick)"; has "focused quick first run is green" "$OUT" "GATE=GREEN"
+OUT="$(RELEASE_GATE_BASE=main run_gate_cached "$CB" quick)"; has "same focused base reuses quick cache" "$OUT" "GATE_CACHE=hit"
+OUT="$(RELEASE_GATE_BASE=same-head run_gate_cached "$CB" quick)"; hasnt "changed focused base never reuses quick cache" "$OUT" "GATE_CACHE=hit"
 
 echo "── #14 project gate remains authoritative ──"
 PG="$SBX/phase-gate"; mkdir -p "$PG/.release-planning/phases/42-fast-gate"
@@ -248,18 +283,56 @@ OUT="$(RELEASE_EXEC_PREFIX="$PREFIX" run_gate "$DP")"
 has "project prefix applied automatically" "$OUT" "GATE_STEP=dev PASS"
 
 echo "── #18 {focused}: impact-scoped targets from the diff; no targets ⇒ SKIPPED, never RED ──"
-FO="$SBX/focused"; mkdir -p "$FO/backend/apps/publico/tests" "$FO/backend/apps/core" "$FO/src/features/x" "$FO/.release-planning"
+FO="$SBX/focused"; mkdir -p "$FO/backend/apps/publico/tests" "$FO/backend/apps/publico/migrations" "$FO/backend/apps/core" "$FO/src/features/x" "$FO/frontend/src/features/y" "$FO/frontend/src/shared" "$FO/.release-planning"
 git -C "$FO" init -q -b main; git -C "$FO" config user.email t@t; git -C "$FO" config user.name t
-: > "$FO/backend/apps/publico/tests/test_a.py"; : > "$FO/backend/apps/core/tests.py"; : > "$FO/backend/apps/core/models.py"
+: > "$FO/backend/apps/publico/tests/test_a.py"; : > "$FO/backend/apps/publico/tests/test_previsao.py"; : > "$FO/backend/apps/core/tests.py"; : > "$FO/backend/apps/core/models.py"
 : > "$FO/src/features/x/hook.ts"; : > "$FO/src/features/x/hook.test.ts"; : > "$FO/README.md"
+: > "$FO/frontend/src/features/y/widget.ts"; : > "$FO/frontend/src/features/y/widget.test.ts"
+: > "$FO/backend/conftest.py"; : > "$FO/frontend/src/shared/config.ts"
 printf '.release-planning/\n' > "$FO/.gitignore"
 git -C "$FO" add -A; git -C "$FO" commit -qm base
 git -C "$FO" checkout -q -b feat/1
-printf 'x' > "$FO/backend/apps/publico/previsao.py"; printf 'y' > "$FO/backend/apps/core/models.py"; printf 'z' > "$FO/src/features/x/hook.ts"
+printf 'x' > "$FO/backend/apps/publico/previsao.py"; printf 'y' > "$FO/backend/apps/core/models.py"; printf 'z' > "$FO/backend/apps/publico/tests/test_a.py"; printf 'm' > "$FO/backend/apps/publico/migrations/0001_initial.py"; printf 'q' > "$FO/src/features/x/hook.ts"; printf 'w' > "$FO/frontend/src/features/y/widget.ts"; printf 'c' > "$FO/backend/conftest.py"; printf 's' > "$FO/frontend/src/shared/config.ts"
 git -C "$FO" add -A; git -C "$FO" commit -qm change
-eq "targets: publico tests dir + core tests.py + sibling RN test" \
-   "backend/apps/core/tests.py backend/apps/publico/tests src/features/x/hook.test.ts" \
+eq "targets: changed test exact + module test + conservative app fallback + both frontend roots" \
+   "backend frontend/src src/features/x/hook.test.ts" \
    "$(release_focused_test_targets "$FO")"
+eq "backend command receives no frontend paths" \
+   "backend" \
+   "$(release_focused_test_targets "$FO" "" backend)"
+eq "frontend command receives no backend paths" \
+   "frontend/src src/features/x/hook.test.ts" \
+   "$(release_focused_test_targets "$FO" "" frontend)"
+eq "pytest command selects backend targets" "backend" "$(release_focused_surface_for_command 'python backend/scripts/run_test_lane.py common {focused}')"
+eq "Jest command selects frontend targets" "frontend" "$(release_focused_surface_for_command 'npm exec -- jest --runInBand {focused}')"
+eq "nested Vitest command selects frontend-relative targets" "frontend-nested" "$(release_focused_surface_for_command 'npm --prefix frontend exec -- vitest --root frontend run {focused}')"
+eq "nested frontend targets drop the frontend prefix" "src" "$(release_focused_test_targets "$FO" "" frontend-nested)"
+DEL="$SBX/deleted-test"; mkdir -p "$DEL/backend/apps/frota/tests"
+git -C "$DEL" init -q -b main; git -C "$DEL" config user.email t@t; git -C "$DEL" config user.name t
+: > "$DEL/backend/manage.py"; : > "$DEL/backend/apps/frota/tests/test_removed.py"; git -C "$DEL" add -A; git -C "$DEL" commit -qm base
+git -C "$DEL" checkout -q -b feat/1; git -C "$DEL" rm -q backend/apps/frota/tests/test_removed.py; git -C "$DEL" commit -qm remove
+eq "deleted Django test falls back to backend coverage when its app no longer exists" "backend" "$(release_focused_test_targets "$DEL")"
+CFGFO="$SBX/config-targets"; mkdir -p "$CFGFO/backend" "$CFGFO/frontend/src"
+git -C "$CFGFO" init -q -b main; git -C "$CFGFO" config user.email t@t; git -C "$CFGFO" config user.name t
+: > "$CFGFO/backend/requirements.txt"; : > "$CFGFO/frontend/package.json"; git -C "$CFGFO" add -A; git -C "$CFGFO" commit -qm base
+git -C "$CFGFO" checkout -q -b feat/1; printf 'd' > "$CFGFO/backend/requirements.txt"; printf 'p' > "$CFGFO/frontend/package.json"; git -C "$CFGFO" add -A; git -C "$CFGFO" commit -qm config
+eq "dependency configuration keeps both matching suite roots" "backend frontend/src" "$(release_focused_test_targets "$CFGFO")"
+RN="$SBX/expo-targets"; mkdir -p "$RN/app/routes" "$RN/src"
+git -C "$RN" init -q -b main; git -C "$RN" config user.email t@t; git -C "$RN" config user.name t
+: > "$RN/app.config.ts"; : > "$RN/app/routes/home.tsx"; git -C "$RN" add -A; git -C "$RN" commit -qm base
+git -C "$RN" checkout -q -b feat/1; printf 'c' > "$RN/app.config.ts"; printf 'r' > "$RN/app/routes/home.tsx"; git -C "$RN" add -A; git -C "$RN" commit -qm config
+eq "Expo route and runtime config cover app and existing src roots" "app src" "$(release_focused_test_targets "$RN")"
+eq "explicit frontend placeholder keeps root Expo targets" "app src" "$(release_focused_test_targets "$RN" "" frontend)"
+TESTONLY="$SBX/test-only"; mkdir -p "$TESTONLY/backend/apps/frota/tests"
+git -C "$TESTONLY" init -q -b main; git -C "$TESTONLY" config user.email t@t; git -C "$TESTONLY" config user.name t
+: > "$TESTONLY/backend/apps/frota/tests/test_focus.py"; git -C "$TESTONLY" add -A; git -C "$TESTONLY" commit -qm base
+git -C "$TESTONLY" checkout -q -b feat/1; printf 't' > "$TESTONLY/backend/apps/frota/tests/test_focus.py"; git -C "$TESTONLY" add -A; git -C "$TESTONLY" commit -qm test
+eq "test-only edit stays exact without a broader changed ancestor" "backend/apps/frota/tests/test_focus.py" "$(release_focused_test_targets "$TESTONLY")"
+DUO="$SBX/same-module"; mkdir -p "$DUO/backend/apps/one/tests" "$DUO/backend/apps/two/tests"
+git -C "$DUO" init -q -b main; git -C "$DUO" config user.email t@t; git -C "$DUO" config user.name t
+: > "$DUO/backend/apps/one/tests/test_client.py"; : > "$DUO/backend/apps/two/tests/test_other.py"; git -C "$DUO" add -A; git -C "$DUO" commit -qm base
+git -C "$DUO" checkout -q -b feat/1; printf 'a' > "$DUO/backend/apps/one/client.py"; printf 'b' > "$DUO/backend/apps/two/client.py"; git -C "$DUO" add -A; git -C "$DUO" commit -qm change
+eq "same module name maps or falls back within each app" "backend/apps/one/tests/test_client.py backend/apps/two/tests" "$(release_focused_test_targets "$DUO")"
 eq "base ref auto-detected as main" "main" "$(release_gate_base_ref "$FO")"
 eq "RELEASE_GATE_BASE wins" "feat/1" "$(RELEASE_GATE_BASE=feat/1 release_gate_base_ref "$FO")"
 eq "same tree as base ⇒ no targets" "" "$(RELEASE_GATE_BASE=feat/1 release_focused_test_targets "$FO")"

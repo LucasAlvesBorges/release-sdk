@@ -66,16 +66,23 @@ any worker. Never provision or tear down containers/databases.
 2. Work in the current dev checkout. Require a clean tree and create an
    in-place `loop/<label>` branch; never create a sibling worktree.
 3. Build once inline for C0/C1 or with one `release-tdd-executor` for C2.
-4. Run `run_gate_cached "$ROOT" full`.
-5. On RED, pass only the failing command, short relevant excerpt and evidence path to
+4. Run `run_gate_cached "$ROOT" quick` after every maker/fixer change. It runs the project quick
+   profile and its diff-implied focused tests; it never substitutes a broad suite based on a step
+   name or marker guess.
+5. On quick RED, pass only the failing command, short relevant excerpt and evidence path to
    `release-code-fixer`. Do not resend the transcript or successful gate output.
-6. On GREEN, run `release-loop-goal-verifier` once. It reuses the cached gate and checks only the
-   requested behavior. Its verdict is the literal `PASS` or `GAPS`; partial/"pending" wording is
-   GAPS. On gaps, send only the gap IDs/evidence to the fixer. A fixer answer of
+6. On quick GREEN, run `release-loop-goal-verifier` once. It reuses the current-tree quick GREEN
+   evidence and checks only the requested behavior. Its verdict is the literal `PASS` or `GAPS`; partial/"pending"
+   wording is GAPS. On gaps, send only the gap IDs/evidence to the fixer. A fixer answer of
    `USER_INPUT_REQUIRED` or `needs_scope_reduction` ends the loop as a hard stop with the conflict
    printed; the goal is never narrowed to make the checker pass.
-7. Re-run the cached gate/checker until PASS or `loop_guard`/budget stops.
-8. GREEN+PASS → land unless `--no-land`; otherwise retain the branch/evidence and report the exact
+7. Only after checker PASS, run `run_gate_cached "$ROOT" full` once on that final committed tree,
+   immediately before land. The full profile must contain the project's broad coverage steps; it may
+   omit a focused step only when those broad steps actually cover the same runner and assertion lanes.
+   On full RED, send only its failure evidence to the fixer and return to the quick gate.
+8. After a checker gap or full RED, return to the quick gate. A full gate stays valid only for its
+   exact committed tree; rerun quick → checker → full after every change until PASS or `loop_guard`/budget stops.
+9. GREEN+PASS → land unless `--no-land`; otherwise retain the branch/evidence and report the exact
    blocker. The existing dev environment remains untouched.
 
 Each round must change the git tree or stop as no-progress. A checker is a separate turn but uses the
