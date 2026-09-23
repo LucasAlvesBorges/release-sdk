@@ -178,6 +178,10 @@ NEST="$SBX/nested-quick"; mkdir -p "$NEST/frontend"
 printf '{"dependencies":{"react":"18"},"devDependencies":{"vitest":"3"}}\n' > "$NEST/frontend/package.json"
 OUT="$(release_resolve_quick_gate "$NEST")"
 has "nested Vitest runs with the frontend root" "$OUT" "vitest --root frontend run {focused}"
+JNEST="$SBX/nested-jest"; mkdir -p "$JNEST/frontend"
+printf '{"dependencies":{"react":"18"},"devDependencies":{"jest":"29"}}\n' > "$JNEST/frontend/package.json"; : > "$JNEST/frontend/jest.config.js"
+OUT="$(release_resolve_quick_gate "$JNEST")"
+has "nested Jest loads its frontend config explicitly" "$OUT" "jest --config frontend/jest.config.js --rootDir frontend"
 
 echo "── #19 gate audit: a hand whitelist / per-phase gate copy is warned about, never hidden ──"
 GA="$SBX/audit"; mkdir -p "$GA/.release-planning/phases/07-x"; touch "$GA/manage.py"
@@ -313,11 +317,12 @@ git -C "$CFGFO" init -q -b main; git -C "$CFGFO" config user.email t@t; git -C "
 : > "$CFGFO/backend/requirements.txt"; : > "$CFGFO/frontend/package.json"; git -C "$CFGFO" add -A; git -C "$CFGFO" commit -qm base
 git -C "$CFGFO" checkout -q -b feat/1; printf 'd' > "$CFGFO/backend/requirements.txt"; printf 'p' > "$CFGFO/frontend/package.json"; git -C "$CFGFO" add -A; git -C "$CFGFO" commit -qm config
 eq "dependency configuration keeps both matching suite roots" "backend frontend/src" "$(release_focused_test_targets "$CFGFO")"
-RN="$SBX/expo-targets"; mkdir -p "$RN/app/routes"
+RN="$SBX/expo-targets"; mkdir -p "$RN/app/routes" "$RN/src"
 git -C "$RN" init -q -b main; git -C "$RN" config user.email t@t; git -C "$RN" config user.name t
 : > "$RN/app.config.ts"; : > "$RN/app/routes/home.tsx"; git -C "$RN" add -A; git -C "$RN" commit -qm base
 git -C "$RN" checkout -q -b feat/1; printf 'c' > "$RN/app.config.ts"; printf 'r' > "$RN/app/routes/home.tsx"; git -C "$RN" add -A; git -C "$RN" commit -qm config
-eq "Expo route and runtime config fall back to the app suite root" "app" "$(release_focused_test_targets "$RN")"
+eq "Expo route and runtime config cover app and existing src roots" "app src" "$(release_focused_test_targets "$RN")"
+eq "explicit frontend placeholder keeps root Expo targets" "app src" "$(release_focused_test_targets "$RN" "" frontend)"
 TESTONLY="$SBX/test-only"; mkdir -p "$TESTONLY/backend/apps/frota/tests"
 git -C "$TESTONLY" init -q -b main; git -C "$TESTONLY" config user.email t@t; git -C "$TESTONLY" config user.name t
 : > "$TESTONLY/backend/apps/frota/tests/test_focus.py"; git -C "$TESTONLY" add -A; git -C "$TESTONLY" commit -qm base

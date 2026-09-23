@@ -103,7 +103,7 @@ release_default_quick_gate() { # $1 stack, $2 root → cheap checks + the diff-i
   # The maker's own focused run is a claim, not evidence: the quick gate re-runs `{focused}` (the
   # test targets implied by the diff; SKIPPED when the diff touches no test-bearing surface) so a
   # quick never lands on lint alone. The broad suite still stays out of the quick profile.
-  local stack="$1" root="$2" mp="manage.py" pyroot="." feroot="."
+  local stack="$1" root="$2" mp="manage.py" pyroot="." feroot="." jest_config=""
   [ -f "$root/backend/manage.py" ] && { mp="backend/manage.py"; pyroot="backend"; }
   [ -f "$root/frontend/package.json" ] && feroot="frontend"
   case "$stack" in
@@ -125,7 +125,12 @@ release_default_quick_gate() { # $1 stack, $2 root → cheap checks + the diff-i
         fi
       elif grep -q '"jest"' "$root/$feroot/package.json" 2>/dev/null; then
         if [ "$feroot" = frontend ]; then
-          printf 'test-focused: npm --prefix frontend exec -- jest --rootDir frontend --runInBand --watchAll=false {focused}\n'
+          jest_config="$(release_frontend_jest_config "$root")"
+          if [ -n "$jest_config" ]; then
+            printf 'test-focused: npm --prefix frontend exec -- jest --config %s --rootDir frontend --runInBand --watchAll=false {focused}\n' "$jest_config"
+          else
+            printf 'test-focused: npm --prefix frontend exec -- jest --rootDir frontend --runInBand --watchAll=false {focused}\n'
+          fi
         else
           printf 'test-focused: npm --prefix %s exec -- jest --runInBand --watchAll=false {focused}\n' "$feroot"
         fi
@@ -248,10 +253,18 @@ release_gate_base_ref() {  # <root> → the ref the phase diff is measured again
   return 0
 }
 
-release_frontend_suite_root() { # <root> → existing frontend test/source root
-  local root="$1" candidate
+release_frontend_suite_roots() { # <root> → existing frontend test/source roots
+  local root="$1" candidate roots=""
   for candidate in frontend/src frontend/app src app; do
-    [ -d "$root/$candidate" ] && { printf '%s' "$candidate"; return 0; }
+    [ -d "$root/$candidate" ] && roots="$roots $candidate"
+  done
+  printf '%s' "${roots# }"
+}
+
+release_frontend_jest_config() { # <root> → explicit nested Jest config, if present
+  local root="$1" candidate
+  for candidate in frontend/jest.config.js frontend/jest.config.cjs frontend/jest.config.mjs frontend/jest.config.ts; do
+    [ -f "$root/$candidate" ] && { printf '%s' "$candidate"; return 0; }
   done
 }
 
@@ -322,7 +335,7 @@ EOF3
       # Dependency and runner configuration can change collection or every module's behavior.
       # Keep the fallback inside the matching stack instead of letting a quick become lint-only.
       package.json|package-lock.json|yarn.lock|pnpm-lock.yaml|vite.config.*|jest.config.*|jest.setup.*|jest.after-each.*|tsconfig*.json|app.config.*|babel.config.*|metro.config.*|frontend/package.json|frontend/package-lock.json|frontend/yarn.lock|frontend/pnpm-lock.yaml|frontend/vite.config.*|frontend/jest.config.*|frontend/jest.setup.*|frontend/jest.after-each.*|frontend/tsconfig*.json|frontend/app.config.*|frontend/babel.config.*|frontend/metro.config.*)
-        source_root="$(release_frontend_suite_root "$root")"
+        source_root="$(release_frontend_suite_roots "$root")"
         [ -n "$source_root" ] && out="$out $source_root"
         ;;
       pyproject.toml|backend/requirements*.txt|backend/pyproject.toml|backend/manage.py)
@@ -338,7 +351,7 @@ EOF3
                    "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
           [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
         done
-        [ -n "$module_found" ] || out="$out $source_root"
+        [ -n "$module_found" ] || out="$out src"
         ;;
       frontend/src/*.[jt]s|frontend/src/*.[jt]sx)
         source_root="frontend/src"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
@@ -348,7 +361,7 @@ EOF3
                    "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
           [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
         done
-        [ -n "$module_found" ] || out="$out $source_root"
+        [ -n "$module_found" ] || out="$out frontend/src"
         ;;
       app/*.[jt]s|app/*.[jt]sx)
         source_root="app"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
@@ -357,7 +370,10 @@ EOF3
                    "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
           [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
         done
-        [ -n "$module_found" ] || out="$out $source_root"
+        if [ -z "$module_found" ]; then
+          out="$out app"
+          [ -d "$root/src" ] && out="$out src"
+        fi
         ;;
       frontend/app/*.[jt]s|frontend/app/*.[jt]sx)
         source_root="frontend/app"; dir="${f%/*}"; stem="${f##*/}"; stem="${stem%.*}"
@@ -366,7 +382,10 @@ EOF3
                    "$dir/$stem".spec.ts "$dir/$stem".spec.tsx "$dir/__tests__/$stem".test.ts "$dir/__tests__/$stem".test.tsx; do
           [ -f "$root/$sib" ] && { out="$out $sib"; module_found=1; }
         done
-        [ -n "$module_found" ] || out="$out $source_root"
+        if [ -z "$module_found" ]; then
+          out="$out frontend/app"
+          [ -d "$root/frontend/src" ] && out="$out frontend/src"
+        fi
         ;;
     esac
   done <<EOF2
@@ -389,7 +408,8 @@ release_focused_surface_for_command() { # <command> → backend | frontend | all
   local cmd="$1"
   case "$cmd" in
     *"{focused:backend}"*|*pytest*|*"run_test_lane.py"*) printf backend ;;
-    *"{focused:frontend}"*|*"npm --prefix frontend"*vitest*|*"npm --prefix frontend"*jest*) printf frontend-nested ;;
+    *"{focused:frontend}"*)                               printf frontend ;;
+    *"npm --prefix frontend"*vitest*|*"npm --prefix frontend"*jest*) printf frontend-nested ;;
     *vitest*|*jest*)                                      printf frontend ;;
     *)                                                     printf all ;;
   esac
