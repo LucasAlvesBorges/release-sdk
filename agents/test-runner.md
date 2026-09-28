@@ -59,7 +59,8 @@ expiry (`timeout -k 10`) and echoes a structured verdict:
 ```bash
 ENV_LIB="$(find_lib release-execenv-lib.sh)"; [ -f "$ENV_LIB" ] && . "$ENV_LIB"
 OUT="$(run_test_bounded "$root" "$TP pytest <files> --tb=short -q --no-header $extra_args" "$cwd")"
-# TEST_OUTPUT=<file>  TEST_HUNG=<true|false>  TEST_ELAPSED=<s>  TEST_RC=<n>  [TEST_TIMEOUT= TEST_CMD=]
+# TEST_OUTPUT=<file>  TEST_HUNG=<true|false>  TEST_ELAPSED=<s>  TEST_RC=<n>
+# TEST_QUEUE_WAIT=<s> TEST_RUN_ELAPSED=<s> [TEST_TIMEOUT= TEST_CMD=]
 ```
 
 - `TEST_HUNG=true` → **retry at most twice**, then stop and write the bucket JSON with
@@ -69,6 +70,12 @@ OUT="$(run_test_bounded "$root" "$TP pytest <files> --tb=short -q --no-header $e
   for the tests that never ran — report what is true (the bucket did not complete).
 - No `timeout`/`gtimeout` binary on the host → the prefix is empty and the run is unbounded; say so
   in the JSON (`bounded: false`) rather than pretending it was bounded.
+
+The bounded runner serializes heavy test commands per machine user, across repository roots and
+sessions. Keep gate and bucket runs on `run_test_bounded`; do not start concurrent ad hoc full
+suites. Queue time never consumes `test_timeout`, which begins after the slot is acquired. The
+runner kills only its owned local process group. For `docker exec`, that safely stops its local
+client but cannot prove termination of a process already detached inside the container.
 
 **Long buckets**: prefer raising `test_timeout` over running unbounded. If a bucket legitimately
 needs >2 min, run with `run_in_background=true` and poll — still under the bound.
