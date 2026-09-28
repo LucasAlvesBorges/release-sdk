@@ -79,8 +79,9 @@ project's runner can TEST IT:
    for an external runner. For the inside-root case, append `.release-worktrees/` to
    `.git/info/exclude` once so the unit never shows as untracked in the main checkout. Validate
    that neither branch nor path already exists, and never switch the caller checkout.
-   Compute the unit prefix with `execenv_prefix "$MAIN_ROOT" "$WORKTREE" "<label>"`; it renders the
-   runner-visible worktree path, so every focused test and the gate run against the unit's code.
+   Compute the unit prefix with `execenv_prefix "$MAIN_ROOT" "$WORKTREE" "<label>"` and abort on a
+   nonzero result; it renders the runner-visible worktree path, so every focused test and the gate
+   run against the unit's code.
 4. Mark the unit active for the prod guard: write `branch pid timestamp` to
    `<main-root>/.release-planning/.unit-active` (only when `.release-planning/` exists). With
    `--allow-prod`, also touch `.release-planning/.allow-prod`. Both are removed at land time.

@@ -119,12 +119,23 @@ release_execenv_render() {  # $1 template, $2 worktree, $3 label, [$4 root]
 # so the worktree goes INSIDE it: `<root>/.release-worktrees/quick/<label>` (excluded from git
 # status via .git/info/exclude by the caller).
 release_execenv_worktree_path() {  # $1 root, $2 label → host path for the unit worktree
-  local root="${1:-.}" label="${2:-unit}"
+  local root="${1:-.}" label="${2:-unit}" host_root
+  host_root="$(release_execenv_host_root "$root")" || return 1
   case "$(release_test_harness "$root")" in
-    external) printf '%s/.release-worktrees/quick/%s' "$root" "$label" ;;
+    external) printf '%s/.release-worktrees/quick/%s' "$host_root" "$label" ;;
     *)        printf '%s/../release-worktrees/quick/%s' "$root" "$label" ;;
   esac
   return 0
+}
+
+# An external runner may mount a stable inner checkout rather than its caller root. This optional
+# key makes that mount explicit so an unmapped host path cannot be rendered as a container path.
+release_execenv_host_root() {  # $1 root → mounted host root (or root when no override exists)
+  local root="${1:-.}" configured
+  configured="$(release_execenv_get "$root" test_host_root)"
+  [ -n "$configured" ] || { printf '%s' "$root"; return 0; }
+  [ -d "$configured" ] || return 1
+  cd "$configured" 2>/dev/null && pwd -P
 }
 
 # Map a host worktree path to the path the runner sees. `test_root_in_runner` is the container
@@ -132,15 +143,19 @@ release_execenv_worktree_path() {  # $1 root, $2 label → host path for the uni
 # `<test_root_in_runner>/<relative>`, {root} itself as `<test_root_in_runner>`. Without the key the
 # host path is used unchanged (host wrappers such as `bash scripts/dev-test {worktree}`).
 release_execenv_runner_path() {  # $1 root, $2 host path → runner-visible path
-  local root="${1:-.}" p="${2:-}" mapped rel
+  local root="${1:-.}" p="${2:-}" mapped rel host_root configured_host
   mapped="$(release_execenv_get "$root" test_root_in_runner)"
   [ -n "$mapped" ] && [ -n "$p" ] || { printf '%s' "$p"; return 0; }
-  root="$(cd "$root" 2>/dev/null && pwd -P || printf '%s' "$root")"
+  configured_host="$(release_execenv_get "$root" test_host_root)"
+  host_root="$(release_execenv_host_root "$root")" || return 1
+  host_root="$(cd "$host_root" 2>/dev/null && pwd -P || printf '%s' "$host_root")"
   p="$(cd "$p" 2>/dev/null && pwd -P || printf '%s' "$p")"
   case "$p" in
-    "$root") printf '%s' "$mapped" ;;
-    "$root"/*) rel="${p#"$root"/}"; printf '%s/%s' "$mapped" "$rel" ;;
-    *) printf '%s' "$p" ;;   # outside the mounted root: the runner cannot see it (worktree_safe says so)
+    "$host_root") printf '%s' "$mapped" ;;
+    "$host_root"/*) rel="${p#"$host_root"/}"; printf '%s/%s' "$mapped" "$rel" ;;
+    *)
+      [ -n "$configured_host" ] && return 1
+      printf '%s' "$p" ;;  # legacy default: wrappers may intentionally see another host path
   esac
   return 0
 }
@@ -161,11 +176,12 @@ release_execenv_worktree_safe() {  # $1 root → WORKTREE_SAFE=yes | WORKTREE_SA
 }
 
 execenv_prefix() {  # $1 root, $2 worktree, $3 label → stable external prefix
-  local tpl wt
+  local tpl wt host_root
   tpl="$(release_execenv_get "${1:-.}" test_exec_prefix)"
   [ -n "$tpl" ] || return 0
-  wt="$(release_execenv_runner_path "${1:-.}" "${2:-}")"
-  release_execenv_render "$tpl" "$wt" "${3:-dev}" "$(release_execenv_runner_path "${1:-.}" "${1:-.}")"
+  wt="$(release_execenv_runner_path "${1:-.}" "${2:-}")" || return 1
+  host_root="$(release_execenv_host_root "${1:-.}")" || return 1
+  release_execenv_render "$tpl" "$wt" "${3:-dev}" "$(release_execenv_runner_path "${1:-.}" "$host_root")"
   return 0
 }
 
@@ -222,42 +238,55 @@ release_timeout_available() {
 }
 
 run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → structured TEST_* verdict
-  local root="${1:-.}" cmd="${2:-}" cwd="${3:-.}" t runner rc start end elapsed builtin=0
+  local root="${1:-.}" cmd="${2:-}" cwd="${3:-.}" t runner rc start end elapsed builtin=0 meta outf queue_status queue_wait run_elapsed timed_out
   t="$(release_test_timeout "$root")"
   runner="$(release_timeout_cmd "$t")"
   start="$(date +%s 2>/dev/null)"; : "${start:=0}"
-  if [ -z "$runner" ] && [ "$t" != 0 ] && command -v python3 >/dev/null 2>&1 \
+  echo "TEST_QUEUE_STATUS=waiting" >&2
+  meta="$(mktemp -t release-test-meta-XXXXXX)"
+  outf="$(mktemp -t release-test-XXXXXX)"
+  if command -v python3 >/dev/null 2>&1 \
     && [ -f "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" ]; then
     builtin=1
-    _TEST_OUT="$( ( cd "$cwd" 2>/dev/null && RELEASE_TIMEOUT_COMMAND="$cmd" \
-      python3 "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" "$t" ) </dev/null 2>&1 )"; rc=$?
+    ( cd "$cwd" 2>/dev/null && RELEASE_TEST_META_FILE="$meta" RELEASE_TIMEOUT_COMMAND="$cmd" \
+      python3 "$_RELEASE_EXECENV_LIB_DIR/release-timeout.py" "$t" ) </dev/null >"$outf" 2>&1; rc=$?
   else
-    _TEST_OUT="$( ( cd "$cwd" 2>/dev/null && eval "$runner $cmd" ) </dev/null 2>&1 )"; rc=$?
+    ( cd "$cwd" 2>/dev/null && eval "$runner $cmd" ) </dev/null >"$outf" 2>&1; rc=$?
   fi
   end="$(date +%s 2>/dev/null)"; : "${end:=$start}"
   elapsed=$(( end - start ))
-  local outf
-  outf="$(mktemp -t release-test-XXXXXX)"
-  printf '%s\n' "$_TEST_OUT" > "$outf"
+  queue_status="$(sed -n 's/^TEST_QUEUE_STATUS=//p' "$meta" 2>/dev/null)"
+  queue_wait="$(sed -n 's/^TEST_QUEUE_WAIT=//p' "$meta" 2>/dev/null)"
+  run_elapsed="$(sed -n 's/^TEST_RUN_ELAPSED=//p' "$meta" 2>/dev/null)"
+  timed_out="$(sed -n 's/^TEST_TIMED_OUT=//p' "$meta" 2>/dev/null)"
+  rm -f "$meta"
   echo "TEST_OUTPUT=$outf"
-  if [ -n "$runner" ] || [ "$builtin" = 1 ]; then echo "TEST_BOUNDED=true"
+  if [ "$t" != 0 ] && { [ -n "$runner" ] || [ "$builtin" = 1 ]; }; then echo "TEST_BOUNDED=true"
   else echo "TEST_BOUNDED=false"
   fi
+  [ -n "$queue_wait" ] && echo "TEST_QUEUE_WAIT=$queue_wait"
+  [ -n "$run_elapsed" ] && echo "TEST_RUN_ELAPSED=$run_elapsed"
+  [ -n "$queue_status" ] && echo "TEST_QUEUE_STATUS=$queue_status"
   case "$rc" in
     124)
-      echo "TEST_HUNG=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+      if [ "$timed_out" = true ]; then echo "TEST_HUNG=true"; else echo "TEST_HUNG=false"; fi
+      echo "TEST_ELAPSED=${run_elapsed:-$elapsed}"; echo "TEST_TIMEOUT=$t"
       echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc"
       ;;
     137)
-      if [ -n "$runner" ] || [ "$builtin" = 1 ]; then echo "TEST_HUNG=true"
+      if [ "$timed_out" = true ]; then echo "TEST_HUNG=true"
       else echo "TEST_HUNG=false"
       fi
-      echo "TEST_KILLED=true"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_TIMEOUT=$t"
+      echo "TEST_KILLED=true"; echo "TEST_ELAPSED=${run_elapsed:-$elapsed}"; echo "TEST_TIMEOUT=$t"
       echo "TEST_CMD=$cmd"; echo "TEST_RC=$rc"
-      echo "TEST_NOTE=rc137 is SIGKILL — timeout follow-up, OOM killer, or external kill"
+      if [ "$timed_out" = true ]; then
+        echo "TEST_NOTE=rc137 is SIGKILL after the owned test deadline"
+      else
+        echo "TEST_NOTE=rc137 is SIGKILL — likely OOM killer or external kill; test failure preserved"
+      fi
       ;;
     *)
-      echo "TEST_HUNG=false"; echo "TEST_ELAPSED=$elapsed"; echo "TEST_RC=$rc"
+      echo "TEST_HUNG=false"; echo "TEST_ELAPSED=${run_elapsed:-$elapsed}"; echo "TEST_RC=$rc"
       ;;
   esac
   return 0
@@ -281,7 +310,11 @@ execenv_phase_prepare() {  # compatibility: external/host only, never provisions
   esac
   mode="$(release_test_harness "$root")"
   label="$(release_execenv_label dev)"
-  prefix="$(execenv_prefix "$root" "$wt" "$label")"
+  prefix="$(execenv_prefix "$root" "$wt" "$label")" || {
+    echo "EXECENV_PHASE_PREPARE=failed"
+    echo "EXECENV_ERROR=worktree_outside_test_host_root"
+    return 0
+  }
   echo "EXECENV_PHASE_PREPARE=ok"
   echo "EXECENV_HARNESS=$mode"
   echo "EXECENV_LABEL=$label"

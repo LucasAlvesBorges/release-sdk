@@ -70,7 +70,12 @@ case "$CHECK" in *EXECENV_PREFLIGHT=ok*) ;; *) printf '%s\n' "$CHECK"; exit 1;; 
 HARNESS="$(release_test_harness "$ROOT")"
 case "$HARNESS" in
   host) DEV_PREFIX="" ;;
-  external) DEV_PREFIX="$(execenv_prefix "$ROOT" "$ROOT" dev)" ;;
+  external)
+    DEV_PREFIX="$(execenv_prefix "$ROOT" "$ROOT" dev)" || {
+      echo "ABORT: current checkout is outside test_host_root; run from the mounted worktree"
+      exit 1
+    }
+    ;;
   managed) echo "ABORT: managed test environments are disabled; configure the existing dev runner"; exit 1 ;;
   *) echo "ABORT: invalid project test harness"; exit 1 ;;
 esac
