@@ -68,24 +68,24 @@ def terminate_owned_group(process: subprocess.Popen[object], group_id: int) -> N
         return
 
 
-def stop_owned_group(process: subprocess.Popen[object], group_id: int) -> bool:
-    """Terminate only the process group created for this command, then escalate after grace."""
+def stop_owned_group(process: subprocess.Popen[object], group_id: int) -> str:
+    """Terminate only the process group created for this command, then report its outcome."""
     terminate_owned_group(process, group_id)
     grace_deadline = time.monotonic() + 10
     while time.monotonic() < grace_deadline:
         process.poll()
         if not process_group_exists(group_id):
             process.wait()
-            return True
+            return "terminated"
         time.sleep(0.05)
     try:
         os.killpg(group_id, signal.SIGKILL)
     except ProcessLookupError:
-        return True
+        return "terminated"
     except PermissionError:
-        return False
+        return "unkillable"
     process.wait()
-    return True
+    return "killed"
 
 
 def wait_for_owned_group(process: subprocess.Popen[object], group_id: int, timeout: int) -> tuple[int, bool]:
@@ -96,7 +96,8 @@ def wait_for_owned_group(process: subprocess.Popen[object], group_id: int, timeo
         if return_code is not None and not process_group_exists(group_id):
             return normalize_return_code(return_code), False
         if deadline is not None and time.monotonic() >= deadline:
-            return (124 if stop_owned_group(process, group_id) else 137), True
+            outcome = stop_owned_group(process, group_id)
+            return (137 if outcome in ("killed", "unkillable") else 124), True
         time.sleep(0.05)
 
 

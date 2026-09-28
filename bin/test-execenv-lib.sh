@@ -82,9 +82,12 @@ eq "compat teardown is non-mutating" "EXECENV_TEARDOWN=skipped" \
 eq "reuse slots are disabled" "EXECENV_REUSE=off" "$(release_execenv_reuse "$ROOT")"
 
 echo "── bounded test execution ──"
-OUT="$(run_test_bounded "$ROOT" 'printf dev-ok' "$ROOT")"
+QUEUE_NOTICE="$TMP/queue-notice"
+OUT="$(run_test_bounded "$ROOT" 'printf dev-ok' "$ROOT" 2>"$QUEUE_NOTICE")"
 has "passing command returns zero" "$OUT" "TEST_RC=0"
 has "passing command is not hung" "$OUT" "TEST_HUNG=false"
+has "unbounded timeout remains reported as unbounded" "$OUT" "TEST_BOUNDED=false"
+has "queue waiting notice is emitted before completion" "$(cat "$QUEUE_NOTICE")" "TEST_QUEUE_STATUS=waiting"
 OUT_FILE="$(printf '%s\n' "$OUT" | sed -n 's/^TEST_OUTPUT=//p')"
 has "captured output is preserved" "$(cat "$OUT_FILE")" "dev-ok"
 OUT="$(run_test_bounded "$ROOT" "python3 -c \"print('x' * 65536)\"" "$ROOT")"
@@ -143,6 +146,20 @@ wait "$CANCEL_WAITER_PID" 2>/dev/null; CANCEL_WAITER_RC=$?
 wait "$CANCEL_OWNER_PID"; CANCEL_OWNER_RC=$?
 eq "queued waiter cancellation is preserved" 130 "$CANCEL_WAITER_RC"
 eq "queued waiter cancellation leaves owner intact" 0 "$CANCEL_OWNER_RC"
+has "cancelled waiter is never marked acquired" "$(cat "$WAITER_META")" "TEST_QUEUE_STATUS=cancelled"
+
+CANCEL_CHILD_PID="$TMP/cancel-child.pid"
+(
+  RELEASE_TEST_LOCK_PATH="$LOCK" RELEASE_TIMEOUT_COMMAND="trap '' TERM; (trap '' TERM; sleep 30) & child=\$!; echo \$child > '$CANCEL_CHILD_PID'; wait" \
+    python3 "$HERE/release-timeout.py" 0
+) >"$TMP/cancel-run.out" 2>&1 &
+CANCEL_RUN_PID=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$CANCEL_CHILD_PID" ] && break; sleep 0.1; done
+kill "$CANCEL_RUN_PID" 2>/dev/null || true
+wait "$CANCEL_RUN_PID" 2>/dev/null; CANCEL_RUN_RC=$?
+eq "unbounded cancellation escalates after grace" 130 "$CANCEL_RUN_RC"
+[ -f "$CANCEL_CHILD_PID" ] && ! kill -0 "$(cat "$CANCEL_CHILD_PID")" 2>/dev/null && ok "cancellation kills TERM-ignoring descendants" \
+  || no "cancellation kills TERM-ignoring descendants" "child process remains alive"
 
 TIMEOUT_META="$TMP/timeout.meta"
 CHILD_PID="$TMP/timeout-child.pid"
@@ -156,6 +173,13 @@ eq "timeout preserves deadline exit code" 124 "$TIMEOUT_RC"
 [ -f "$CHILD_PID" ] && ! kill -0 "$(cat "$CHILD_PID")" 2>/dev/null && ok "timeout kills owned descendants" \
   || no "timeout kills owned descendants" "child process remains alive"
 has "timeout reports actual execution elapsed" "$(cat "$TIMEOUT_META")" "TEST_RUN_ELAPSED="
+
+set +e
+RELEASE_TEST_LOCK_PATH="$LOCK" RELEASE_TIMEOUT_COMMAND="trap '' TERM; sleep 30" \
+  python3 "$HERE/release-timeout.py" 1 >"$TMP/forced-timeout.out" 2>&1
+FORCED_TIMEOUT_RC=$?
+set -e
+eq "TERM-ignoring deadline returns SIGKILL exit code" 137 "$FORCED_TIMEOUT_RC"
 
 echo "── worktree safety: the runner must SEE the worktree ──"
 rm -f "$ROOT/.release-planning/EXEC-ENV.yml"
@@ -210,6 +234,11 @@ if release_execenv_runner_path "$CALLER_ROOT" "$CALLER_ROOT" >/dev/null; then
 else
   ok "caller outside nested mount is rejected"
 fi
+has "phase preparation refuses caller outside nested mount" \
+  "$(execenv_phase_prepare "$CALLER_ROOT" "$CALLER_ROOT" nested)" \
+  "EXECENV_ERROR=worktree_outside_test_host_root"
+has "execute workflow aborts when prefix mapping fails" "$(sed -n '68,82p' "$HERE/../skills/execute/SKILL.md")" \
+  "current checkout is outside test_host_root"
 
 echo "── rendering + scheduler compatibility ──"
 eq "safe label retained" w1_t02_sess "$(release_execenv_label 'W1/T02 sess')"

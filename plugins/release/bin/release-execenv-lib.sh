@@ -238,7 +238,7 @@ release_timeout_available() {
 }
 
 run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → structured TEST_* verdict
-  local root="${1:-.}" cmd="${2:-}" cwd="${3:-.}" t runner rc start end elapsed builtin=0 meta outf queue_wait run_elapsed timed_out
+  local root="${1:-.}" cmd="${2:-}" cwd="${3:-.}" t runner rc start end elapsed builtin=0 meta outf queue_status queue_wait run_elapsed timed_out
   t="$(release_test_timeout "$root")"
   runner="$(release_timeout_cmd "$t")"
   start="$(date +%s 2>/dev/null)"; : "${start:=0}"
@@ -255,6 +255,7 @@ run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → structured TEST_* verd
   fi
   end="$(date +%s 2>/dev/null)"; : "${end:=$start}"
   elapsed=$(( end - start ))
+  queue_status="$(sed -n 's/^TEST_QUEUE_STATUS=//p' "$meta" 2>/dev/null)"
   queue_wait="$(sed -n 's/^TEST_QUEUE_WAIT=//p' "$meta" 2>/dev/null)"
   run_elapsed="$(sed -n 's/^TEST_RUN_ELAPSED=//p' "$meta" 2>/dev/null)"
   timed_out="$(sed -n 's/^TEST_TIMED_OUT=//p' "$meta" 2>/dev/null)"
@@ -265,7 +266,7 @@ run_test_bounded() {  # $1 root, $2 command, [$3 cwd] → structured TEST_* verd
   fi
   [ -n "$queue_wait" ] && echo "TEST_QUEUE_WAIT=$queue_wait"
   [ -n "$run_elapsed" ] && echo "TEST_RUN_ELAPSED=$run_elapsed"
-  [ -n "$queue_wait" ] && echo "TEST_QUEUE_STATUS=acquired"
+  [ -n "$queue_status" ] && echo "TEST_QUEUE_STATUS=$queue_status"
   case "$rc" in
     124)
       if [ "$timed_out" = true ]; then echo "TEST_HUNG=true"; else echo "TEST_HUNG=false"; fi
@@ -309,7 +310,11 @@ execenv_phase_prepare() {  # compatibility: external/host only, never provisions
   esac
   mode="$(release_test_harness "$root")"
   label="$(release_execenv_label dev)"
-  prefix="$(execenv_prefix "$root" "$wt" "$label")"
+  prefix="$(execenv_prefix "$root" "$wt" "$label")" || {
+    echo "EXECENV_PHASE_PREPARE=failed"
+    echo "EXECENV_ERROR=worktree_outside_test_host_root"
+    return 0
+  }
   echo "EXECENV_PHASE_PREPARE=ok"
   echo "EXECENV_HARNESS=$mode"
   echo "EXECENV_LABEL=$label"
