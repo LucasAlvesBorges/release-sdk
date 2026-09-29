@@ -187,6 +187,7 @@ mortos) e o SessionStart avisa quando há ≥3 itens.
 | `/release:import` | both | Mass-port GSD `.planning/` → release-sdk `.release-planning/` (one-shot, todas as fases) |
 | `/release:spec {NN}` | both | Esclarece O QUE a fase entrega (SPEC.md, score de ambiguidade) |
 | `/release:plan {NN}` | both | Resolve gray areas em lotes de até 3, grava D-XX e gera um PLAN pronto para execute |
+| `/release:sketch {ideia}` | frontend | Explora uma ideia React em 2–3 variantes navegáveis antes de escolher a direção; `--wrap-up` prepara o handoff reutilizável. |
 | `/release:ui-phase {NN}` | frontend | Produz UI-SPEC.md (contrato de design) |
 | `/release:ai-phase {NN}` | both | Produz AI-SPEC.md (framework LLM, prompts, eval, guardrails) |
 | `/release:execute {NN}` | both | Execução TDD-strict (pytest ou vitest). Progresso por task em linguagem de produto + `PushNotification` no fim. **Auto-land** na base quando a fase passa (`--no-merge`/`--pr` pra segurar; `--push`; `--allow-prod`) |
@@ -495,6 +496,9 @@ Se você não quer decorar 32 comandos, use o roteador:
 
 /release:auto "rename EmpresaSerializer.user_email to owner_email"
   # → rota: /release:fast — razão: rename single-file, < 30 LOC
+
+/release:auto "explore variantes para o dashboard da frota"
+  # → rota: /release:sketch — razão: comparação de direções React antes da implementação
 
 /release:auto "executa todas as fases que faltam"
   # → rota: /release:autonomous — razão: walk-away multi-fase com verify gating

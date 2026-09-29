@@ -47,6 +47,7 @@ Downstream skills own complexity, models and execution. Use `release-*` agents o
 | import GSD / `.planning` exists but release is not initialized | `import` |
 | init/bootstrap/new project | `init` |
 | bug, crash, traceback, broken, investigate | `debug` |
+| sketch, prototype, explore UI directions, compare design variants | `sketch` |
 | UI/screen/page/modal/component design | `ui-phase` |
 | LLM/prompt/RAG/embedding/provider model | `ai-phase` |
 | security/vulnerability/threat/OWASP | `secure-phase` if the phase is already built; else `security` |
