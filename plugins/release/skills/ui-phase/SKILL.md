@@ -40,7 +40,7 @@ Produce `{phase}-UI-SPEC.md` for a frontend/fullstack phase. Refuse backend-only
 
 ## Flow
 
-1. Resolve the phase and read SPEC/CONTEXT, locks, any prior UI-SPEC, relevant routes/components, and dependency/style manifests. Detect the existing design system, routing, forms, client/server state, and test conventions from those files only.
+1. Resolve the phase and read SPEC/CONTEXT, locks, any prior UI-SPEC, relevant routes/components, dependency/style manifests, and any explicitly selected `.release-planning/sketches/*/IMPLEMENTATION-HANDOFF.md` or project-local design skill. Detect the existing design system, routing, forms, client/server state, and test conventions from those files only. A pending sketch or browser/localStorage selection is not an accepted decision.
 2. Reuse locked and incumbent patterns. Ask at most one batch of three questions only for choices that change interaction, content hierarchy, responsive behavior, or accessibility.
 3. For C1/C2 work within an established system, write UI-SPEC inline. Include only affected routes/components; data contracts; loading/empty/error/success states; key interaction and validation; keyboard/focus/semantic behavior; responsive behavior; state ownership; and targeted tests.
 4. Spawn `release-react-ui-researcher` only with `--research`, or for C3/C4 novel surfaces with unresolved design-system/interaction decisions. Pass paths and open decisions, not all planning documents.
