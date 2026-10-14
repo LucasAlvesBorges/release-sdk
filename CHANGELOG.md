@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-10-14
+
+### Added
+- `sketch` skill: explore a React UI idea through 2–3 runnable, navigable variants before choosing
+  an implementation direction. `auto` routes to it and `ui-phase` points to it.
+- `quick` test gates scope to the changed modules instead of the whole suite.
+
+### Changed
+- `loop` and `execute` defer the full gate until acceptance.
+- Test execution is serialized under a bounded timeout.
+
+### Fixed
+- Quick gates cover nested frontend targets and keep Expo and nested test coverage.
+- Test execution fails closed outside the test mount.
+
 ## [0.30.0] — 2026-09-22
 
 Driven by hubus/moblity carrying ~700 legacy markers and 113 legacy-flavored test files: the
